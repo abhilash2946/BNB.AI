@@ -4,6 +4,7 @@ node_modules/
 env/
 venv/
 ENV/
+.python-version
 
 # Python Build and Cache
 __pycache__/
@@ -13,21 +14,29 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
+.mypy_cache/
+.pytype/
+pip-log.txt
+pip-wheel-metadata/
 
 # Frontend Build and Tools
 dist/
+dist-ssr/
 build/
 .cache/
 .parcel-cache/
 .next/
 out/
+.eslintcache/
+.stylelintcache/
 
 # IDEs and Editors
 .idea/
 .vscode/
 *.swp
 *.swo
-.DS_Store
+*.sublime-project
+*.sublime-workspace
 
 # Environment Variables
 .env
@@ -39,3 +48,18 @@ out/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+
+# Supabase
+supabase/.temp/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+fastapi-backend/uvicorn.err.log
+fastapi-backend/uvicorn.out.log

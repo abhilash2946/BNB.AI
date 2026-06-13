@@ -1,94 +1,174 @@
-import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import React, { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "./lib/supabaseClient";
 import { UserProfile, SiteProfile, UserCredentials } from "./types";
 import LandingPage from "./components/LandingPage";
 import Onboarding from "./components/Onboarding";
 import SiteManagement from "./components/SiteManagement";
-import MainDashboard from "./components/MainDashboard";
+import CommandCenter from "./components/CommandCenter";
+import { Toaster } from 'react-hot-toast';
+import { Sparkles } from 'lucide-react';
+import { useTheme } from "./contexts/ThemeContext";
 
 type ViewState = "landing" | "onboarding" | "dashboard" | "site_management";
 
 export default function App() {
-  const [view, setView] = useState<ViewState>(() => (localStorage.getItem('bnb_app_view') as ViewState) || "landing");
+  const { theme } = useTheme();
+  const [view, setView] = useState<ViewState>(() => {
+    const path = window.location.pathname;
+    if (path === "/onboarding") return "onboarding";
+    if (path === "/site-management") return "site_management";
+    if (path === "/dashboard") return "dashboard";
+    const saved = localStorage.getItem('bnb_app_view') as ViewState;
+    return saved || "landing";
+  });
+
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState("Synchronizing secure session...");
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    const saved = sessionStorage.getItem('bnb_user_profile');
+    try { return saved ? JSON.parse(saved) : null; } catch { return null; }
+  });
+
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [sessionUserMetadata, setSessionUserMetadata] = useState<any>(null);
-  const [sites, setSites] = useState<SiteProfile[]>([]);
-  const [activeSite, setActiveSite] = useState<SiteProfile | null>(null);
-  const [sharedCreds, setSharedCreds] = useState<UserCredentials>({});
-  const isFetchingRef = React.useRef(false);
 
-  // Safety Timeout: If loading takes more than 8 seconds, force it to false
-  // to avoid getting stuck on a blank screen if a network call hangs.
+  const [sites, setSites] = useState<SiteProfile[]>(() => {
+    const saved = sessionStorage.getItem('bnb_sites');
+    try { return saved ? JSON.parse(saved) : []; } catch { return []; }
+  });
+
+  const [activeSite, setActiveSite] = useState<SiteProfile | null>(() => {
+    const saved = sessionStorage.getItem('bnb_active_site');
+    try { return saved ? JSON.parse(saved) : null; } catch { return null; }
+  });
+
+  const [sharedCreds, setSharedCreds] = useState<UserCredentials>(() => {
+    const saved = sessionStorage.getItem('bnb_shared_creds');
+    try { return saved ? JSON.parse(saved) : {}; } catch { return {}; }
+  });
+
+  const isFetchingRef = useRef(false);
+  const lastFetchedUserIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(current => {
-        if (current) {
-          console.warn("Auth sync timed out after 8s. Forcing UI release.");
-          return false;
-        }
-        return false;
-      });
-    }, 8000);
-    return () => clearTimeout(timer);
+    const handleError = (e: PromiseRejectionEvent) => {
+      console.error("Unhandled promise rejection:", e.reason);
+    };
+    window.addEventListener("unhandledrejection", handleError);
+
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (path === "/onboarding") setView("onboarding");
+      else if (path === "/site-management") setView("site_management");
+      else if (path === "/dashboard") setView("dashboard");
+      else setView("landing");
+    };
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("unhandledrejection", handleError);
+      window.removeEventListener("popstate", handlePopState);
+    };
   }, []);
 
-  // Persist View Changes
   useEffect(() => {
-    if (view) localStorage.setItem('bnb_app_view', view);
-  }, [view]);
+    if (!isLoading) {
+      if (view !== "landing" && view !== "onboarding" && !user) {
+        setView("landing");
+        return;
+      }
+      localStorage.setItem('bnb_app_view', view);
+      const currentPath = window.location.pathname;
+      let targetPath = "/";
+      if (view === "onboarding") targetPath = "/onboarding";
+      else if (view === "dashboard") targetPath = "/dashboard";
+      else if (view === "site_management") targetPath = "/site-management";
+      if (currentPath !== targetPath) {
+        window.history.replaceState({}, "", targetPath);
+      }
+    }
+  }, [view, isLoading, user]);
 
-  // Persist Active Site
   useEffect(() => {
-    if (activeSite?.id) localStorage.setItem('bnb_active_site_id', activeSite.id);
+    if (activeSite?.id) {
+      localStorage.setItem('bnb_active_site_id', activeSite.id);
+      sessionStorage.setItem('bnb_active_site', JSON.stringify(activeSite));
+    }
   }, [activeSite]);
 
   useEffect(() => {
     let mounted = true;
 
-    const initAuth = async () => {
+    const checkInitialSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!mounted) return;
-
-        if (session) {
+        if (mounted && session) {
           setSessionUserId(session.user.id);
           setSessionUserMetadata(session.user.user_metadata);
-          await fetchProfileData(session.user.id, session.user);
-        } else {
-          setUser(null);
-          setView("landing");
+          setIsSyncing(true);
+
+          const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+          if (refreshError || !refreshed?.user) {
+            await supabase.auth.signOut();
+            setIsLoading(false);
+            setView("landing");
+            return;
+          }
+
+          setUser(prev => prev || {
+            id: refreshed.user.id,
+            name: refreshed.user.user_metadata?.full_name || "User",
+            agencyName: "Loading...",
+            email: refreshed.user.email || "",
+            role: "Member",
+            tier: "Standard"
+          });
+
+          void fetchProfileData(refreshed.user.id, refreshed.user);
+        } else if (mounted && !session) {
           setIsLoading(false);
         }
       } catch (err) {
-        console.error("Auth init error:", err);
-        if (mounted) {
-          setView("landing");
-          setIsLoading(false);
-        }
+        console.error("checkInitialSession error:", err);
+        if (mounted) setIsLoading(false);
       }
     };
-
-    initAuth();
+    checkInitialSession();
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
-
-      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session) {
+      if (session) {
+        const isNewSession = session.user.id !== sessionUserId;
         setSessionUserId(session.user.id);
         setSessionUserMetadata(session.user.user_metadata);
-        await fetchProfileData(session.user.id, session.user);
+        if (isNewSession || !user) {
+          setIsSyncing(true);
+          setUser(prev => prev || {
+            id: session.user.id,
+            name: session.user.user_metadata?.full_name || "User",
+            agencyName: "Loading...",
+            email: session.user.email || "",
+            role: "Member",
+            tier: "Standard"
+          });
+          void fetchProfileData(session.user.id, session.user);
+        }
       } else if (event === "SIGNED_OUT") {
         setUser(null);
         setSessionUserId(null);
         setSites([]);
         setActiveSite(null);
         setSharedCreds({});
+        sessionStorage.clear();
         setView("landing");
         localStorage.removeItem('bnb_app_view');
         localStorage.removeItem('bnb_active_site_id');
+        setIsLoading(false);
+      } else if (event === 'INITIAL_SESSION' && !session) {
         setIsLoading(false);
       }
     });
@@ -99,142 +179,251 @@ export default function App() {
     };
   }, []);
 
-  async function fetchProfileData(userId: string, authUserFromSession?: any) {
-    if (!userId || isFetchingRef.current) return;
+  async function fetchProfileData(userId: string, authUserFromSession?: any, retryCount = 0) {
+    // retryCount is currently unused – we use a simple loop with fixed delay inside.
+    // Kept for potential future exponential backoff.
+    const MAX_RETRIES = 2;
+    const RETRY_DELAY = 2000; // 2 seconds
+
+    if (lastFetchedUserIdRef.current === userId && retryCount === 0) {
+      console.log("Already fetching for this user, skipping");
+      return;
+    }
+    if (isFetchingRef.current && retryCount === 0) return;
+
     isFetchingRef.current = true;
+    lastFetchedUserIdRef.current = userId;
+    setIsSyncing(true);
+
+    const safetyTimeout = setTimeout(() => {
+      if (isFetchingRef.current) {
+        console.warn("fetchProfileData stuck, forcing reset");
+        setIsLoading(false);
+        setIsSyncing(false);
+        isFetchingRef.current = false;
+        lastFetchedUserIdRef.current = null;
+      }
+    }, 30000); // Increased to 30s
 
     try {
       const sessionEmail = authUserFromSession?.email || sessionUserMetadata?.email || "";
 
-      let profileRes = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+      // 1. Fetch profile with retry
+      let profile;
+      let profileError;
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        const result = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .maybeSingle();
+        profile = result.data;
+        profileError = result.error;
+        if (!profileError && profile) break;
+        if (attempt < MAX_RETRIES) {
+          console.log(`Profile fetch attempt ${attempt + 1} failed, retrying in ${RETRY_DELAY}ms...`);
+          await new Promise(r => setTimeout(r, RETRY_DELAY));
+        }
+      }
+      if (profileError) throw new Error(`Profile fetch failed after ${MAX_RETRIES + 1} attempts: ${profileError.message}`);
 
-      if (!profileRes.data && sessionEmail) {
-        profileRes = await supabase.from("profiles").select("*").eq("email", sessionEmail).maybeSingle();
+      let activeProfile = profile;
+      if (!activeProfile) {
+        const email = authUserFromSession?.email || sessionUserMetadata?.email || sessionEmail || "";
+        const { data: created, error: createError } = await supabase
+          .from("profiles")
+          .insert({
+            id: userId,
+            name: authUserFromSession?.user_metadata?.full_name || "User",
+            agency_name: "My Agency",
+            email: email,
+            role: "Member",
+            tier: "Standard"
+          })
+          .select()
+          .single();
+        if (createError) throw createError;
+        activeProfile = created;
       }
 
-      if (profileRes.error) console.error("Profile fetch error:", profileRes.error);
+      const userData: UserProfile = {
+        id: userId,
+        name: activeProfile?.name || authUserFromSession?.user_metadata?.full_name || "User",
+        agencyName: activeProfile?.agency_name || "Enterprise Workspace",
+        email: activeProfile?.email || authUserFromSession?.email || sessionEmail || "",
+        role: activeProfile?.role || "Member",
+        avatarUrl: activeProfile?.avatar_url || undefined,
+        tier: (activeProfile?.tier as any) || "Standard"
+      };
 
-      const profile = profileRes.data;
+      setUser(userData);
+      sessionStorage.setItem('bnb_user_profile', JSON.stringify(userData));
+      setIsLoading(false); // Only now we stop the initial loading spinner
 
-      if (!profile) {
-        setView("onboarding");
-        setIsLoading(false);
-        return;
-      }
-
-      const ownerId = profile.id || userId;
-
-      // Run the remaining queries in parallel once the owning profile has been resolved.
-      const [credsRes, sitesRes] = await Promise.all([
-        supabase.from("user_credentials").select("*").eq("user_id", ownerId),
-        supabase.from("sites").select("*").eq("user_id", ownerId)
-      ]);
-
-      const email = authUserFromSession?.email || sessionUserMetadata?.email || profile.email || sessionEmail || "";
-
-      setUser({
-        id: ownerId,
-        name: profile.name || "",
-        agencyName: profile.agency_name || "",
-        email: email,
-        role: profile.role || "",
-        tier: profile.tier || "Standard"
+      setView(current => {
+        const protectedViews: ViewState[] = ["dashboard", "site_management", "onboarding"];
+        if (protectedViews.includes(current)) return current;
+        const savedView = localStorage.getItem('bnb_app_view') as ViewState;
+        return (savedView && protectedViews.includes(savedView as ViewState)) ? (savedView as ViewState) : "dashboard";
       });
 
-      const creds: UserCredentials = {};
-      credsRes.data?.forEach(c => {
-        if (c.platform === 'google_oauth') creds.googleOAuth = c.credentials;
-        if (c.platform === 'google_developer_token') creds.googleAdsDeveloperToken = c.credentials.developer_token;
-        if (c.platform === 'meta_long_lived_token') creds.metaLongLivedToken = c.credentials.token;
-      });
-      setSharedCreds(creds);
+      // 2. Background fetch sites & credentials
+      void (async () => {
+        const startTime = Date.now();
+        try {
+          const [credsRes, sitesRes] = await Promise.all([
+            supabase.from("user_credentials").select("*").eq("user_id", userId),
+            supabase.from("sites").select("*").eq("user_id", userId)
+          ]);
 
-      const mappedSites: SiteProfile[] = (sitesRes.data || []).map(s => ({
-        id: s.id,
-        name: s.name,
-        url: s.url,
-        industry: s.industry,
-        seoSettings: s.seo_settings || undefined,
-      }));
-      setSites(mappedSites);
+          if (credsRes.data) {
+            const creds: UserCredentials = {};
+            credsRes.data.forEach((c: any) => {
+              if (c.platform === 'google_oauth') creds.googleOAuth = c.credentials;
+              if (c.platform === 'google_developer_token') creds.googleAdsDeveloperToken = c.credentials.developer_token;
+              if (c.platform === 'meta_long_lived_token') {
+                creds.metaLongLivedToken = c.credentials.token;
+                creds.metaTokenExpiry = c.credentials.expires_at;
+              }
+            });
+            setSharedCreds(creds);
+            sessionStorage.setItem('bnb_shared_creds', JSON.stringify(creds));
+          }
 
-      const lastSiteId = localStorage.getItem('bnb_active_site_id');
-      const restoredSite = mappedSites.find(s => s.id === lastSiteId);
-      setActiveSite(restoredSite || (mappedSites.length > 0 ? mappedSites[0] : null));
+          let mappedSites: SiteProfile[] = [];
+          if (sitesRes.data) {
+            mappedSites = sitesRes.data.map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              url: s.url,
+              industry: s.industry,
+              imageUrl: s.image_url || undefined,
+              seoSettings: s.seo_settings || undefined,
+            }));
+            setSites(mappedSites);
+            sessionStorage.setItem('bnb_sites', JSON.stringify(mappedSites));
 
-      const savedView = localStorage.getItem('bnb_app_view') as ViewState;
-      const validViews: ViewState[] = ["landing", "onboarding", "dashboard", "site_management"];
+            let finalActive: SiteProfile | null = null;
+            if (mappedSites.length > 0) {
+              const lastSiteId = localStorage.getItem('bnb_active_site_id');
+              const restoredSite = mappedSites.find(s => s.id === lastSiteId);
+              finalActive = restoredSite || mappedSites[0];
+              setActiveSite(finalActive);
+              sessionStorage.setItem('bnb_active_site', JSON.stringify(finalActive));
+              localStorage.setItem('bnb_active_site_id', finalActive.id);
+            } else {
+              // No sites → clear active site completely
+              setActiveSite(null);
+              sessionStorage.removeItem('bnb_active_site');
+              localStorage.removeItem('bnb_active_site_id');
+            }
+          }
 
-      if (savedView && validViews.includes(savedView) && savedView !== "landing" && savedView !== "onboarding") {
-        setView(savedView);
-      } else {
-        setView("dashboard");
-      }
+          // Minimum 2-second loading for UX (optional)
+          const minLoadTime = 2000;
+          const elapsed = Date.now() - startTime;
+          if (elapsed < minLoadTime) {
+            await new Promise(r => setTimeout(r, minLoadTime - elapsed));
+          }
+
+          console.log("[fetchProfileData] Background sync complete.");
+
+        } catch (bgErr) {
+          console.error("[fetchProfileData] Background sync failed:", bgErr);
+        } finally {
+          setIsSyncing(false);
+        }
+      })();
+
     } catch (err) {
-      console.error("fetchProfileData error:", err);
-      setView("dashboard");
-    } finally {
+      console.error("[fetchProfileData] Fatal error:", err);
+      // If we are here after retries, show error state instead of empty workspace
       setIsLoading(false);
+      setIsSyncing(false);
+      setAuthError("Failed to load your profile. Please refresh the page or contact support.");
+      setView("landing");
+    } finally {
+      clearTimeout(safetyTimeout);
       isFetchingRef.current = false;
+      lastFetchedUserIdRef.current = null;
     }
   }
 
-  const handleLoginSuccess = () => supabase.auth.signInWithOAuth({ provider: "google" });
-  const handleLogout = async () => { await supabase.auth.signOut(); setView("landing"); };
+
+  const handleLoginSuccess = async () => {
+    if (user) {
+      const savedView = localStorage.getItem('bnb_app_view') as ViewState;
+      setView(savedView && savedView !== "landing" ? savedView : "dashboard");
+      return;
+    }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      void fetchProfileData(session.user.id, session.user);
+      return;
+    }
+    setAuthError(null);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { queryParams: { access_type: 'offline' }, redirectTo: window.location.origin }
+      });
+      if (error) throw error;
+    } catch (err: any) {
+      setAuthError(`OAuth Error: ${err.message}`);
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setSites([]);
+    setActiveSite(null);
+    sessionStorage.clear();
+    setView("landing");
+  };
 
   if (isLoading) {
     return (
-      <div className="w-full min-h-screen bg-[#fcfbf9] flex flex-col items-center justify-center gap-6">
-        <div className="h-12 w-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-        <div className="text-center">
-          <p className="text-xs font-mono font-bold text-neutral-400 uppercase tracking-widest animate-pulse">BNB.AI Enterprise Intelligence</p>
-          <p className="text-[10px] text-neutral-300 mt-1 uppercase tracking-tighter">Synchronizing secure session...</p>
+      <div className="w-full min-h-screen bg-gradient-to-br from-cyan-900/20 to-violet-900/20 bg-[#080B14] flex flex-col items-center justify-center gap-6 text-center">
+        <div className="relative w-16 h-16">
+          <div className="absolute inset-0 border-4 border-cyan-500/20 rounded-full"></div>
+          <div className="absolute inset-0 border-4 border-t-cyan-500 border-transparent rounded-full animate-spin"></div>
+          <Sparkles className="absolute inset-0 m-auto text-cyan-400 animate-pulse" size={28} />
+        </div>
+        <div>
+          <p className="text-xs font-mono font-bold text-cyan-400 uppercase tracking-widest animate-pulse">BNB.AI Neural Boot</p>
+          <p className="text-[10px] text-cyan-500/70 mt-1 uppercase tracking-tighter">Establishing secure neural link</p>
         </div>
       </div>
     );
   }
 
-  // Fail-safe: if no user is loaded but we aren't loading, show landing page
-  const activeView = (view === "landing" || (!user && view !== "onboarding")) ? "landing" : view;
-
   return (
-    <div className="w-full min-h-screen bg-[#fcfbf9]">
+    <div className="w-full min-h-screen">
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          style: {
+            background: '#111827',
+            color: '#fff',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+          }
+        }}
+      />
       <AnimatePresence mode="wait">
-        {activeView === "landing" && (
-          <motion.div key="landing" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}>
+        {view === "landing" && (
+          <motion.div key="landing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <LandingPage onStart={handleLoginSuccess} onLogin={handleLoginSuccess} />
           </motion.div>
         )}
-        {activeView === "onboarding" && (
-          <motion.div key="onboarding" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} transition={{ duration: 0.25 }}>
-            <Onboarding
-              userId={sessionUserId || ""}
-              initialEmail={sessionUserMetadata?.email || ""}
-              initialName={sessionUserMetadata?.full_name || ""}
-              onComplete={() => {
-                if (!sessionUserId) return;
-                setUser({
-                  id: sessionUserId,
-                  name: sessionUserMetadata?.full_name || "",
-                  agencyName: "",
-                  email: sessionUserMetadata?.email || "",
-                  role: "",
-                  tier: "Standard",
-                });
-                setActiveSite(null);
-                setSites([]);
-                setSharedCreds({});
-                setView("dashboard");
-                setIsLoading(false);
-                void fetchProfileData(sessionUserId);
-              }}
-              defaultSites={[]}
-            />
+        {view === "onboarding" && (
+          <motion.div key="onboarding" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <Onboarding userId={sessionUserId || ""} initialEmail={sessionUserMetadata?.email || ""} initialName={sessionUserMetadata?.full_name || ""} onComplete={() => setView("dashboard")} defaultSites={[]} />
           </motion.div>
         )}
-        {activeView === "dashboard" && user && activeSite && (
-          <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
-            <MainDashboard
+        {view === "dashboard" && user && activeSite && (
+          <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <CommandCenter
               user={user}
               sites={sites}
               activeSite={activeSite}
@@ -248,27 +437,35 @@ export default function App() {
             />
           </motion.div>
         )}
-        {activeView === "dashboard" && user && !activeSite && (
-          <motion.div key="dashboard-empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="min-h-screen flex items-center justify-center px-6">
-            <div className="max-w-lg w-full bg-white border border-stone-200 rounded-3xl shadow-sm p-8 text-center">
-              <h2 className="text-2xl font-bold text-neutral-900 mb-2">Workspace is ready</h2>
-              <p className="text-sm text-neutral-600 mb-6">No site has been added yet. Open Site Management to add your first site and connect IDs.</p>
-              <button onClick={() => setView("site_management")} className="px-6 py-3 bg-neutral-900 text-amber-50 rounded-xl font-bold text-sm">
-                Go to Site Management
-              </button>
-            </div>
+        {view === "dashboard" && user && !activeSite && (
+          <motion.div key="dashboard-empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen flex items-center justify-center px-6">
+            {isSyncing ? (
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full bg-[#111827] border border-white/10 rounded-[2.5rem] shadow-2xl p-12 text-center flex flex-col items-center gap-8">
+                <div className="relative h-20 w-20">
+                  <div className="absolute inset-0 border-4 border-cyan-500/20 rounded-full"></div>
+                  <motion.div className="absolute inset-0 border-4 border-cyan-500 border-t-transparent rounded-full" animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} />
+                </div>
+                <div className="space-y-3">
+                  <h3 className="text-xl font-bold text-white">Searching for available sites</h3>
+                  <p className="text-sm text-gray-400">We're scanning your workspace to connect your properties.</p>
+                </div>
+                <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                  <motion.div className="h-full bg-cyan-500" initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 1, ease: "linear" }} />
+                </div>
+                <p className="text-[10px] font-mono font-bold text-cyan-400 uppercase tracking-widest animate-pulse">Live Workspace Scan</p>
+              </motion.div>
+            ) : (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-lg w-full bg-[#111827] border border-white/10 rounded-3xl shadow-sm p-10 text-center">
+                <h2 className="text-2xl font-bold text-white mb-3">Workspace is ready</h2>
+                <p className="text-sm text-gray-400 mb-8">No site has been added yet. Open Site Management to add your first site.</p>
+                <button onClick={() => setView("site_management")} className="px-10 py-4 bg-cyan-600 text-white rounded-2xl font-bold text-sm hover:bg-cyan-500 transition-colors">Go to Site Management</button>
+              </motion.div>
+            )}
           </motion.div>
         )}
-        {activeView === "site_management" && user && (
-          <motion.div key="site_management" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }} transition={{ duration: 0.25 }}>
-            <SiteManagement
-              user={user}
-              sites={sites}
-              sharedCreds={sharedCreds}
-              onRefresh={() => fetchProfileData(sessionUserId!)}
-              onClose={() => setView("dashboard")}
-              onLogout={handleLogout}
-            />
+        {view === "site_management" && user && (
+          <motion.div key="site_management" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}>
+            <SiteManagement user={user} sites={sites} sharedCreds={sharedCreds} onRefresh={() => fetchProfileData(sessionUserId!)} onClose={() => setView("dashboard")} onLogout={handleLogout} />
           </motion.div>
         )}
       </AnimatePresence>

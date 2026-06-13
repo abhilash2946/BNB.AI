@@ -15,6 +15,21 @@ View your app in AI Studio: https://ai.studio/apps/d1057251-8b8c-4658-8878-71f9a
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+2. Set up environment variables:
+   Copy `.env.example` to `.env` and fill in your Supabase and API details.
 3. Run the app:
    `npm run dev`
+
+## Testing
+
+Run unit tests with Vitest:
+`npm test`
+
+## Features
+
+- **Neural Command Center**: Real-time marketing insights powered by AI.
+- **Multi-Module Intelligence**: Specialized reports for SEO, Performance, and Social.
+- **Theme Support**: Dark and light modes.
+- **PDF Export**: Export your intelligence reports to PDF.
+- **Modular Architecture**: Clean, maintainable codebase with custom hooks and components.
+

@@ -91,3 +91,64 @@ async def google_callback(request: Request, code: str = None, state: str = None)
     if site_id:
         redirect_url += f"&site_id={site_id}"
     return RedirectResponse(url=redirect_url)
+
+from pydantic import BaseModel
+from datetime import datetime, timezone, timedelta
+import httpx
+
+class MetaTokenRequest(BaseModel):
+    short_token: str
+    user_id: str
+
+@router.post("/meta/exchange")
+async def exchange_meta_token(req: MetaTokenRequest):
+    # Trim the token and ensure we have credentials
+    token = req.short_token.strip()
+    app_id = settings.meta_app_id.strip()
+    app_secret = settings.meta_app_secret.strip()
+
+    # Masked log for debugging
+    masked_id = f"{app_id[:4]}...{app_id[-4:]}" if len(app_id) > 8 else app_id
+    print(f"---> Debug: Meta exchange attempt. App ID: {masked_id}")
+
+    if not app_id or not app_secret:
+        raise HTTPException(status_code=400, detail="Meta App ID or Secret not configured in backend .env")
+
+    # Use v21.0 (latest stable) instead of v25.0 which might be future/invalid
+    url = "https://graph.facebook.com/v21.0/oauth/access_token"
+    params = {
+        "grant_type": "fb_exchange_token",
+        "client_id": app_id,
+        "client_secret": app_secret,
+        "fb_exchange_token": token,
+    }
+
+    async with httpx.AsyncClient() as client:
+        # Using GET as per Meta docs for exchange token, but providing params clearly
+        resp = await client.get(url, params=params)
+        if resp.status_code != 200:
+            print(f"!!! Meta Token Exchange Error: {resp.text}")
+            if '"code": 101' in resp.text or '"code":101' in resp.text:
+                 print(f"!!! CRITICAL: Meta App ID '{app_id}' or Secret is invalid.")
+            raise HTTPException(status_code=400, detail="Token exchange failed: " + resp.text)
+
+        data = resp.json()
+        long_token = data["access_token"]
+        expires_in = data.get("expires_in", 5184000)  # seconds (default 60 days)
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+
+    # Store in user_credentials
+    supabase.table("user_credentials").upsert({
+        "user_id": req.user_id,
+        "platform": "meta_long_lived_token",
+        "credentials": {
+            "token": long_token,
+            "expires_at": expires_at.isoformat()
+        }
+    }, on_conflict="user_id, platform").execute()
+
+    return {
+        "success": True,
+        "expires_at": expires_at.isoformat(),
+        "expires_in_days": expires_in // 86400
+    }

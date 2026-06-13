@@ -22,10 +22,12 @@ async def _post_ga4(url: str, access_token: str, body: dict, retries: int = 3) -
 
                 # If we get a rate limit or server error, retry
                 if resp.status_code in {429, 500, 502, 503, 504}:
-                    print(f"!!! GA4 API returned {resp.status_code}, retrying (attempt {attempt+1})...")
+                    error_detail = resp.text[:200]
+                    print(f"!!! GA4 API returned {resp.status_code}, retrying (attempt {attempt+1})... Error: {error_detail}")
                     await asyncio.sleep(1 * (attempt + 1))
                     continue
 
+                print(f"!!! GA4 API fatal error {resp.status_code}: {resp.text[:500]}")
                 resp.raise_for_status()
         except (httpx.RemoteProtocolError, httpx.ReadTimeout, httpx.ConnectError) as e:
             print(f"!!! GA4 Network Error: {e}, retrying (attempt {attempt+1})...")
@@ -46,7 +48,8 @@ async def fetch_ga4_totals(property_id: str, access_token: str, start_date: str,
             {"name": "newUsers"},
             {"name": "averageSessionDuration"},
             {"name": "eventCount"},
-            {"name": "sessions"}
+            {"name": "sessions"},
+            {"name": "bounceRate"}
         ],
         "dimensions": []
     }
@@ -60,7 +63,7 @@ async def fetch_ga4_totals(property_id: str, access_token: str, start_date: str,
     prev_vals = rows[1]["metricValues"] if len(rows) > 1 else [{"value": "0"} for _ in current_vals]
 
     result = {}
-    metrics_list = ["totalUsers", "newUsers", "averageSessionDuration", "eventCount", "sessions"]
+    metrics_list = ["totalUsers", "newUsers", "averageSessionDuration", "eventCount", "sessions", "bounceRate"]
     for i, metric in enumerate(metrics_list):
         cur = float(current_vals[i]["value"])
         prev = float(prev_vals[i]["value"])
@@ -107,14 +110,18 @@ async def fetch_ga4_daily_users(property_id: str, access_token: str, start_date:
     url = f"https://analyticsdata.googleapis.com/v1beta/properties/{property_id}:runReport"
     body = {
         "dateRanges": [{"startDate": start_date, "endDate": end_date}],
-        "metrics": [{"name": "totalUsers"}],
+        "metrics": [{"name": "totalUsers"}, {"name": "newUsers"}],
         "dimensions": [{"name": "date"}],
         "orderBys": [{"dimension": {"dimensionName": "date"}}]
     }
     data = await _post_ga4(url, access_token, body)
     rows = data.get("rows", [])
     return [
-        {"date": row["dimensionValues"][0]["value"], "users": int(row["metricValues"][0]["value"])}
+        {
+            "date": row["dimensionValues"][0]["value"],
+            "users": int(row["metricValues"][0]["value"]),
+            "newUsers": int(row["metricValues"][1]["value"])
+        }
         for row in rows
     ]
 

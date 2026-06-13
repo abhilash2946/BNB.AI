@@ -11,3 +11,7 @@ class ReportResponse(BaseModel):
     success: bool
     report_id: str
     status: str = "processing"
+
+class AdviceSummarizeRequest(BaseModel):
+    report_id: str
+    advice_list: List[str]

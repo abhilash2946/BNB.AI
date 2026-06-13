@@ -1,8 +1,17 @@
 import os
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
-load_dotenv()
+# Get the directory of this file (app/) and go up one level to the backend root
+base_dir = Path(__file__).resolve().parent.parent
+env_file = base_dir / ".env"
+
+if env_file.exists():
+    load_dotenv(dotenv_path=env_file)
+    print(f"---> Config: Loaded .env from {env_file}")
+else:
+    print(f"!!! Config Warning: .env file not found at {env_file}")
 
 class Settings(BaseSettings):
     supabase_url: str = os.getenv("SUPABASE_URL", "")
@@ -13,9 +22,10 @@ class Settings(BaseSettings):
     google_client_secret: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
     google_redirect_uri: str = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback")
     frontend_url: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    meta_app_id: str = os.getenv("META_APP_ID", "")
+    meta_app_secret: str = os.getenv("META_APP_SECRET", "")
 
     class Config:
-        env_file = ".env"
         extra = "ignore"
 
 settings = Settings()

@@ -42,7 +42,7 @@ async function startServer() {
 
     console.log(`\n  \x1b[32m\x1b[1mBNB.AI Marketing Intelligence Platform\x1b[0m`);
     console.log(`  \x1b[34m➜\x1b[0m  \x1b[1mLocal:\x1b[0m   http://localhost:\x1b[1m${PORT}\x1b[0m/`);
-    console.log(`  \x1b[34m➜\x1b[0m  \x1b[1mNetwork:\x1b[0m http://${networkAddress}:\x1b[1m${PORT}\x1b[0m/`);
+    console.log(`  \x1b[34m➜\x1b[0m  \x1b[1mServing from:\x1b[0m ${process.cwd()}`);
     console.log(`\n  \x1b[2mReady for analysis.\x1b[0m\n`);
   });
 }
