@@ -20,6 +20,7 @@ export interface SiteProfile {
   name: string;
   url: string;
   industry: string;
+  city?: string;
   imageUrl?: string;
   seoSettings?: {
     ga4Id?: string;
@@ -78,6 +79,8 @@ export interface SectionAdvice {
   meta_campaign_advice?: string[];
   meta_adset_advice?: string[];
   meta_device_advice?: string[];
+  meta_kpi_advice?: string[];
+  meta_campaign_advice_summarized?: string[];
   // SEO specific
   country_advice?: string[];
   activity_advice?: string[];
@@ -85,6 +88,7 @@ export interface SectionAdvice {
   channel_advice?: string[];
   event_advice?: string[];
   platform_advice?: string[];
+  timeline_advice?: string[];
 }
 
 export interface RawReport {
@@ -113,6 +117,7 @@ export interface RawReport {
   ai_recommendations_summarized?: string[];
   ai_comparison?: string;
   radar_data?: any;
+  ai_insights?: any;
   ai_slide_descriptions?: Record<string, string>;
   seo_work_details?: {
     new_posts: string[];
@@ -139,6 +144,7 @@ export interface RawReport {
 
 export interface ReportResponse {
   report_id?: string;
+  siteName?: string;
   title: string;
   narrative1: string;
   tableHeader1: string[];
@@ -179,9 +185,31 @@ export interface ReportResponse {
   metaDaily?: any[];
   radar_data?: Array<{ subject: string; you: number; competitorA: number; competitorB: number; competitorC: number }>;
   ai_slide_descriptions?: Record<string, string>;
+  improvement_roadmap?: {
+    summary: string;
+    strengths: string[];
+    weaknesses: string[];
+    opportunities: string[];
+    actions: Array<{ title: string; target: string; effort: 'Low' | 'Medium' | 'High' }>;
+  };
+  competitor_intelligence?: {
+    biggest_threat: string;
+    what_they_do_better: string;
+    differentiation_actions: string[];
+  };
+  radar_self?: Record<string, number>;
   seo_work_details?: RawReport['seo_work_details'];
   gbp_details?: RawReport['gbp_details'];
   ga4_details?: any;
+  generatedAt?: string;
+  category?: string;
+  dateRange?: { start: string; end: string };
+  kpis?: any[];
+  executiveSummary?: string;
+  radarData?: any[];
+  ai_insights?: any;
+  performance?: any;
+  chart_datasets?: any[];
 }
 
 // UI Blueprint types from Downloads/bnb.ai
@@ -244,9 +272,27 @@ export interface PlatformEvents {
   events: number;
 }
 
+export interface CompetitorBreakdown {
+  name: string;
+  url?: string;
+  inferred_actions: string[];
+  strengths: string[];
+  weaknesses: string[];
+}
+
+export interface SelfGapAnalysis {
+  strengths: string[];
+  weaknesses: string[];
+  missed_opportunities: string[];
+  actionable_gaps: string[];
+}
+
 export interface CompetitorAnalysis {
   inferredActions: string[];
   recommendedSteps: string[];
+  competitor_breakdown?: CompetitorBreakdown[];
+  overall_threat_summary?: string;
+  self_gap_analysis?: SelfGapAnalysis;
 }
 
 export interface SeoReportData {
@@ -255,6 +301,7 @@ export interface SeoReportData {
   userActivityOverTime: ActivityOverTime[];
   userActivityInsight: string;
   topKeywords: { keyword: string; clicks: number; ctr: string; position: string }[];
+  averagePosition?: number;
   topKeywordsInsight: string;
   viewsByPageTitle: PageViews[];
   viewsByPageInsight: string;
@@ -274,6 +321,16 @@ export interface SeoReportData {
     platforms: string[];
   };
   aiCompetitorAnalysis: CompetitorAnalysis;
+  sectionAdvice?: {
+    kpi_advice: string[];
+    demographics: string[];
+    timeline: string[];
+    keywords: string[];
+    pages: string[];
+    channels: string[];
+    events: string[];
+    platforms: string[];
+  };
 }
 
 // Performance Details
@@ -372,6 +429,16 @@ export interface PerformanceReportData {
   sessionsByChannel?: ChannelSessions[];
   sessionsInsight?: string;
   aiCompetitorAnalysis: CompetitorAnalysis;
+  sectionAdvice?: {
+    kpi_advice: string[];
+    demographics: string[];
+    timeline: string[];
+    keywords: string[];
+    pages: string[];
+    channels: string[];
+    events: string[];
+    platforms: string[];
+  };
 }
 
 // Social Details
@@ -394,6 +461,10 @@ export interface SocialReportData {
   socialInsight: string;
   impressionsTimeline: SocialImpressionsTimeline[];
   impressionsTimelineInsight: string;
+  sectionAdvice?: {
+    kpi_advice: string[];
+    timeline_advice: string[];
+  };
 }
 
 // Full intelligence report model
@@ -430,6 +501,21 @@ export interface MarketingReport {
   ai_recommendations?: any[];
   seo_work_details?: RawReport['seo_work_details'];
   gbp_details?: RawReport['gbp_details'];
+  improvement_roadmap?: {
+    summary: string;
+    strengths: string[];
+    weaknesses: string[];
+    opportunities: string[];
+    actions: Array<{ title: string; target: string; effort: 'Low' | 'Medium' | 'High' }>;
+  };
+  competitor_intelligence?: {
+    biggest_threat: string;
+    what_they_do_better: string;
+    differentiation_actions: string[];
+  };
+  radar_self?: Record<string, number>;
+  tableData1?: MarketingMetric[];
+  tableData2?: AcquisitionChannel[];
 }
 
 export interface ChatMessage {
@@ -443,4 +529,131 @@ export interface SiteInfo {
   id: string;
   name: string;
   url: string;
+}
+
+// Interactive PPT Types
+export interface SlideKPI {
+  label: string;
+  value: string;
+  subValue?: string;
+  growth?: string;
+  isPositive?: boolean;
+}
+
+export interface ScorecardMetric {
+  id: string;
+  name: string;
+  score: number;
+  color: string;
+}
+
+export interface GrowthKPIRow {
+  id: string;
+  name: string;
+  prev: string;
+  current: string;
+  variance: string;
+  status: 'positive' | 'negative' | 'neutral';
+}
+
+export interface ChartDataPoint {
+  label: string;
+  value: number;
+  color?: string;
+  subValue?: number;
+}
+
+export interface ScatterPoint {
+  id: string;
+  keyword: string;
+  ctr: number;      // percentage, e.g. 32.1
+  position: number; // e.g. 1.86
+  volume?: number;  // optional sized bubble
+}
+
+export interface FunnelStage {
+  id: string;
+  name: string;
+  value: number;
+  percentage?: string;
+  conversionText?: string;
+}
+
+export interface CampaignData {
+  id: string;
+  name: string;
+  status: 'Top Performer' | 'Needs Audit' | 'Active';
+  spend: string;
+  leads: number;
+  cpl: string;
+  chartData: { label: string; current: number; relative: number }[];
+}
+
+export interface StrategicItem {
+  id: string;
+  category: string;
+  title: string;
+  desc: string;
+}
+
+export interface CityData {
+  id: string;
+  city: string;
+  users: number;
+}
+
+export interface RoadmapCard {
+  id: string;
+  title: string;
+  desc: string;
+  category: string;
+}
+
+export interface RoadmapMonth {
+  title: string;
+  subtitle: string;
+  color: string;
+  items: RoadmapCard[];
+}
+
+export type SlideType =
+  | 'cover'
+  | 'summary'
+  | 'scorecard'
+  | 'growth'
+  | 'organic'
+  | 'scatter'
+  | 'funnel'
+  | 'campaign'
+  | 'audience'
+  | 'channels'
+  | 'roadmap'
+  | 'outro';
+
+export interface Slide {
+  id: string;
+  type: SlideType;
+  title: string;
+  subTag?: string;
+  scoreTag?: string;
+  metadata?: {
+    reportingPeriod?: string;
+    preparedBy?: string;
+    classification?: string;
+    version?: string;
+  };
+  kpis?: SlideKPI[];
+  scorecardGauges?: ScorecardMetric[];
+  scorecardInsight?: string;
+  growthTable?: GrowthKPIRow[];
+  growthInsight?: string;
+  chartData?: ChartDataPoint[];
+  scatterPoints?: ScatterPoint[];
+  funnelStages?: FunnelStage[];
+  campaigns?: CampaignData[];
+  cities?: CityData[];
+  roadmapMonths?: RoadmapMonth[];
+  footer?: string;
+  descriptionText?: string;
+  insightsList?: { icon: 'win' | 'risk' | 'opportunity' | 'neutral'; title: string; text: string }[];
 }

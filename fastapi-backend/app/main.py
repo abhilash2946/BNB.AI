@@ -73,7 +73,7 @@ async def performance_report(req: ReportRequest, background_tasks: BackgroundTas
         print(f"!!! Error inserting report status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-    background_tasks.add_task(run_performance_report, req.user_id, req.site_id, req.start_date, req.end_date, report_id)
+    background_tasks.add_task(run_performance_report, req.user_id, req.site_id, req.start_date, req.end_date, report_id, req.bnb_mode)
     return ReportResponse(success=True, report_id=report_id)
 
 @app.post("/seo-report")
@@ -117,7 +117,7 @@ async def seo_report(req: ReportRequest, background_tasks: BackgroundTasks):
         print(f"!!! Error inserting report status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-    background_tasks.add_task(run_seo_report, req.user_id, req.site_id, req.start_date, req.end_date, report_id)
+    background_tasks.add_task(run_seo_report, req.user_id, req.site_id, req.start_date, req.end_date, report_id, req.bnb_mode)
     return ReportResponse(success=True, report_id=report_id)
 
 @app.post("/social-report")

@@ -6,6 +6,7 @@ class ReportRequest(BaseModel):
     site_id: str
     start_date: str   # YYYY-MM-DD
     end_date: str     # YYYY-MM-DD
+    bnb_mode: Optional[bool] = False
 
 class ReportResponse(BaseModel):
     success: bool

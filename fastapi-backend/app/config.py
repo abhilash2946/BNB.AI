@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     frontend_url: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
     meta_app_id: str = os.getenv("META_APP_ID", "")
     meta_app_secret: str = os.getenv("META_APP_SECRET", "")
+    openserp_url: str = os.getenv("OPENSERP_URL", "http://localhost:7000")
 
     class Config:
         extra = "ignore"

@@ -56,3 +56,33 @@ body {
 .custom-scrollbar-light::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.2);
 }
+
+/* Custom scrollbars for presentation explorer */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* Perspective rules for custom 3D flipping animation views */
+.perspective-container {
+  perspective: 1500px;
+}
+
+/* Custom glow effects */
+.glow-card {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.05);
+}
+.glow-card-active {
+  box-shadow: 0 10px 30px -10px rgba(59, 130, 246, 0.25);
+}
+

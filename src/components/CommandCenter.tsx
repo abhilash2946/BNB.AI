@@ -309,6 +309,7 @@ export default function CommandCenter({
               isFullscreen={isFullscreenReport}
               setIsFullscreen={setIsFullscreenReport}
               userAvatarUrl={user.avatarUrl}
+              userName={user.name}
             />
           ) : activeView === 'client-doc' ? (
             marketingReport ? (

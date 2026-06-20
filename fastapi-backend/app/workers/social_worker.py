@@ -147,15 +147,19 @@ async def run_social_report(user_id: str, site_id: str, start_date: str, end_dat
 
         # --- Generate Summarized Recommendations ---
         recommendations = ai_result.get("recommendations", [])
-        advice_to_summarize = []
+
+        # Use summarized recommendations from Gemini if available (though not in prompt yet)
+        # For now, fallback to first 10 words logic to remain consistent with other workers
+        summarized_recommendations = []
         if isinstance(recommendations, list):
             for item in recommendations:
+                text = ""
                 if isinstance(item, dict):
-                    advice_to_summarize.append(item.get("description", ""))
+                    text = item.get("description", item.get("title", ""))
                 elif isinstance(item, str):
-                    advice_to_summarize.append(item)
+                    text = item
+                summarized_recommendations.append(" ".join(str(text).split()[:10]) + "...")
 
-        summarized_recommendations = await summarize_advice(advice_to_summarize)
 
         # Ensure kpi_overview is a data-driven string (Backend Fallback)
         if not ai_result.get("table_explanations", {}).get("kpi_overview"):

@@ -297,6 +297,7 @@ export default function App() {
               name: s.name,
               url: s.url,
               industry: s.industry,
+              city: s.city || undefined,
               imageUrl: s.image_url || undefined,
               seoSettings: s.seo_settings || undefined,
             }));

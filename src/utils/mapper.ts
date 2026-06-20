@@ -74,13 +74,10 @@ export const mapReportResponseToMarketingReport = (
 
   // Map Radar Data
   const rawRadar = report.radar_data || report.aiCompetitorAnalysis?.radar_data || [];
-  const radarData: RadarDataPoint[] = (rawRadar || []).map((d: any) => ({
-    subject: d.subject,
-    ['Current Site']: (d.you ?? d['Current Site']) || 0,
-    ['Competitor Alpha']: (d.competitorA ?? d['Competitor Alpha']) || 0,
-    ['Competitor Beta']: (d.competitorB ?? d['Competitor Beta']) || 0,
-    ['Competitor Gamma']: (d.competitorC ?? d['Competitor Gamma']) || 0
-  }));
+  const radarData = (rawRadar || []).map((d: any) => {
+    const { subject, ...rest } = d;
+    return { subject, ...rest };
+  });
 
   const result: MarketingReport = {
     id: id || `report_${Date.now()}`,
@@ -106,7 +103,12 @@ export const mapReportResponseToMarketingReport = (
       content_formatting: report.ai_slide_descriptions.content_formatting,
       gmb_authority: report.ai_slide_descriptions.gmb_authority,
       gmb_support: report.ai_slide_descriptions.gmb_support,
-    } : undefined
+    } : undefined,
+    improvement_roadmap: report.improvement_roadmap,
+    competitor_intelligence: report.competitor_intelligence,
+    radar_self: report.radar_self,
+    tableData1: report.tableData1,
+    tableData2: report.tableData2
   };
 
   if (category === 'SEO' || category === 'Combined Intelligence') {
@@ -143,6 +145,7 @@ export const mapReportResponseToMarketingReport = (
         ctr: k.share || '0%',
         position: k.trend || '0'
       })),
+      averagePosition: report.seo?.averagePosition,
       topKeywordsInsight: report.aiTopKeywordsOverview || report.tableExplanations?.top_keywords_overview || "Search term resonance and bidding efficiency.",
       viewsByPageTitle: (report.topPageTitles || []).map(p => ({ pageTitle: p.title || 'Unknown', views: parseInt(String(p.views || 0)) || 0 })),
       viewsByPageInsight: report.tableExplanations?.views_by_page_title || report.tableExplanations?.page_title_overview || "Content resonance metrics across active page nodes.",
@@ -165,6 +168,9 @@ export const mapReportResponseToMarketingReport = (
       aiCompetitorAnalysis: {
         inferredActions: report.aiCompetitorAnalysis?.inferred_actions || report.aiCompetitorAnalysis?.inferredActions || [],
         recommendedSteps: report.aiCompetitorAnalysis?.actionable_steps || report.aiCompetitorAnalysis?.recommended_steps || report.aiCompetitorAnalysis?.recommendedSteps || [],
+        competitor_breakdown: report.aiCompetitorAnalysis?.competitor_breakdown || report.aiCompetitorAnalysis?.competitorBreakdown || [],
+        overall_threat_summary: report.aiCompetitorAnalysis?.overall_threat_summary || report.aiCompetitorAnalysis?.overallThreatSummary || "",
+        self_gap_analysis: report.aiCompetitorAnalysis?.self_gap_analysis || report.aiCompetitorAnalysis?.selfGapAnalysis || null,
       }
     };
   }
@@ -346,6 +352,9 @@ export const mapReportResponseToMarketingReport = (
       aiCompetitorAnalysis: {
         inferredActions: report.aiCompetitorAnalysis?.inferred_actions || report.aiCompetitorAnalysis?.inferredActions || [],
         recommendedSteps: report.aiCompetitorAnalysis?.actionable_steps || report.aiCompetitorAnalysis?.recommended_steps || report.aiCompetitorAnalysis?.recommendedSteps || [],
+        competitor_breakdown: report.aiCompetitorAnalysis?.competitor_breakdown || report.aiCompetitorAnalysis?.competitorBreakdown || [],
+        overall_threat_summary: report.aiCompetitorAnalysis?.overall_threat_summary || report.aiCompetitorAnalysis?.overallThreatSummary || "",
+        self_gap_analysis: report.aiCompetitorAnalysis?.self_gap_analysis || report.aiCompetitorAnalysis?.selfGapAnalysis || null,
       }
     };
   }

@@ -95,26 +95,15 @@ export const HomeView: React.FC<HomeViewProps> = ({ reportData, onGenerate }) =>
         </GlassCard>
       </div>
 
-      <GlassCard className="p-8 shadow-2xl">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20">
-              <Radar size={24} />
-            </div>
-            <h3 className="text-xl font-bold text-white">Competitor Radar</h3>
-          </div>
+      {radarData.length > 0 && (
+        <div className="mt-8">
+          <CompetitorRadar
+            data={radarData}
+            siteName={reportData?.siteName}
+            siteData={reportData?.radar_self}
+          />
         </div>
-        <div className="h-[400px] w-full flex items-center justify-center">
-          {radarData.length > 0 ? (
-            <CompetitorRadar data={radarData} />
-          ) : (
-            <div className="text-center flex flex-col items-center gap-4 opacity-50">
-              <Radar size={64} className="text-gray-500 animate-pulse" />
-              <p className="text-gray-400 font-medium">Competitor Radar Offline</p>
-            </div>
-          )}
-        </div>
-      </GlassCard>
+      )}
     </div>
   );
 };

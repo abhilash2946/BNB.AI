@@ -244,7 +244,7 @@ async def call_ollama(prompt: str) -> dict | None:
                     "format": "json",
                     "options": {
                         "num_predict": 800,
-                        "temperature": 0.7
+                        "temperature": 0.1
                     }
                 }
             )
@@ -296,8 +296,8 @@ async def call_gemini(prompt: str, normalize: bool = True) -> dict:
     # Refined priority list:
     model_candidates = [
         "gemini-2.5-flash",
-        "gemini-2.5-pro",
         "gemini-2.5-flash-lite",
+        "gemini-2.5-pro",
         "gemini-3-flash-preview",
         "gemini-1.5-flash",
         "gemini-2.0-flash-exp",
@@ -322,66 +322,76 @@ async def call_gemini(prompt: str, normalize: bool = True) -> dict:
 
                 print(f"[Gemini Attempt] Trying {model} ({version})...")
 
-                try:
-                    resp = await client.post(url, params={"key": key}, json={
-                        "contents": [{"parts": [{"text": full_prompt}]}],
-                        "generationConfig": gen_config
-                    }, timeout=60.0)
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        resp = await client.post(url, params={"key": key}, json={
+                            "contents": [{"parts": [{"text": full_prompt}]}],
+                            "generationConfig": gen_config
+                        }, timeout=60.0)
 
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        candidates = data.get("candidates", [])
-                        if not candidates:
-                            print(f"!!! {model} ({version}) returned no candidates.")
-                            continue
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            candidates = data.get("candidates", [])
+                            if not candidates:
+                                print(f"!!! {model} ({version}) returned no candidates.")
+                                break # Move to next model/version
 
-                        candidate = candidates[0]
-                        content = candidate.get("content", {})
-                        parts = content.get("parts", [])
+                            candidate = candidates[0]
+                            content = candidate.get("content", {})
+                            parts = content.get("parts", [])
 
-                        if not parts:
-                            print(f"!!! {model} ({version}) returned empty parts.")
-                            continue
+                            if not parts:
+                                print(f"!!! {model} ({version}) returned empty parts.")
+                                break
 
-                        text = parts[0].get("text", "")
-                        if not text:
-                            print(f"!!! {model} ({version}) returned empty text.")
-                            continue
+                            text = parts[0].get("text", "")
+                            if not text:
+                                print(f"!!! {model} ({version}) returned empty text.")
+                                break
 
-                        parsed = extract_json_object(text)
-                        if parsed:
-                            # Use the label if provided for more granular logging
-                            log_label = f" for {prompt.splitlines()[0][:30]}..." if not normalize else ""
-                            print(f"✅ [GEMINI] Success: {model} ({version})")
-                            return normalize_ai_payload(parsed) if normalize else parsed
+                            # Log raw text for debugging
+                            print(f"--- RAW GEMINI OUTPUT ({model} {version}) ---\n{text[:1000]}\n-----------------------------------------")
+
+                            parsed = extract_json_object(text)
+                            if parsed:
+                                print(f"✅ [GEMINI] Success: {model} ({version})")
+                                return normalize_ai_payload(parsed) if normalize else parsed
+                            else:
+                                print(f"!!! [GEMINI] {model} ({version}) 200 OK but JSON parsing failed.")
+                                # Try to see if it's truncated and repairable
+                                repaired = repair_json(text)
+                                try:
+                                    parsed_repaired = json.loads(repaired)
+                                    print(f"✅ [GEMINI] Success (Repaired): {model} ({version})")
+                                    return normalize_ai_payload(parsed_repaired) if normalize else parsed_repaired
+                                except:
+                                    print(f"Full response text (Failed to parse):\n{text[:500]}...")
+                                break # Failed parsing, don't retry same model
+
+                        elif resp.status_code == 429:
+                            wait_time = 5 * (attempt + 1)
+                            print(f"!!! {model} ({version}) 429 Rate Limit Exceeded. Attempt {attempt+1}/{max_retries}. Waiting {wait_time}s...")
+                            await asyncio.sleep(wait_time)
+                            continue # Retry same model/version
+                        elif resp.status_code == 503:
+                            wait_time = 3 * (attempt + 1)
+                            print(f"!!! {model} ({version}) 503 Service Unavailable. Attempt {attempt+1}/{max_retries}. Waiting {wait_time}s...")
+                            await asyncio.sleep(wait_time)
+                            continue # Retry same model/version
+                        elif resp.status_code == 404:
+                            if version == "v1beta":
+                                print(f"!!! {model} ({version}) 404 Model Not Found.")
+                            break
+                        elif resp.status_code == 400:
+                            print(f"!!! {model} ({version}) 400 Bad Request. Body: {resp.text[:150]}")
+                            break
                         else:
-                            print(f"!!! [GEMINI] {model} ({version}) 200 OK but JSON parsing failed.")
-                            # Try to see if it's truncated and repairable
-                            repaired = repair_json(text)
-                            try:
-                                parsed_repaired = json.loads(repaired)
-                                print(f"✅ [GEMINI] Success (Repaired): {model} ({version})")
-                                return normalize_ai_payload(parsed_repaired) if normalize else parsed_repaired
-                            except:
-                                print(f"Full response text (Failed to parse):\n{text[:500]}...")
-                    elif resp.status_code == 429:
-                        print(f"!!! {model} ({version}) 429 Rate Limit Exceeded. Waiting 5s...")
-                        await asyncio.sleep(5) # Simple backoff
-                        # Retry once for 429 if it's the first attempt on this model
-                        continue
-                    elif resp.status_code == 404:
-                        # Silently skip if it's the v1 version of a preview model
-                        if version == "v1beta":
-                            print(f"!!! {model} ({version}) 404 Model Not Found.")
-                    elif resp.status_code == 400:
-                        print(f"!!! {model} ({version}) 400 Bad Request. Body: {resp.text[:150]}")
-                    elif resp.status_code == 503:
-                        print(f"!!! {model} ({version}) 503 Service Unavailable.")
-                    else:
-                        print(f"!!! {model} ({version}) Error {resp.status_code}")
-                except Exception as e:
-                    print(f"!!! {model} ({version}) Exception: {type(e).__name__}")
-                    continue
+                            print(f"!!! {model} ({version}) Error {resp.status_code}")
+                            break
+                    except Exception as e:
+                        print(f"!!! {model} ({version}) Exception: {type(e).__name__}")
+                        break # Other exceptions -> next model
 
         print("--- All Gemini attempts failed. Fallback to Ollama may follow. ---")
         return normalize_ai_payload({}) if normalize else {}

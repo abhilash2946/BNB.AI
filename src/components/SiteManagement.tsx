@@ -44,6 +44,7 @@ export default function SiteManagement({
   const [name, setName] = useState(() => getSavedState('name', ""));
   const [url, setUrl] = useState(() => getSavedState('url', ""));
   const [industry, setIndustry] = useState(() => getSavedState('industry', "Travel & Leisure"));
+  const [city, setCity] = useState(() => getSavedState('city', ""));
   const [siteImageUrl, setSiteImageUrl] = useState<string | null>(() => getSavedState('siteImageUrl', null));
   const siteFileInputRef = React.useRef<HTMLInputElement>(null);
   const [isUploadingSiteImage, setIsUploadingSiteImage] = useState(false);
@@ -67,14 +68,14 @@ export default function SiteManagement({
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
-    const state = { isAddingNew, editingSiteId, activeSettingsModal, name, url, industry, googleAdsDevToken, metaToken, metaTokenExpiry, ga4Id, gscUrl, googleAdsId, metaAdsId, fbPageId, igBusId };
+    const state = { isAddingNew, editingSiteId, activeSettingsModal, name, url, industry, city, googleAdsDevToken, metaToken, metaTokenExpiry, ga4Id, gscUrl, googleAdsId, metaAdsId, fbPageId, igBusId };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [isAddingNew, editingSiteId, activeSettingsModal, name, url, industry, googleAdsDevToken, metaToken, metaTokenExpiry, ga4Id, gscUrl, googleAdsId, metaAdsId, fbPageId, igBusId, STORAGE_KEY]);
+  }, [isAddingNew, editingSiteId, activeSettingsModal, name, url, industry, city, googleAdsDevToken, metaToken, metaTokenExpiry, ga4Id, gscUrl, googleAdsId, metaAdsId, fbPageId, igBusId, STORAGE_KEY]);
 
   const [isSaving, setIsSaving] = useState(false);
 
   const resetFormState = () => {
-    setName(""); setUrl(""); setIndustry("Travel & Leisure"); setSiteImageUrl(null);
+    setName(""); setUrl(""); setIndustry("Travel & Leisure"); setCity(""); setSiteImageUrl(null);
     setGa4Id(""); setGscUrl(""); setGoogleAdsId(""); setMetaAdsId(""); setFbPageId(""); setIgBusId("");
   };
 
@@ -104,7 +105,21 @@ export default function SiteManagement({
     if (isSaving) return;
     setIsSaving(true);
     try {
-      const payload = { name: name.trim(), url: url.trim(), industry, image_url: siteImageUrl, seo_settings: { ga4Id: ga4Id.trim(), gscUrl: gscUrl.trim(), googleAdsId: googleAdsId.trim(), metaAdsId: metaAdsId.trim(), fbPageId: fbPageId.trim(), igBusId: igBusId.trim() } };
+      const payload = {
+        name: name.trim(),
+        url: url.trim(),
+        industry,
+        city: city.trim(),
+        image_url: siteImageUrl,
+        seo_settings: {
+          ga4Id: ga4Id.trim(),
+          gscUrl: gscUrl.trim(),
+          googleAdsId: googleAdsId.trim(),
+          metaAdsId: metaAdsId.trim(),
+          fbPageId: fbPageId.trim(),
+          igBusId: igBusId.trim()
+        }
+      };
       const siteQuery = editingSiteId ? supabase.from("sites").update(payload).eq("id", editingSiteId).select() : supabase.from("sites").insert({ user_id: user.id, ...payload }).select();
       const siteResp = await siteQuery;
       if (siteResp.error) throw siteResp.error;
@@ -120,6 +135,7 @@ export default function SiteManagement({
 
   const startEdit = async (site: SiteProfile) => {
     setEditingSiteId(site.id); setName(site.name); setUrl(site.url); setIndustry(site.industry);
+    setCity(site.city || "");
     setSiteImageUrl(site.imageUrl || null);
     const seo = site.seoSettings;
     if (seo) { setGa4Id(seo.ga4Id || ""); setGscUrl(seo.gscUrl || ""); setGoogleAdsId(seo.googleAdsId || ""); setMetaAdsId(seo.metaAdsId || ""); setFbPageId(seo.fbPageId || ""); setIgBusId(seo.igBusId || ""); }
@@ -396,6 +412,10 @@ export default function SiteManagement({
                               <option value="Travel & Leisure" className="bg-[#111827]">Travel & Leisure</option>
                               <option value="E-Commerce" className="bg-[#111827]">E-Commerce</option>
                             </select>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2 block">City (for competitor search)</label>
+                            <input type="text" placeholder="e.g. Hyderabad" value={city} onChange={e => setCity(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-cyan-500" />
                           </div>
                         </div>
                       </div>

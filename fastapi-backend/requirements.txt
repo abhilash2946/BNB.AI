@@ -12,3 +12,8 @@ google-api-python-client
 google-auth-httplib2
 requests
 google-ads
+keybert
+spacy
+beautifulsoup4
+lxml
+httpx

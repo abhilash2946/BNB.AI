@@ -28,7 +28,10 @@ const buildSeoReport = (report: RawReport, startDate: string, endDate: string): 
   };
   const aiCompetitorAnalysis = rawCompetitorAnalysis ? {
     inferredActions: normalizeList(rawCompetitorAnalysis.inferred_actions || rawCompetitorAnalysis.inferredActions),
-    recommendedSteps: normalizeList(rawCompetitorAnalysis.actionable_steps || rawCompetitorAnalysis.recommended_steps || rawCompetitorAnalysis.recommendedSteps)
+    recommendedSteps: normalizeList(rawCompetitorAnalysis.actionable_steps || rawCompetitorAnalysis.recommended_steps || rawCompetitorAnalysis.recommendedSteps),
+    competitor_breakdown: rawCompetitorAnalysis.competitor_breakdown,
+    overall_threat_summary: rawCompetitorAnalysis.overall_threat_summary,
+    self_gap_analysis: rawCompetitorAnalysis.self_gap_analysis
   } : { inferredActions: [], recommendedSteps: [] };
 
   const sectionAdvice = report.section_advice || {};
@@ -138,6 +141,7 @@ const buildSeoReport = (report: RawReport, startDate: string, endDate: string): 
       ctr: `${((k.ctr || 0) * 100).toFixed(2)}%`,
       position: (k.position || 0).toFixed(1)
     })),
+    averagePosition: gsc.position,
     topKeywordsInsight: topKeywordsOverview || "Search query resonance mapping.",
     viewsByPageTitle: rawPageTitles.map(p => ({ pageTitle: p.title, views: p.views })),
     viewsByPageInsight: aiTableExplanations.views_by_page_title || "Content resonance metrics.",
@@ -192,10 +196,15 @@ const buildSeoReport = (report: RawReport, startDate: string, endDate: string): 
     })),
     aiTopKeywordsOverview: topKeywordsOverview, aiComparison: report.ai_comparison || "",
     tableExplanations: aiTableExplanations, google_ads_details: report.google_ads_details, multiCharts, aiCompetitorAnalysis, sectionAdvice,
+    ai_insights: report.ai_insights,
+    executiveSummary: narrative1,
     seo_work_details: report.seo_work_details,
     gbp_details: report.gbp_details,
     radarData: report.radar_data || [],
     radar_data: report.radar_data,
+    improvement_roadmap: report.improvement_roadmap,
+    competitor_intelligence: report.competitor_intelligence,
+    radar_self: report.radar_self,
     seo: seoData // Add this for ReportViews.tsx
   };
 };
@@ -258,7 +267,10 @@ const buildPerformanceReport = (report: RawReport, startDate: string, endDate: s
   };
   const aiCompetitorAnalysis = rawCompetitorAnalysis ? {
     inferredActions: normalizeList(rawCompetitorAnalysis.inferred_actions || rawCompetitorAnalysis.inferredActions),
-    recommendedSteps: normalizeList(rawCompetitorAnalysis.actionable_steps || rawCompetitorAnalysis.recommended_steps || rawCompetitorAnalysis.recommendedSteps)
+    recommendedSteps: normalizeList(rawCompetitorAnalysis.actionable_steps || rawCompetitorAnalysis.recommended_steps || rawCompetitorAnalysis.recommendedSteps),
+    competitor_breakdown: rawCompetitorAnalysis.competitor_breakdown,
+    overall_threat_summary: rawCompetitorAnalysis.overall_threat_summary,
+    self_gap_analysis: rawCompetitorAnalysis.self_gap_analysis
   } : { inferredActions: [], recommendedSteps: [] };
 
   const sectionAdvice = report.section_advice || {};
@@ -445,6 +457,7 @@ const buildPerformanceReport = (report: RawReport, startDate: string, endDate: s
     })),
     aiTopKeywordsOverview: report.ai_top_keywords_overview || "", aiComparison: report.ai_comparison || "",
     tableExplanations: aiTableExplanations, google_ads_details: report.google_ads_details, multiCharts, aiCompetitorAnalysis, sectionAdvice,
+    ai_insights: report.ai_insights,
     metaKpi: report.meta_ads_kpi,
     metaCampaigns: report.meta_ads_details?.top_campaigns,
     metaAdsets: report.meta_ads_details?.top_adsets,
@@ -452,6 +465,9 @@ const buildPerformanceReport = (report: RawReport, startDate: string, endDate: s
     metaDaily: report.meta_ads_charts?.daily,
     radar_data: report.radar_data,
     radarData: report.radar_data || [],
+    improvement_roadmap: report.improvement_roadmap,
+    competitor_intelligence: report.competitor_intelligence,
+    radar_self: report.radar_self,
     performance: performanceData // This is what ReportViews.tsx uses
   };
 };
@@ -467,7 +483,10 @@ const buildSocialReport = (report: RawReport, startDate: string, endDate: string
   };
   const aiCompetitorAnalysis = rawCompetitorAnalysis ? {
     inferredActions: normalizeList(rawCompetitorAnalysis.inferred_actions || rawCompetitorAnalysis.inferredActions),
-    recommendedSteps: normalizeList(rawCompetitorAnalysis.actionable_steps || rawCompetitorAnalysis.recommended_steps || rawCompetitorAnalysis.recommendedSteps)
+    recommendedSteps: normalizeList(rawCompetitorAnalysis.actionable_steps || rawCompetitorAnalysis.recommended_steps || rawCompetitorAnalysis.recommendedSteps),
+    competitor_breakdown: rawCompetitorAnalysis.competitor_breakdown,
+    overall_threat_summary: rawCompetitorAnalysis.overall_threat_summary,
+    self_gap_analysis: rawCompetitorAnalysis.self_gap_analysis
   } : { inferredActions: [], recommendedSteps: [] };
 
   const sectionAdvice = report.section_advice || {};
@@ -541,9 +560,13 @@ const buildSocialReport = (report: RawReport, startDate: string, endDate: string
     radarData: report.radar_data || [],
     aiTopKeywordsOverview: report.ai_top_keywords_overview || "", aiComparison: report.ai_comparison || "",
     tableExplanations: aiTableExplanations, google_ads_details: report.google_ads_details, multiCharts, aiCompetitorAnalysis, sectionAdvice,
+    ai_insights: report.ai_insights,
     radar_data: report.radar_data,
     seo_work_details: report.seo_work_details,
     gbp_details: report.gbp_details,
+    improvement_roadmap: report.improvement_roadmap,
+    competitor_intelligence: report.competitor_intelligence,
+    radar_self: report.radar_self,
     social: socialData // Add this for ReportViews.tsx
   };
 };
@@ -557,6 +580,16 @@ const buildCombinedReport = (report: RawReport, startDate: string, endDate: stri
     ...perfPart,
     title: `Combined Intelligence Briefing`,
     category: "Combined Intelligence",
+    tableData1: [
+      seoPart.tableData1[0], // Organic Traffic (Users)
+      perfPart.tableData1[2], // Leads
+      perfPart.tableData1[5], // Cost per Lead
+      perfPart.tableData1[0], // Impressions
+      perfPart.tableData1[3], // Spend
+      seoPart.tableData1[4],  // Bounce Rate
+    ],
+    tableHeader2: seoPart.tableHeader2,
+    tableData2: seoPart.tableData2,
     kpis: [...seoPart.kpis, ...perfPart.kpis].slice(0, 6),
     executiveSummary: `${seoPart.executiveSummary}\n\n${perfPart.executiveSummary}`,
     googleAdsKpis: perfPart.tableData1,
@@ -566,6 +599,15 @@ const buildCombinedReport = (report: RawReport, startDate: string, endDate: stri
     metaDevices: report.meta_ads_details?.devices,
     metaDaily: report.meta_ads_charts?.daily,
     google_ads_details: report.google_ads_details,
+    ai_insights: {
+      branding: seoPart.ai_insights?.branding || perfPart.ai_insights?.branding || {},
+      cover: seoPart.ai_insights?.cover || perfPart.ai_insights?.cover || {},
+      conclusion: seoPart.ai_insights?.conclusion || perfPart.ai_insights?.conclusion || "",
+      slides: {
+        ...(seoPart.ai_insights?.slides || {}),
+        ...(perfPart.ai_insights?.slides || {})
+      }
+    },
     // Ensure SEO fields are preserved and not overwritten by perfPart empty arrays
     topCountries: seoPart.topCountries,
     users_by_country: seoPart.users_by_country || perfPart.users_by_country,
@@ -677,12 +719,12 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
           fetch(`${API_URL}/seo-report`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ user_id: user.id, site_id: siteToQuery.id, start_date: nd.startDate, end_date: nd.endDate })
+            body: JSON.stringify({ user_id: user.id, site_id: siteToQuery.id, start_date: nd.startDate, end_date: nd.endDate, bnb_mode: (cat === 'BnB Report') })
           }),
           fetch(`${API_URL}/performance-report`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ user_id: user.id, site_id: siteToQuery.id, start_date: nd.startDate, end_date: nd.endDate })
+            body: JSON.stringify({ user_id: user.id, site_id: siteToQuery.id, start_date: nd.startDate, end_date: nd.endDate, bnb_mode: (cat === 'BnB Report') })
           })
         ]);
 
@@ -705,7 +747,7 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
       const response = await fetch(`${API_URL}/${webhookPath}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: user.id, site_id: siteToQuery.id, start_date: nd.startDate, end_date: nd.endDate })
+        body: JSON.stringify({ user_id: user.id, site_id: siteToQuery.id, start_date: nd.startDate, end_date: nd.endDate, bnb_mode: (cat === 'BnB Report') })
       });
       if (!response.ok) throw new Error(`API error ${response.status}`);
       const { report_id, data: immediateData } = await response.json();
@@ -746,7 +788,7 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
         setTimeout(() => {
           clearInterval(interval);
           reject(new Error(`Timeout waiting for ${label} report`));
-        }, 300000);
+        }, 600000);
       });
     };
 
@@ -761,6 +803,9 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
         perfReport = await pollReport(perf_id, "Performance");
       }
 
+      const seoPart = buildSeoReport(seoReport, nd.startDate, nd.endDate);
+      const perfPart = buildPerformanceReport(perfReport, nd.startDate, nd.endDate);
+
       const merged = {
         ...seoReport,
         report_id: `${seo_id}_${perf_id}`,
@@ -770,10 +815,25 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
         meta_ads_details: perfReport.meta_ads_details,
         meta_ads_charts: perfReport.meta_ads_charts,
         ai_recommendations: [...(seoReport.ai_recommendations || []), ...(perfReport.ai_recommendations || [])],
+        summarizedAdviceList: [...(seoPart.summarizedAdviceList || []), ...(perfPart.summarizedAdviceList || [])],
+        adviceList: [...(seoPart.adviceList || []), ...(perfPart.adviceList || [])],
         ai_summary: {
           seo_overview: seoReport.ai_summary?.seo_overview || seoReport.ai_summary || "",
           performance_overview: perfReport.ai_summary?.performance_overview || perfReport.ai_summary || ""
         },
+        ai_insights: {
+          branding: seoReport.ai_insights?.branding || perfReport.ai_insights?.branding || {},
+          cover: seoReport.ai_insights?.cover || perfReport.ai_insights?.cover || {},
+          conclusion: seoReport.ai_insights?.conclusion || perfReport.ai_insights?.conclusion || "",
+          slides: {
+            ...(seoReport.ai_insights?.slides || {}),
+            ...(perfReport.ai_insights?.slides || {})
+          }
+        },
+        ai_competitor_analysis: seoReport.ai_competitor_analysis || perfReport.ai_competitor_analysis,
+        improvement_roadmap: seoPart.improvement_roadmap || perfPart.improvement_roadmap,
+        competitor_intelligence: seoPart.competitor_intelligence || perfPart.competitor_intelligence,
+        radar_self: { ...(seoPart.radar_self || {}), ...(perfPart.radar_self || {}) },
         module: "combined"
       };
 
