@@ -21,7 +21,7 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({ data, siteName
 
   const sample = data[0];
   const competitorKeys = Object.keys(sample).filter(k => k !== 'subject' && k !== 'Current Site' && k !== 'you');
-  const colors = ['#7c3aed', '#f43f5e', '#22c55e', '#f59e0b'];
+  const colors = ['#7c3aed', '#f43f5e', '#22c55e', '#eab308', '#ec4899', '#3b82f6', '#14b8a6'];
 
   // Prepare data for self radar
   const formattedSiteData = siteData ? Object.entries(siteData).map(([subject, value]) => ({
@@ -32,9 +32,9 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({ data, siteName
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       {/* 1. Competitor Comparison Radar */}
-      <div className="glass-panel p-8 rounded-[2rem] border border-white/5 bg-[#0b0f19]/80 flex flex-col h-full">
+      <div className="glass-panel p-8 rounded-[2rem] border border-white/5 bg-[#111111] flex flex-col h-full">
         <div className="flex items-center gap-3 mb-8 border-b border-white/5 pb-4">
-          <div className="p-2 bg-[#00d4ff]/10 rounded-xl text-[#00d4ff]">
+          <div className="p-2 bg-white/10 rounded-xl text-white">
              <RadarIcon size={18} />
           </div>
           <h3 className="font-display font-bold text-sm text-white uppercase tracking-widest">Competitor Tactical Radar</h3>
@@ -52,7 +52,7 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({ data, siteName
                 dataKey="Current Site"
                 stroke="#00d4ff"
                 fill="#00d4ff"
-                fillOpacity={0.2}
+                fillOpacity={0.15}
               />
 
               {competitorKeys.map((key, idx) => (
@@ -62,12 +62,12 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({ data, siteName
                   dataKey={key}
                   stroke={colors[idx % colors.length]}
                   fill={colors[idx % colors.length]}
-                  fillOpacity={0.1}
+                  fillOpacity={0.06}
                 />
               ))}
 
               <Tooltip
-                contentStyle={{ background: '#0c101b', border: '1px solid rgba(0, 212, 255, 0.2)', borderRadius: '12px', fontSize: '11px', color: '#fff' }}
+                contentStyle={{ background: '#111111', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', fontSize: '11px', color: '#fff' }}
                 itemStyle={{ color: '#fff' }}
               />
               <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }} iconSize={8} />
@@ -83,9 +83,9 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({ data, siteName
       </div>
 
       {/* 2. Individual Site Radar */}
-      <div className="glass-panel p-8 rounded-[2rem] border border-white/5 bg-[#0b0f19]/80 flex flex-col h-full">
+      <div className="glass-panel p-8 rounded-[2rem] border border-white/5 bg-[#111111] flex flex-col h-full">
         <div className="flex items-center gap-3 mb-8 border-b border-white/5 pb-4">
-          <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-400">
+          <div className="p-2 bg-white/10 rounded-xl text-white">
              <ShieldCheck size={18} />
           </div>
           <h3 className="font-display font-bold text-sm text-white uppercase tracking-widest">
@@ -103,13 +103,13 @@ export const CompetitorRadar: React.FC<CompetitorRadarProps> = ({ data, siteName
               <Radar
                 name={siteName || "Current Site"}
                 dataKey={formattedSiteData ? "value" : "Current Site"}
-                stroke="#22c55e"
-                fill="#22c55e"
+                stroke="#FFFFFF"
+                fill="#FFFFFF"
                 fillOpacity={0.3}
               />
 
               <Tooltip
-                contentStyle={{ background: '#0c101b', border: '1px solid rgba(34, 197, 94, 0.2)', borderRadius: '12px', fontSize: '11px', color: '#fff' }}
+                contentStyle={{ background: '#111111', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', fontSize: '11px', color: '#fff' }}
                 itemStyle={{ color: '#fff' }}
               />
             </RadarChart>

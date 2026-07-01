@@ -101,33 +101,33 @@ export default function Onboarding({ userId, initialEmail, initialName, onComple
   };
 
   return (
-    <div className="min-h-screen bg-[#080B14] text-white flex flex-col justify-center py-12 px-6 overflow-hidden relative">
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-cyan-500/10 rounded-full blur-[120px]" />
+    <div className="min-h-screen bg-[#000000] text-white flex flex-col justify-center py-12 px-6 overflow-hidden relative">
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-white/5 rounded-full blur-[120px]" />
       <div className="max-w-3xl mx-auto w-full relative z-10">
         <div className="flex items-center justify-between mb-8 px-4">
           <div className="flex items-center space-x-2 text-[10px] font-mono font-bold uppercase tracking-widest text-gray-500">
-            <span className={step === 1 ? "text-cyan-400" : ""}>01 Profile</span>
+            <span className={step === 1 ? "text-white" : ""}>01 Profile</span>
             <span>/</span>
-            <span className={step === 2 ? "text-cyan-400" : ""}>02 Agency</span>
+            <span className={step === 2 ? "text-white" : ""}>02 Agency</span>
             <span>/</span>
-            <span className={step === 3 ? "text-cyan-400" : ""}>03 First Site</span>
+            <span className={step === 3 ? "text-white" : ""}>03 First Site</span>
           </div>
-          <span className="text-[10px] text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded font-mono">NODE {step}/3</span>
+          <span className="text-[10px] text-white bg-white/10 border border-white/20 px-2 py-0.5 rounded font-mono">NODE {step}/3</span>
         </div>
 
         {step === 1 && (
           <GlassCard className="p-10 max-w-xl mx-auto">
             <div className="mb-8 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center shadow-lg"><User size={24} /></div>
+              <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center text-black shadow-lg"><User size={24} /></div>
               <h3 className="text-2xl font-bold">Configure Profile</h3>
             </div>
             <form onSubmit={e => { e.preventDefault(); setStep(2); }} className="space-y-6">
-              <input type="text" placeholder="Full Name" required value={profile.name} onChange={e => setProfile({...profile, name: e.target.value})} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-cyan-500 outline-none" />
+              <input type="text" placeholder="Full Name" required value={profile.name} onChange={e => setProfile({...profile, name: e.target.value})} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-white outline-none" />
               <div className="grid grid-cols-2 gap-4">
-                <input type="text" placeholder="Agency Name" required value={profile.agencyName} onChange={e => setProfile({...profile, agencyName: e.target.value})} className="px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-cyan-500 outline-none" />
-                <input type="text" placeholder="Role" required value={profile.role} onChange={e => setProfile({...profile, role: e.target.value})} className="px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-cyan-500 outline-none" />
+                <input type="text" placeholder="Agency Name" required value={profile.agencyName} onChange={e => setProfile({...profile, agencyName: e.target.value})} className="px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-white outline-none" />
+                <input type="text" placeholder="Role" required value={profile.role} onChange={e => setProfile({...profile, role: e.target.value})} className="px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-white outline-none" />
               </div>
-              <button type="submit" className="w-full py-4 bg-gradient-to-r from-cyan-500 to-violet-600 rounded-xl font-bold flex items-center justify-center gap-2 hover:shadow-[0_0_20px_rgba(0,212,255,0.4)] transition-all">Next Protocol <ArrowRight size={18}/></button>
+              <button type="submit" className="w-full py-4 bg-white text-black rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200 transition-all">Next Protocol <ArrowRight size={18}/></button>
             </form>
           </GlassCard>
         )}
@@ -136,19 +136,19 @@ export default function Onboarding({ userId, initialEmail, initialName, onComple
           <GlassCard className="p-10 max-w-xl mx-auto">
             <div className="mb-8 flex justify-between items-center">
               <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center shadow-lg"><Building2 size={24} /></div>
+                <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center text-black shadow-lg"><Building2 size={24} /></div>
                 <h3 className="text-2xl font-bold">Agency Data</h3>
               </div>
             </div>
             <form onSubmit={e => { e.preventDefault(); setStep(3); }} className="space-y-6">
-              <button type="button" onClick={async () => { const res = await fetch(`${API_URL}/auth/google/url?user_id=${userId}`); const { url } = await res.json(); window.location.href = url; }} className="w-full py-4 bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/30 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all"><Globe size={18} /> Connect Google Cloud</button>
+              <button type="button" onClick={async () => { const res = await fetch(`${API_URL}/auth/google/url?user_id=${userId}`); const { url } = await res.json(); window.location.href = url; }} className="w-full py-4 bg-white/10 border border-white/20 hover:bg-white/20 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all"><Globe size={18} /> Connect Google Cloud</button>
               <div className="space-y-4 pt-4 border-t border-white/5">
-                <input type="password" placeholder="Meta Long-Lived Token" value={metaToken} onChange={e => setMetaToken(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-cyan-500 outline-none" />
-                <input type="text" placeholder="Google Ads Developer Token" value={googleAdsDevToken} onChange={e => setGoogleAdsDevToken(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-cyan-500 outline-none" />
+                <input type="password" placeholder="Meta Long-Lived Token" value={metaToken} onChange={e => setMetaToken(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-white outline-none" />
+                <input type="text" placeholder="Google Ads Developer Token" value={googleAdsDevToken} onChange={e => setGoogleAdsDevToken(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-white outline-none" />
               </div>
               <div className="flex gap-4 pt-4">
                 <button type="button" onClick={() => setStep(1)} className="px-6 py-4 border border-white/10 rounded-xl font-bold hover:bg-white/5 transition-all">Back</button>
-                <button type="submit" className="flex-1 py-4 bg-gradient-to-r from-cyan-500 to-violet-600 rounded-xl font-bold">Next Phase</button>
+                <button type="submit" className="flex-1 py-4 bg-white text-black rounded-xl font-bold hover:bg-gray-200 transition-all">Next Phase</button>
               </div>
             </form>
           </GlassCard>
@@ -157,34 +157,34 @@ export default function Onboarding({ userId, initialEmail, initialName, onComple
         {step === 3 && (
           <GlassCard className="p-10">
             <div className="mb-8 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center shadow-lg"><Globe size={24} /></div>
+              <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center text-black shadow-lg"><Globe size={24} /></div>
               <h3 className="text-2xl font-bold">First Business Profile</h3>
             </div>
             <form onSubmit={handleFinishOnboarding} className="space-y-8">
               <div className="grid md:grid-cols-2 gap-6">
-                <input type="text" placeholder="Business Name" required value={siteName} onChange={e => setSiteName(e.target.value)} className="px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-cyan-500" />
-                <input type="url" placeholder="Website URL" required value={siteUrl} onChange={e => setSiteUrl(e.target.value)} className="px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-cyan-500" />
+                <input type="text" placeholder="Business Name" required value={siteName} onChange={e => setSiteName(e.target.value)} className="px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-white" />
+                <input type="url" placeholder="Website URL" required value={siteUrl} onChange={e => setSiteUrl(e.target.value)} className="px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-white" />
               </div>
               <div className="grid md:grid-cols-3 gap-6">
                 <div className="space-y-3">
-                  <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">SEO IDs</span>
+                  <span className="text-[10px] font-bold text-white uppercase tracking-widest">SEO IDs</span>
                   <input type="text" placeholder="GA4 ID" value={ga4Id} onChange={e => setGa4Id(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-xs" />
                   <input type="text" placeholder="GSC URL" value={gscUrl} onChange={e => setGscUrl(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-xs" />
                 </div>
                 <div className="space-y-3">
-                  <span className="text-[10px] font-bold text-violet-400 uppercase tracking-widest">Performance</span>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Performance</span>
                   <input type="text" placeholder="G-Ads ID" value={googleAdsId} onChange={e => setGoogleAdsId(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-xs" />
                   <input type="text" placeholder="Meta Ads ID" value={metaAdsId} onChange={e => setMetaAdsId(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-xs" />
                 </div>
                 <div className="space-y-3">
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Social</span>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Social</span>
                   <input type="text" placeholder="FB Page ID" value={fbPageId} onChange={e => setFbPageId(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-xs" />
                   <input type="text" placeholder="IG Bus ID" value={igBusId} onChange={e => setIgBusId(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-xs" />
                 </div>
               </div>
               <div className="flex gap-4">
                 <button type="button" onClick={() => setStep(2)} className="px-8 py-4 border border-white/10 rounded-xl font-bold hover:bg-white/5">Back</button>
-                <button type="submit" disabled={isSubmitting} className="flex-1 py-4 bg-gradient-to-r from-cyan-500 to-violet-600 rounded-xl font-bold shadow-lg disabled:opacity-50">{isSubmitting ? "Initializing Neural Link..." : "Deploy Workspace"}</button>
+                <button type="submit" disabled={isSubmitting} className="flex-1 py-4 bg-white text-black rounded-xl font-bold shadow-lg disabled:opacity-50">{isSubmitting ? "Initializing Neural Link..." : "Deploy Workspace"}</button>
               </div>
             </form>
           </GlassCard>

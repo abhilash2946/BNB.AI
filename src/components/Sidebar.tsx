@@ -125,11 +125,11 @@ export default function Sidebar({
         />
       )}
 
-      {/* Primary Sidebar Drawer */}
+      {/* Primary Sidebar Drawer refined for Image 2 texture */}
       <aside
         className={`
           fixed md:sticky top-[60px] left-0 h-[calc(100vh-60px)] z-40
-          flex flex-col bg-[rgba(17,24,39,0.8)] backdrop-blur-xl border-r border-cyan-500/20 transition-all duration-300 ease-in-out
+          flex flex-col bg-[#020202] border-r border-white/10 transition-all duration-300 ease-in-out
           ${sidebarWidthClass}
           ${mobileOpen ? 'translate-x-0 w-[240px]' : '-translate-x-full md:translate-x-0'}
         `}
@@ -163,15 +163,15 @@ export default function Sidebar({
                     if (!item.category) onMobileClose();
                   }}
                   className={`
-                    w-full flex items-center ${expanded ? 'gap-3 px-3' : 'justify-center px-0'} py-2.5 rounded-lg text-sm transition-all duration-200 group relative
+                    w-full flex items-center ${expanded ? 'gap-3 px-3' : 'justify-center px-0'} py-2.5 rounded-2xl text-sm transition-all duration-200 group relative
                     ${active
-                      ? 'text-[#00d4ff] bg-gradient-to-r from-[#00d4ff]/10 to-transparent border-l-2 border-[#00d4ff] font-medium shadow-[0_0_15px_rgba(0,212,255,0.05)]'
-                      : 'text-white/60 hover:text-white hover:bg-white/5'
+                      ? 'text-white bg-white/[0.08] border border-white/15 font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_8px_20px_rgba(0,0,0,0.4)]'
+                      : 'text-white/55 hover:text-white hover:bg-white/5'
                     }
                   `}
                   title={!expanded && !mobileOpen ? item.label : undefined}
                 >
-                  <div className={`${active ? 'text-[#00d4ff]' : 'text-white/40 group-hover:text-[#00d4ff]/80'} transition-colors shrink-0`}>
+                  <div className={`${active ? 'text-white' : 'text-white/50 group-hover:text-white'} transition-colors shrink-0`}>
                     <Icon size={18} />
                   </div>
 
@@ -180,11 +180,11 @@ export default function Sidebar({
                   )}
 
                   {(expanded || mobileOpen) && item.category && (
-                    <ChevronRight size={14} className={`transition-transform ${active ? 'rotate-90 text-[#00d4ff]' : 'text-white/20'}`} />
+                    <ChevronRight size={14} className={`transition-transform ${active ? 'rotate-90 text-white' : 'text-white/20'}`} />
                   )}
 
                   {!expanded && !mobileOpen && (
-                    <div className="absolute left-[70px] bg-[#0c101b] border border-white/10 text-white text-xs px-2 py-1 rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap shadow-lg">
+                    <div className="absolute left-[70px] bg-[#1A1A1A] border border-white/10 text-white text-xs px-2 py-1 rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap shadow-lg">
                       {item.label}
                     </div>
                   )}
@@ -208,7 +208,7 @@ export default function Sidebar({
                           className={`
                             w-full text-left px-3 py-1.5 rounded-md text-[11px] flex items-center justify-between transition-colors
                             ${active && activeCategory === sub.category
-                              ? 'text-[#00d4ff] font-semibold bg-white/5'
+                              ? 'text-white font-bold bg-white/5'
                               : 'text-white/40 hover:text-white hover:bg-white/5'
                             }
                           `}
@@ -225,7 +225,7 @@ export default function Sidebar({
                           className={`
                             w-full text-left px-3 py-1.5 rounded-md text-[11px] flex items-center justify-between transition-colors
                             ${active && activeSection === sub.name
-                              ? 'text-[#00d4ff] font-semibold bg-white/5'
+                              ? 'text-white font-bold bg-white/5'
                               : 'text-white/40 hover:text-white hover:bg-white/5'
                             }
                           `}
@@ -254,15 +254,15 @@ export default function Sidebar({
                   onMobileClose();
                 }}
                 className={`
-                  w-full flex items-center ${expanded ? 'gap-3 px-3' : 'justify-center px-0'} py-2.5 rounded-lg text-sm transition-all duration-200 group relative
+                  w-full flex items-center ${expanded ? 'gap-3 px-3' : 'justify-center px-0'} py-2.5 rounded-2xl text-sm transition-all duration-200 group relative
                   ${active
-                    ? 'text-[#00d4ff] bg-gradient-to-r from-[#00d4ff]/10 to-transparent border-l-2 border-[#00d4ff] font-medium shadow-[0_0_15px_rgba(0,212,255,0.05)]'
-                    : 'text-white/60 hover:text-white hover:bg-white/5'
+                    ? 'text-white bg-white/[0.08] border border-white/15 font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_8px_20px_rgba(0,0,0,0.4)]'
+                    : 'text-white/55 hover:text-white hover:bg-white/5'
                   }
                 `}
                 title={!expanded && !mobileOpen ? item.label : undefined}
               >
-                <div className={`${active ? 'text-[#00d4ff]' : 'text-white/40 group-hover:text-[#00d4ff]/80'} transition-colors shrink-0`}>
+                <div className={`${active ? 'text-white' : 'text-white/50 group-hover:text-white'} transition-colors shrink-0`}>
                   <Icon size={18} />
                 </div>
 
@@ -271,7 +271,7 @@ export default function Sidebar({
                 )}
 
                 {!expanded && !mobileOpen && (
-                  <div className="absolute left-[70px] bg-[#0c101b] border border-white/10 text-white text-xs px-2 py-1 rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap shadow-lg">
+                  <div className="absolute left-[70px] bg-[#111111] border border-white/10 text-white text-xs px-2 py-1 rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap shadow-lg">
                     {item.label}
                   </div>
                 )}

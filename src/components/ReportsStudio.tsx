@@ -14,8 +14,8 @@ export default function ReportsStudio({ onTriggerModule }: ReportsStudioProps) {
       title: 'Executive Intel',
       desc: 'High-level synthesis of organic traffic nodes and domain index curves.',
       icon: Sparkles,
-      color: 'from-cyan-500 to-blue-600',
-      shadow: 'shadow-cyan-500/20'
+      color: 'bg-white text-black',
+      shadow: 'shadow-white/20'
     },
     {
       id: 'seo-intel',
@@ -23,8 +23,8 @@ export default function ReportsStudio({ onTriggerModule }: ReportsStudioProps) {
       title: 'Organic Pulse',
       desc: 'Deep-layer analysis of keyword density, search intent, and platform distribution.',
       icon: TrendingUp,
-      color: 'from-emerald-500 to-teal-600',
-      shadow: 'shadow-emerald-500/20'
+      color: 'bg-white text-black',
+      shadow: 'shadow-white/20'
     },
     {
       id: 'perf-intel',
@@ -32,8 +32,8 @@ export default function ReportsStudio({ onTriggerModule }: ReportsStudioProps) {
       title: 'Paid Protocol',
       desc: 'Optimization matrices for Google and Meta advertising telemetry.',
       icon: Target,
-      color: 'from-violet-500 to-purple-600',
-      shadow: 'shadow-violet-500/20'
+      color: 'bg-white text-black',
+      shadow: 'shadow-white/20'
     },
     {
       id: 'social-intel',
@@ -41,8 +41,8 @@ export default function ReportsStudio({ onTriggerModule }: ReportsStudioProps) {
       title: 'Social Echo',
       desc: 'Synthesis of engagement flux and brand resonance across Meta ecosystems.',
       icon: Users,
-      color: 'from-amber-500 to-orange-600',
-      shadow: 'shadow-amber-500/20'
+      color: 'bg-white text-black',
+      shadow: 'shadow-white/20'
     }
   ];
 
@@ -61,7 +61,7 @@ export default function ReportsStudio({ onTriggerModule }: ReportsStudioProps) {
             className="glass-panel p-6 rounded-2xl text-left hover:scale-[1.02] active:scale-[0.98] transition-all group flex flex-col justify-between h-56"
           >
             <div>
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-tr ${mod.color} flex items-center justify-center text-white mb-4 group-hover:shadow-lg ${mod.shadow} transition-shadow`}>
+              <div className={`w-12 h-12 rounded-xl ${mod.color} flex items-center justify-center mb-4 group-hover:shadow-lg ${mod.shadow} transition-shadow`}>
                 <mod.icon size={24} />
               </div>
               <h3 className="font-display font-semibold text-lg text-white mb-2">{mod.title}</h3>
@@ -70,7 +70,7 @@ export default function ReportsStudio({ onTriggerModule }: ReportsStudioProps) {
               </p>
             </div>
 
-            <div className="flex items-center gap-2 text-xs font-mono text-[#00d4ff] group-hover:gap-3 transition-all">
+            <div className="flex items-center gap-2 text-xs font-mono text-white group-hover:gap-3 transition-all">
               <span>ENGAGE MODULE</span>
               <ArrowRight size={14} />
             </div>

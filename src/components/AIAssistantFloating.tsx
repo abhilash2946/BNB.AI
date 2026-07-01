@@ -48,12 +48,12 @@ export const AIAssistantFloating: React.FC<AIAssistantFloatingProps> = ({ report
   return (
     <>
       <button
-        className="floating-ai-btn group"
+        className="floating-ai-btn group !bg-[#1A1A1A]"
         onClick={() => setIsOpen(true)}
         aria-label="Open AI assistant"
       >
         <Sparkles size={24} className="text-white group-hover:scale-110 transition-transform" />
-        <div className="absolute inset-0 rounded-full bg-cyan-400 opacity-20 animate-ping group-hover:opacity-40" />
+        <div className="absolute inset-0 rounded-full bg-white opacity-20 animate-ping group-hover:opacity-40" />
       </button>
 
       <AnimatePresence>
@@ -72,11 +72,11 @@ export const AIAssistantFloating: React.FC<AIAssistantFloatingProps> = ({ report
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="relative w-[450px] max-w-full h-[600px] z-[110]"
             >
-              <GlassCard className="h-full flex flex-col p-0 overflow-hidden border-cyan-500/30 shadow-2xl">
+              <GlassCard className="h-full flex flex-col p-0 overflow-hidden border-white/30 shadow-2xl">
                 <div className="flex justify-between items-center p-5 border-b border-white/10 bg-white/[0.03]">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-cyan-500/20 rounded-lg">
-                      <Sparkles size={18} className="text-cyan-400" />
+                    <div className="p-2 bg-white/20 rounded-lg">
+                      <Sparkles size={18} className="text-white" />
                     </div>
                     <span className="font-bold text-lg tracking-tight">BNB AI Analyst</span>
                   </div>
@@ -98,7 +98,7 @@ export const AIAssistantFloating: React.FC<AIAssistantFloatingProps> = ({ report
                     >
                       <div className={`max-w-[85%] rounded-[1.25rem] px-5 py-3.5 text-sm leading-relaxed shadow-lg ${
                         msg.role === 'user'
-                          ? 'bg-gradient-to-br from-cyan-600 to-cyan-700 text-white'
+                          ? 'bg-white text-black'
                           : 'bg-white/[0.05] border border-white/10 text-gray-200'
                       }`}>
                         {msg.content}
@@ -114,11 +114,11 @@ export const AIAssistantFloating: React.FC<AIAssistantFloatingProps> = ({ report
                     onChange={(e) => setQuestion(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                     placeholder="Ask about traffic, protocols, competitors..."
-                    className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500 transition-all placeholder:text-gray-600"
+                    className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-white transition-all placeholder:text-gray-600"
                   />
                   <button
                     onClick={handleSend}
-                    className="p-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 hover:shadow-[0_0_15px_rgba(0,212,255,0.4)] text-white transition-all active:scale-95"
+                    className="p-3.5 rounded-xl bg-white text-black hover:bg-gray-200 transition-all active:scale-95"
                   >
                     <Send size={18} />
                   </button>

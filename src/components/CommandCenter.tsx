@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { UserProfile, SiteProfile, DateRange, MarketingReport, CategoryType, SectionType } from "../types";
 import { LoadingSkeleton } from "./LoadingSkeleton";
 import { useTheme } from "../contexts/ThemeContext";
@@ -13,7 +13,7 @@ import ReportsStudio from "./ReportsStudio";
 import AIAssistant from "./AIAssistant";
 import ReportViews from "./ReportViews";
 import ClientReports from "./command-center/ClientReports";
-import { AlertTriangle, Radar, Sparkles, HelpCircle, RefreshCw, ChevronRight } from "lucide-react";
+import { AlertTriangle, Radar, Sparkles, HelpCircle, RefreshCw, ChevronRight, ChevronDown } from "lucide-react";
 import {
   Radar as RadarGraph,
   RadarChart,
@@ -60,6 +60,23 @@ export default function CommandCenter({
   const [sidebarExpanded, setSidebarExpanded] = useState(() => getSavedState("sidebarExpanded", true));
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isFullscreenReport, setIsFullscreenReport] = useState(false);
+  const [resetTrigger, setResetTrigger] = useState(0);
+
+  // Radar switching states
+  const [isSelfRadar, setIsSelfRadar] = useState(false);
+  const [radarDropdownOpen, setRadarDropdownOpen] = useState(false);
+  const [selectedDeepDive, setSelectedDeepDive] = useState<string>("all");
+  const radarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (radarRef.current && !radarRef.current.contains(event.target as Node)) {
+        setRadarDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const {
     reportData, isLoading, errorMsg, pollingStatus, fetchReportData
@@ -109,6 +126,7 @@ export default function CommandCenter({
     // Enforcement for Client PPT view
     if (activeView === 'client-ppt') cat = 'Combined Intelligence';
 
+    setResetTrigger(prev => prev + 1);
     fetchReportData(activeSite, { startDate: dateRange.start, endDate: dateRange.end }, cat);
   };
 
@@ -158,15 +176,15 @@ export default function CommandCenter({
 
   return (
     <div className={`h-screen flex flex-col font-sans transition-colors duration-300 overflow-hidden ${
-      theme === 'dark' ? 'dark bg-[#03050a] text-white' : 'light bg-[#f4f6fa] text-slate-800'
+      theme === 'dark' ? 'dark bg-[#000000] text-white' : 'light bg-[#f4f6fa] text-slate-800'
     }`}>
 
-      {/* Background gradients */}
+      {/* Deep atmospheric background matching Image 2 texture */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         {theme === 'dark' ? (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#080b14_0%,_#03050a_100%)]" />
+          <div className="absolute inset-0 bg-[#000000] bg-[radial-gradient(circle_at_50%_40%,_#1A1A1A_0%,_#000000_80%)] opacity-80" />
         ) : (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#f1f4fb_0%,_#e2e8f0_100%)]" />
+          <div className="absolute inset-0 bg-[#f1f4fb]" />
         )}
       </div>
 
@@ -213,13 +231,13 @@ export default function CommandCenter({
           />
         )}
 
-        <main className={`flex-1 flex flex-col min-w-0 ${isFullscreenReport ? 'h-screen w-screen overflow-hidden' : 'overflow-y-auto custom-scrollbar'} bg-[#080B14] transition-all duration-300`}>
+        <main className={`flex-1 flex flex-col min-w-0 ${isFullscreenReport ? 'h-screen w-screen overflow-hidden' : 'overflow-y-auto custom-scrollbar'} bg-transparent transition-all duration-300`}>
           <div className={`${isFullscreenReport ? 'p-0 h-full w-full' : 'p-8 max-w-[1600px] mx-auto w-full'}`}>
             {isLoading ? (
               <div className="space-y-10">
-                 <div className="py-24 text-center glass-panel rounded-[2rem] shadow-sm space-y-4 animate-pulse border-white/5 bg-white/[0.01]">
-                  <div className="h-12 w-12 bg-[#00d4ff]/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-[#00d4ff]/20">
-                    <RefreshCw className="h-6 w-6 text-[#00d4ff] animate-spin" />
+                 <div className="py-24 text-center glass-panel rounded-[2rem] shadow-sm space-y-4 animate-pulse border-[#262626] bg-[#111111]">
+                  <div className="h-12 w-12 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/20">
+                    <RefreshCw className="h-6 w-6 text-white animate-spin" />
                   </div>
                   <h3 className="font-display font-bold text-2xl text-white tracking-tight">{pollingStatus || "Synchronizing Neural Link..."}</h3>
                   <p className="text-gray-500 text-sm max-w-md mx-auto leading-relaxed">
@@ -254,37 +272,227 @@ export default function CommandCenter({
             />
           ) : activeView === 'competitor' ? (
             <div className="space-y-6">
-              <div>
-                <h1 className="font-display font-medium text-2xl text-white tracking-tight">Competitor Radar Overview</h1>
-                <p className="text-xs text-white/40 mt-0.5 uppercase tracking-wider">Standalone cross-platform competitors metrics mapping</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="font-display font-medium text-2xl text-white tracking-tight">Competitor Radar Overview</h1>
+                  <p className="text-xs text-white/40 mt-0.5 uppercase tracking-wider">Standalone cross-platform competitors metrics mapping</p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  {/* View Toggle (Competitors vs Self) */}
+                  <div className="flex items-center p-1 bg-[#0c101b] border border-white/10 rounded-xl shadow-lg">
+                    <button
+                      onClick={() => setIsSelfRadar(false)}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all ${
+                        !isSelfRadar
+                          ? 'bg-[#00d4ff] text-black shadow-[0_0_10px_rgba(0,212,255,0.4)]'
+                          : 'text-white/40 hover:text-white/70'
+                      }`}
+                    >
+                      Competitors
+                    </button>
+                    <button
+                      onClick={() => setIsSelfRadar(true)}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold tracking-widest uppercase transition-all ${
+                        isSelfRadar
+                          ? 'bg-[#00d4ff] text-black shadow-[0_0_10px_rgba(0,212,255,0.4)]'
+                          : 'text-white/40 hover:text-white/70'
+                      }`}
+                    >
+                      Self
+                    </button>
+                  </div>
+
+                  {/* Category Dropdown */}
+                  <div className="relative" ref={radarRef}>
+                    <button
+                      onClick={() => setRadarDropdownOpen(!radarDropdownOpen)}
+                      className="flex items-center gap-2 px-4 py-2 bg-[#0c101b] border border-white/10 rounded-xl text-xs text-white hover:border-[#00d4ff]/40 transition-all shadow-lg"
+                    >
+                      <Radar size={14} className="text-[#00d4ff]" />
+                      <span className="font-medium">
+                        {category === "SEO" ? "SEO Radar" : "Performance Radar"}
+                      </span>
+                      <ChevronDown size={14} className={`text-white/40 transition-transform ${radarDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {radarDropdownOpen && (
+                      <div className="absolute right-0 mt-2 w-56 rounded-xl border border-white/10 bg-[#111111] p-1.5 shadow-2xl z-50">
+                        <div className="px-2.5 py-1 text-[10px] font-mono text-white/40 tracking-wider uppercase mb-1">SWITCH RADAR CORE</div>
+                        <button
+                          onClick={() => {
+                            handleNavigate('competitor', 'SEO', 'Reports');
+                            setRadarDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center px-2.5 py-2 rounded-lg text-xs transition-all ${
+                            category === 'SEO'
+                              ? 'bg-[#00d4ff]/10 text-[#00d4ff] border-l-2 border-[#00d4ff]'
+                              : 'text-white/70 hover:bg-white/5 hover:text-white'
+                          }`}
+                        >
+                          SEO Radar
+                        </button>
+                        <button
+                          onClick={() => {
+                            handleNavigate('competitor', 'Performance Marketing', 'Reports');
+                            setRadarDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center px-2.5 py-2 mt-1 rounded-lg text-xs transition-all ${
+                            category === 'Performance Marketing'
+                              ? 'bg-[#00d4ff]/10 text-[#00d4ff] border-l-2 border-[#00d4ff]'
+                              : 'text-white/70 hover:bg-white/5 hover:text-white'
+                          }`}
+                        >
+                          Performance Radar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {marketingReport?.radarData && marketingReport.radarData.length > 0 ? (
+              {((isSelfRadar && marketingReport?.radar_self) || (marketingReport?.radarData && marketingReport.radarData.length > 0)) ? (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2 glass-panel rounded-2xl p-6 h-[450px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <RadarChart cx="50%" cy="50%" outerRadius="80%" data={marketingReport.radarData}>
+                      <RadarChart
+                        cx="50%"
+                        cy="50%"
+                        outerRadius="80%"
+                        data={isSelfRadar && marketingReport?.radar_self
+                          ? Object.entries(marketingReport.radar_self).map(([subject, value]) => ({ subject, "Current Site": value }))
+                          : marketingReport?.radarData
+                        }
+                      >
                         <PolarGrid stroke="rgba(255,255,255,0.06)" />
                         <PolarAngleAxis dataKey="subject" tick={{ fill: 'rgba(255,255,255,0.7)', fontSize: 11 }} />
                         <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="rgba(255,255,255,0.02)" />
-                        <RadarGraph name={marketingReport.siteName} dataKey="Current Site" stroke="#00d4ff" fill="#00d4ff" fillOpacity={0.15} />
-                        <RadarGraph name="Alpha Force" dataKey="Competitor Alpha" stroke="#7c3aed" fill="#7c3aed" fillOpacity={0.06} />
-                        <RadarGraph name="Beta Matrix" dataKey="Competitor Beta" stroke="#f43f5e" fill="#f43f5e" fillOpacity={0.03} />
-                        <RadarGraph name="Gamma Shield" dataKey="Competitor Gamma" stroke="#22c55e" fill="#22c55e" fillOpacity={0.03} />
+
+                        {isSelfRadar ? (
+                          <RadarGraph
+                            name={marketingReport?.siteName || "Current Site"}
+                            dataKey="Current Site"
+                            stroke="#FFFFFF"
+                            fill="#FFFFFF"
+                            fillOpacity={0.25}
+                          />
+                        ) : (() => {
+                          const sample = marketingReport?.radarData?.[0] || {};
+                          const competitorKeys = Object.keys(sample).filter(k => k !== 'subject' && k !== 'Current Site' && k !== 'you');
+                          const colors = ['#7c3aed', '#f43f5e', '#22c55e', '#eab308', '#ec4899'];
+
+                          return (
+                            <>
+                              <RadarGraph name={marketingReport?.siteName} dataKey="Current Site" stroke="#00d4ff" fill="#00d4ff" fillOpacity={0.15} />
+                              {competitorKeys.map((key, idx) => (
+                                <RadarGraph
+                                  key={key}
+                                  name={key}
+                                  dataKey={key}
+                                  stroke={colors[idx % colors.length]}
+                                  fill={colors[idx % colors.length]}
+                                  fillOpacity={0.06}
+                                />
+                              ))}
+                              <Legend wrapperStyle={{ fontSize: '10px' }} iconSize={8} />
+                            </>
+                          );
+                        })()}
+
                         <ChartTooltip contentStyle={{ backgroundColor: '#0c0f1d', borderColor: 'rgba(0, 212, 255, 0.2)', fontSize: '11px', color: '#fff' }} />
-                        <Legend wrapperStyle={{ fontSize: '10px' }} iconSize={8} />
                       </RadarChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="glass-panel rounded-2xl p-6 bg-[#0c101b] justify-between flex flex-col">
-                    <div>
-                      <h3 className="font-display font-medium text-xs text-[#00d4ff] uppercase tracking-wider border-b border-white/5 pb-2 mb-4">AI Radar Insights</h3>
-                      <p className="text-xs text-white/80 font-sans leading-relaxed italic">
-                        "{marketingReport.executiveSummary.substring(0, 300)}..."
-                      </p>
+                  <div className="glass-panel rounded-2xl p-6 bg-[#0c101b] flex flex-col h-[450px]">
+                    <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2 shrink-0">
+                      <h3 className="font-display font-medium text-xs text-[#00d4ff] uppercase tracking-wider">Competitor Deep Dive</h3>
+
+                      {(() => {
+                        const compData = category === 'SEO' ? marketingReport?.seo?.aiCompetitorAnalysis : marketingReport?.performance?.aiCompetitorAnalysis;
+                        const competitors = compData?.competitor_breakdown || [];
+
+                        if (competitors.length === 0) return null;
+
+                        return (
+                          <select
+                            value={selectedDeepDive}
+                            onChange={(e) => setSelectedDeepDive(e.target.value)}
+                            className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white focus:outline-none focus:border-[#00d4ff]/40 transition-all cursor-pointer"
+                          >
+                            <option value="all">All Adversaries</option>
+                            {competitors.map((c: any) => (
+                              <option key={c.name} value={c.name}>{c.name}</option>
+                            ))}
+                          </select>
+                        );
+                      })()}
                     </div>
-                    <div className="mt-6 pt-4 border-t border-white/5">
-                      <div className="text-[10px] font-mono text-white/30 uppercase">SYSTEM DIAGNOSTIC PARAMETERS: SUITE SECURE</div>
+
+                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4">
+                      {(() => {
+                        const compData = category === 'SEO' ? marketingReport?.seo?.aiCompetitorAnalysis : marketingReport?.performance?.aiCompetitorAnalysis;
+                        const competitors = (compData?.competitor_breakdown || [])
+                          .filter((c: any) => selectedDeepDive === "all" || c.name === selectedDeepDive);
+
+                        if (competitors.length === 0) {
+                          return (
+                            <div className="h-full flex items-center justify-center text-center p-4">
+                              <p className="text-[10px] text-white/30 uppercase tracking-widest leading-relaxed">
+                                No deep dive data available for this category sequence.
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        return competitors.map((comp: any, idx: number) => (
+                          <div key={idx} className="bg-white/5 border border-white/5 rounded-xl p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-[11px] font-bold text-white uppercase tracking-wider">{comp.name}</h4>
+                              <div className="px-2 py-0.5 rounded bg-[#00d4ff]/10 border border-[#00d4ff]/20">
+                                <span className="text-[8px] text-[#00d4ff] font-mono uppercase">Analyzed</span>
+                              </div>
+                            </div>
+
+                            {comp.inferred_actions && (
+                              <div>
+                                <span className="text-[9px] font-mono text-white/40 uppercase block mb-1">Tactical Actions</span>
+                                <p className="text-[10px] text-white/70 leading-relaxed italic">
+                                  "{Array.isArray(comp.inferred_actions) ? comp.inferred_actions[0] : comp.inferred_actions}"
+                                </p>
+                              </div>
+                            )}
+
+                            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+                              <div>
+                                <span className="text-[9px] font-mono text-emerald-500 uppercase block mb-1">Strengths</span>
+                                <ul className="space-y-1">
+                                  {(Array.isArray(comp.strengths) ? comp.strengths : [comp.strengths]).slice(0, 2).map((s: string, i: number) => (
+                                    <li key={i} className="text-[9px] text-white/50 flex gap-1 items-start">
+                                      <div className="w-1 h-1 rounded-full bg-emerald-500 mt-1 shrink-0" />
+                                      <span className="truncate">{s}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                              <div>
+                                <span className="text-[9px] font-mono text-rose-500 uppercase block mb-1">Weaknesses</span>
+                                <ul className="space-y-1">
+                                  {(Array.isArray(comp.weaknesses) ? comp.weaknesses : [comp.weaknesses]).slice(0, 2).map((w: string, i: number) => (
+                                    <li key={i} className="text-[9px] text-white/50 flex gap-1 items-start">
+                                      <div className="w-1 h-1 rounded-full bg-rose-500 mt-1 shrink-0" />
+                                      <span className="truncate">{w}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-white/5 shrink-0">
+                      <div className="text-[9px] font-mono text-white/20 uppercase tracking-tighter">DIAGNOSTIC PROTOCOL: {category} CORE</div>
                     </div>
                   </div>
                 </div>
@@ -304,12 +512,14 @@ export default function CommandCenter({
           ) : activeView === 'client-ppt' ? (
             <ClientReports
               report={marketingReport}
+              siteId={activeSite.id}
               category={category}
               setCategory={setCategory}
               isFullscreen={isFullscreenReport}
               setIsFullscreen={setIsFullscreenReport}
               userAvatarUrl={user.avatarUrl}
               userName={user.name}
+              resetTrigger={resetTrigger}
             />
           ) : activeView === 'client-doc' ? (
             marketingReport ? (

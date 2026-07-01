@@ -66,9 +66,10 @@ export const mapReportResponseToMarketingReport = (
     return {
       title: adv.title || "Strategic Advice",
       description: adv.description || "",
-      priority: (adv.impact === 'High' ? 'High' : 'Medium') as any,
+      priority: (adv.priority || (adv.impact === 'High' ? 'High' : 'Medium')) as any,
       impact: adv.impact || "Medium",
-      effort: adv.effort || "Medium"
+      effort: adv.effort || "Medium",
+      target: adv.target
     };
   });
 
@@ -108,7 +109,12 @@ export const mapReportResponseToMarketingReport = (
     competitor_intelligence: report.competitor_intelligence,
     radar_self: report.radar_self,
     tableData1: report.tableData1,
-    tableData2: report.tableData2
+    tableData2: report.tableData2,
+    topPages: report.topPages,
+    topPageTitles: report.topPageTitles,
+    sessionsByChannel: report.sessionsByChannel,
+    eventsByEventName: report.eventsByEventName,
+    topKeywords: report.topKeywords, // Pass through for ClientReports.tsx
   };
 
   if (category === 'SEO' || category === 'Combined Intelligence') {
@@ -127,6 +133,7 @@ export const mapReportResponseToMarketingReport = (
         country: c.country || c.label || 'Unknown',
         users: parseInt(String(c.users || c.valueA || 0)) || 0
       })),
+      totals: report.seo?.totals || report.ga4_details || {},
       activeUsersInsight: report.tableExplanations?.active_users_by_country || report.tableExplanations?.country_overview || "Geographical distribution shows primary engagement nodes.",
       userActivityOverTime: timelineData.map(a => {
         const total = parseInt(String(a.users || a.valueA || 0)) || 0;
@@ -143,9 +150,10 @@ export const mapReportResponseToMarketingReport = (
         keyword: k.item || 'Unknown',
         clicks: parseInt(String(k.value || 0)) || 0,
         ctr: k.share || '0%',
-        position: k.trend || '0'
+        position: k.trend || '0',
+        previous_position: k.prev || '-'
       })),
-      averagePosition: report.seo?.averagePosition,
+      averagePosition: report.averagePosition,
       topKeywordsInsight: report.aiTopKeywordsOverview || report.tableExplanations?.top_keywords_overview || "Search term resonance and bidding efficiency.",
       viewsByPageTitle: (report.topPageTitles || []).map(p => ({ pageTitle: p.title || 'Unknown', views: parseInt(String(p.views || 0)) || 0 })),
       viewsByPageInsight: report.tableExplanations?.views_by_page_title || report.tableExplanations?.page_title_overview || "Content resonance metrics across active page nodes.",
@@ -190,6 +198,10 @@ export const mapReportResponseToMarketingReport = (
         currentValue: parseNumeric(d.current),
         previousValue: parseNumeric(d.previous)
       })),
+      totals: report.performance?.totals || {
+        google: report.google_ads_details || {},
+        meta: report.metaKpi?.current || report.meta_ads_kpi?.current || {}
+      },
       googleAdsInsight: report.tableExplanations?.kpi_overview || report.tableExplanations?.google_ads_overview || "Google Ads campaign efficiency summary.",
       topCampaigns: (report.google_ads_details?.top_campaigns || []).map((c: any) => ({
         campaign: c.campaign || c.name || "Unknown",
@@ -236,6 +248,8 @@ export const mapReportResponseToMarketingReport = (
         const prevI = (previous.impressions || 0);
         const curC = (current.clicks || 0);
         const prevC = (previous.clicks || 0);
+        const curR = (current.roas || 0);
+        const prevR = (previous.roas || 0);
 
         const safePct = (c: number, p: number) => p === 0 ? (c > 0 ? 100 : 0) : ((c - p) / p) * 100;
 
@@ -284,6 +298,15 @@ export const mapReportResponseToMarketingReport = (
             isGood: (curL > 0 ? curS / curL : 0) <= (prevL > 0 ? prevS / prevL : 0),
             currentValue: curL > 0 ? curS / curL : 0,
             previousValue: prevL > 0 ? prevS / prevL : 0
+          },
+          {
+            metric: "ROAS",
+            current: `${curR.toFixed(2)}X`,
+            previous: `${prevR.toFixed(2)}X`,
+            pctChange: safePct(curR, prevR),
+            isGood: curR >= prevR,
+            currentValue: curR,
+            previousValue: prevR
           }
         ].map(k => ({ ...k, pctChange: parseFloat(k.pctChange.toFixed(1)) }));
       })(),

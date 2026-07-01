@@ -228,7 +228,7 @@ export default function SiteManagement({
   };
 
   return (
-    <div className="min-h-screen bg-[#080B14] text-white p-8">
+    <div className="min-h-screen bg-[#000000] text-white p-8">
       <div className="max-w-7xl mx-auto">
         <header className="flex justify-between items-center mb-12">
           <div className="flex items-center gap-4">
@@ -237,7 +237,7 @@ export default function SiteManagement({
           </div>
           <div className="flex items-center gap-4">
             <button onClick={() => setActiveSettingsModal('all')} className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 flex items-center gap-2"><Settings size={18}/> Agency Settings</button>
-            <button onClick={onLogout} className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl border border-red-500/20 font-bold">Logout</button>
+            <button onClick={onLogout} className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/20 font-bold">Logout</button>
           </div>
         </header>
 
@@ -247,7 +247,7 @@ export default function SiteManagement({
               <div className="flex items-start justify-between mb-6">
                 <div className="flex items-center gap-4 min-w-0">
                   <div className="relative group/avatar">
-                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center font-bold text-xl shrink-0 overflow-hidden border border-white/10">
+                    <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center font-bold text-xl shrink-0 overflow-hidden border border-white/10 text-black">
                       {user.avatarUrl ? (
                         <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
                       ) : (
@@ -256,7 +256,7 @@ export default function SiteManagement({
 
                       {isUploading && (
                         <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                          <Sparkles className="animate-spin text-cyan-400" size={16} />
+                          <Sparkles className="animate-spin text-white" size={16} />
                         </div>
                       )}
                     </div>
@@ -283,7 +283,7 @@ export default function SiteManagement({
                         type="text"
                         value={profileName}
                         onChange={e => setProfileName(e.target.value)}
-                        className="w-full bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-cyan-500"
+                        className="w-full bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-white"
                         autoFocus
                       />
                     ) : (
@@ -310,10 +310,10 @@ export default function SiteManagement({
                       type="text"
                       value={profileAgencyName}
                       onChange={e => setProfileAgencyName(e.target.value)}
-                      className="w-full bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-cyan-500 mt-1"
+                      className="w-full bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-white mt-1"
                     />
                   ) : (
-                    <p className="text-sm font-semibold text-cyan-400">{user.agencyName}</p>
+                    <p className="text-sm font-semibold text-white">{user.agencyName}</p>
                   )}
                 </div>
 
@@ -322,7 +322,7 @@ export default function SiteManagement({
                     <button
                       onClick={handleUpdateProfile}
                       disabled={isSaving}
-                      className="flex-1 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                      className="flex-1 py-2 bg-white text-black hover:bg-gray-200 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
                     >
                       {isSaving ? "Saving..." : "Save"}
                     </button>
@@ -351,20 +351,20 @@ export default function SiteManagement({
 
           <main className="lg:col-span-3 space-y-8">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-cyan-500" /> Active Nodes</h2>
+              <h2 className="text-xl font-bold flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-white" /> Active Nodes</h2>
               {!isAddingNew && !editingSiteId && (
-                <button onClick={() => setIsAddingNew(true)} className="px-6 py-2 bg-gradient-to-r from-cyan-500 to-violet-600 rounded-xl font-bold flex items-center gap-2 hover:shadow-[0_0_20px_rgba(0,212,255,0.4)] transition-all"><Plus size={18}/> Deploy New Node</button>
+                <button onClick={() => setIsAddingNew(true)} className="px-6 py-2 bg-white text-black rounded-xl font-bold flex items-center gap-2 hover:bg-gray-200 transition-all"><Plus size={18}/> Deploy New Node</button>
               )}
             </div>
 
             <AnimatePresence>
               {(isAddingNew || editingSiteId) && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}>
-                  <GlassCard className="p-8 border-cyan-500/30">
+                  <GlassCard className="p-8 border-white/30">
                     <form onSubmit={handleSubmit} className="space-y-8">
                       <div className="flex flex-col md:flex-row gap-8 pb-6 border-b border-white/5">
                         <div className="relative group/site-img shrink-0">
-                          <div className="w-32 h-32 rounded-2xl bg-black/40 border border-white/10 flex items-center justify-center overflow-hidden transition-all group-hover/site-img:border-cyan-500/50">
+                          <div className="w-32 h-32 rounded-2xl bg-black/40 border border-white/10 flex items-center justify-center overflow-hidden transition-all group-hover/site-img:border-white/50">
                             {siteImageUrl ? (
                               <img src={siteImageUrl} alt="Site Logo" className="w-full h-full object-cover" />
                             ) : (
@@ -376,14 +376,14 @@ export default function SiteManagement({
 
                             {isUploadingSiteImage && (
                               <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                <Sparkles className="animate-spin text-cyan-400" size={20} />
+                                <Sparkles className="animate-spin text-white" size={20} />
                               </div>
                             )}
                           </div>
                           <button
                             type="button"
                             onClick={() => siteFileInputRef.current?.click()}
-                            className="absolute -bottom-2 -right-2 p-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl shadow-xl transition-all"
+                            className="absolute -bottom-2 -right-2 p-2 bg-white text-black hover:bg-gray-200 rounded-xl shadow-xl transition-all"
                             title="Upload Site Logo"
                           >
                             <Camera size={14} />
@@ -400,39 +400,39 @@ export default function SiteManagement({
                         <div className="flex-1 grid md:grid-cols-2 gap-6">
                           <div className="md:col-span-2">
                             <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2 block">Site Name</label>
-                            <input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-cyan-500" />
+                            <input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-white" />
                           </div>
                           <div>
                             <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2 block">URL</label>
-                            <input type="url" required value={url} onChange={e => setUrl(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-cyan-500" />
+                            <input type="url" required value={url} onChange={e => setUrl(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-white" />
                           </div>
                           <div>
                             <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2 block">Industry</label>
-                            <select value={industry} onChange={e => setIndustry(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-cyan-500 appearance-none">
+                            <select value={industry} onChange={e => setIndustry(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-white appearance-none">
                               <option value="Travel & Leisure" className="bg-[#111827]">Travel & Leisure</option>
                               <option value="E-Commerce" className="bg-[#111827]">E-Commerce</option>
                             </select>
                           </div>
                           <div>
                             <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2 block">City (for competitor search)</label>
-                            <input type="text" placeholder="e.g. Hyderabad" value={city} onChange={e => setCity(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-cyan-500" />
+                            <input type="text" placeholder="e.g. Hyderabad" value={city} onChange={e => setCity(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-white" />
                           </div>
                         </div>
                       </div>
 
                       <div className="grid md:grid-cols-3 gap-6">
                         <div className="space-y-4">
-                          <span className="text-[10px] font-bold text-cyan-400 tracking-widest uppercase">SEO IDs</span>
+                          <span className="text-[10px] font-bold text-white tracking-widest uppercase">SEO IDs</span>
                           <input type="text" placeholder="GA4 ID" value={ga4Id} onChange={e => setGa4Id(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-xs" />
                           <input type="text" placeholder="GSC URL" value={gscUrl} onChange={e => setGscUrl(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-xs" />
                         </div>
                         <div className="space-y-4">
-                          <span className="text-[10px] font-bold text-violet-400 tracking-widest uppercase">Performance</span>
+                          <span className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Performance</span>
                           <input type="text" placeholder="G-Ads ID" value={googleAdsId} onChange={e => setGoogleAdsId(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-xs" />
                           <input type="text" placeholder="Meta Ads ID" value={metaAdsId} onChange={e => setMetaAdsId(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-xs" />
                         </div>
                         <div className="space-y-4">
-                          <span className="text-[10px] font-bold text-emerald-400 tracking-widest uppercase">Social</span>
+                          <span className="text-[10px] font-bold text-gray-500 tracking-widest uppercase">Social</span>
                           <input type="text" placeholder="FB Page ID" value={fbPageId} onChange={e => setFbPageId(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-xs" />
                           <input type="text" placeholder="IG Bus ID" value={igBusId} onChange={e => setIgBusId(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-xs" />
                         </div>
@@ -440,7 +440,7 @@ export default function SiteManagement({
 
                       <div className="flex gap-4 justify-end pt-4">
                         <button type="button" onClick={() => { setIsAddingNew(false); setEditingSiteId(null); resetFormState(); }} className="px-6 py-3 border border-white/10 rounded-xl font-bold hover:bg-white/5 transition-all">Cancel</button>
-                        <button type="submit" disabled={isSaving} className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-violet-600 rounded-xl font-bold shadow-lg disabled:opacity-50">{isSaving ? "Saving..." : "Commit Changes"}</button>
+                        <button type="submit" disabled={isSaving} className="px-8 py-3 bg-white text-black rounded-xl font-bold shadow-lg disabled:opacity-50">{isSaving ? "Saving..." : "Commit Changes"}</button>
                       </div>
                     </form>
                   </GlassCard>
@@ -488,16 +488,16 @@ export default function SiteManagement({
                   {(activeSettingsModal === 'all' || activeSettingsModal === 'meta') && (
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Meta Long-Lived Token</label>
-                      <input type="password" value={metaToken} onChange={e => setMetaToken(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-cyan-500 outline-none" />
+                      <input type="password" value={metaToken} onChange={e => setMetaToken(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-white outline-none" />
                     </div>
                   )}
                   {(activeSettingsModal === 'all' || activeSettingsModal === 'dev_token') && (
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Google Ads Developer Token</label>
-                      <input type="text" value={googleAdsDevToken} onChange={e => setGoogleAdsDevToken(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-cyan-500 outline-none" />
+                      <input type="text" value={googleAdsDevToken} onChange={e => setGoogleAdsDevToken(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-white outline-none" />
                     </div>
                   )}
-                  <button type="submit" className="w-full py-4 bg-gradient-to-r from-cyan-500 to-violet-600 rounded-2xl font-bold hover:shadow-[0_0_20px_rgba(0,212,255,0.4)] transition-all mt-4">Update Neural Sync Keys</button>
+                  <button type="submit" className="w-full py-4 bg-white text-black rounded-2xl font-bold hover:bg-gray-200 transition-all mt-4">Update Neural Sync Keys</button>
                 </form>
               </GlassCard>
             </motion.div>

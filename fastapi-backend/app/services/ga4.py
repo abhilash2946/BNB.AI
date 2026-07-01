@@ -79,7 +79,7 @@ async def fetch_ga4_landing_pages(property_id: str, access_token: str, start_dat
     url = f"https://analyticsdata.googleapis.com/v1beta/properties/{property_id}:runReport"
     body = {
         "dateRanges": [{"startDate": start_date, "endDate": end_date}],
-        "metrics": [{"name": "sessions"}],
+        "metrics": [{"name": "sessions"}, {"name": "bounceRate"}],
         "dimensions": [{"name": "landingPage"}],
         "orderBys": [{"metric": {"metricName": "sessions"}, "desc": True}],
         "limit": limit
@@ -87,7 +87,11 @@ async def fetch_ga4_landing_pages(property_id: str, access_token: str, start_dat
     data = await _post_ga4(url, access_token, body)
     rows = data.get("rows", [])
     return [
-        {"page": row["dimensionValues"][0]["value"], "sessions": int(row["metricValues"][0]["value"])}
+        {
+            "page": row["dimensionValues"][0]["value"],
+            "sessions": int(row["metricValues"][0]["value"]),
+            "bounceRate": float(row["metricValues"][1]["value"])
+        }
         for row in rows
     ]
 

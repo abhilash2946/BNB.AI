@@ -3,20 +3,36 @@ import numpy as np
 
 from app.analytics.performance_analytics import format_number, calculate_pct_change
 
-def get_seo_kpis(ga4_cur, ga4_prev):
+def get_seo_kpis(ga4_cur, ga4_prev=None):
     """
     Returns a list of KpiItem objects for SEO Performance slide.
+    ga4_cur can be the full nested dict from fetch_ga4_totals.
     """
+    print(f"DEBUG: get_seo_kpis called with ga4_cur keys: {list(ga4_cur.keys()) if ga4_cur else 'None'}")
+
     metrics = [
         ("Organic Users", "totalUsers", "Globe"),
         ("Organic Sessions", "sessions", "Zap"),
         ("New Users", "newUsers", "User"),
     ]
 
+    # Robust detection of nested structure from fetch_ga4_totals
+    def extract_val(data, key, subkey):
+        if not data: return 0
+        val = data.get(key)
+        if isinstance(val, dict):
+            res = float(val.get(subkey, 0))
+            print(f"DEBUG: extract_val({key}, {subkey}) from dict returned {res}")
+            return res
+        res = float(val) if subkey == "current" else 0
+        print(f"DEBUG: extract_val({key}, {subkey}) from flat returned {res}")
+        return res
+
     results = []
     for label, key, icon in metrics:
-        c_val = ga4_cur.get(key, {}).get('current', 0) if isinstance(ga4_cur.get(key), dict) else ga4_cur.get(key, 0)
-        p_val = ga4_prev.get(key, {}).get('current', 0) if isinstance(ga4_prev.get(key), dict) else ga4_prev.get(key, 0)
+        c_val = extract_val(ga4_cur, key, "current")
+        # If ga4_prev is not provided, try to extract from ga4_cur (nested case)
+        p_val = extract_val(ga4_cur, key, "previous") if ga4_prev is None else extract_val(ga4_prev, key, "current")
 
         results.append({
             "label": label,
@@ -28,17 +44,19 @@ def get_seo_kpis(ga4_cur, ga4_prev):
         })
 
     # Bounce Rate
-    br_cur = ga4_cur.get('bounceRate', {}).get('current', 0) if isinstance(ga4_cur.get('bounceRate'), dict) else ga4_cur.get('bounceRate', 0)
-    br_prev = ga4_prev.get('bounceRate', {}).get('current', 0) if isinstance(ga4_prev.get('bounceRate'), dict) else ga4_prev.get('bounceRate', 0)
+    br_cur = extract_val(ga4_cur, 'bounceRate', "current")
+    br_prev = extract_val(ga4_cur, 'bounceRate', "previous") if ga4_prev is None else extract_val(ga4_prev, 'bounceRate', "current")
+
     results.append({
         "label": "Bounce Rate",
-        "value": f"{br_cur*100:.1f}%",
-        "previous": f"{br_prev*100:.1f}%",
+        "value": f"{br_cur*100:.1f}%" if br_cur < 1 else f"{br_cur:.1f}%", # Handle decimal vs percentage
+        "previous": f"{br_prev*100:.1f}%" if br_prev < 1 else f"{br_prev:.1f}%",
         "change": calculate_pct_change(br_cur, br_prev),
         "isPositive": calculate_pct_change(br_cur, br_prev) <= 0,
         "icon": "Activity"
     })
 
+    print(f"DEBUG: get_seo_kpis returning {len(results)} KPIs. First KPI previous: {results[0]['previous']}")
     return results
 
 def analyse_page_titles(top_page_titles):

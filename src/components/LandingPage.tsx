@@ -11,14 +11,14 @@ export default function LandingPage({ onStart, onLogin }: LandingPageProps) {
   return (
     <div className="min-h-screen bg-[#080B14] text-white overflow-hidden relative">
       {/* Animated Background Blobs */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-cyan-500/10 rounded-full blur-[120px] animate-pulse" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-violet-500/10 rounded-full blur-[120px] animate-pulse delay-700" />
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-white/5 rounded-full blur-[120px] animate-pulse" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-white/5 rounded-full blur-[120px] animate-pulse delay-700" />
 
       {/* Navbar */}
       <nav className="relative z-50 flex justify-between items-center px-8 py-6 max-w-7xl mx-auto">
         <div className="flex items-center gap-2">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center shadow-[0_0_20px_rgba(0,212,255,0.3)]">
-            <Sparkles size={20} className="text-white" />
+          <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+            <Sparkles size={20} className="text-black" />
           </div>
           <span className="text-2xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent tracking-tighter">BNB.AI</span>
         </div>
@@ -35,14 +35,14 @@ export default function LandingPage({ onStart, onLogin }: LandingPageProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
         >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-bold tracking-widest uppercase mb-8">
-            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white text-xs font-bold tracking-widest uppercase mb-8">
+            <div className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
             Neural Marketing Intelligence v4.0
           </div>
 
           <h1 className="text-6xl md:text-8xl font-bold tracking-tighter leading-[0.9] mb-8">
             The Future of <br />
-            <span className="bg-gradient-to-r from-cyan-400 via-violet-400 to-emerald-400 bg-clip-text text-transparent">Marketing Intel</span>
+            <span className="bg-gradient-to-r from-white via-gray-400 to-gray-600 bg-clip-text text-transparent">Marketing Intel</span>
           </h1>
 
           <p className="max-w-2xl mx-auto text-gray-400 text-lg md:text-xl mb-12 leading-relaxed">
@@ -52,7 +52,7 @@ export default function LandingPage({ onStart, onLogin }: LandingPageProps) {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
               onClick={onStart}
-              className="group px-8 py-4 bg-gradient-to-r from-cyan-500 to-violet-600 rounded-2xl font-bold text-lg flex items-center gap-2 hover:shadow-[0_0_40px_rgba(0,212,255,0.4)] transition-all"
+              className="group px-8 py-4 bg-white text-black rounded-2xl font-bold text-lg flex items-center gap-2 hover:bg-gray-200 transition-all"
             >
               Initiate Neural Sync
               <ArrowRight className="group-hover:translate-x-1 transition-transform" />
@@ -98,9 +98,9 @@ export default function LandingPage({ onStart, onLogin }: LandingPageProps) {
             <span className="text-xs">© {new Date().getFullYear()} All Rights Reserved.</span>
           </div>
           <div className="flex gap-8 text-sm text-gray-500">
-            <a href="#" className="hover:text-cyan-400 transition-colors">Privacy Protocol</a>
-            <a href="#" className="hover:text-cyan-400 transition-colors">Neural API</a>
-            <a href="#" className="hover:text-cyan-400 transition-colors">Service Terms</a>
+            <a href="#" className="hover:text-white transition-colors">Privacy Protocol</a>
+            <a href="#" className="hover:text-white transition-colors">Neural API</a>
+            <a href="#" className="hover:text-white transition-colors">Service Terms</a>
           </div>
         </div>
       </footer>
@@ -113,9 +113,9 @@ const FeatureCard = ({ icon: Icon, title, desc, delay }: any) => (
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay, duration: 0.6 }}
-    className="p-8 rounded-[2rem] bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 backdrop-blur-xl text-left hover:border-cyan-500/50 transition-all group"
+    className="p-8 rounded-[2rem] bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 backdrop-blur-xl text-left hover:border-white/50 transition-all group"
   >
-    <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 mb-6 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(0,212,255,0.1)]">
+    <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-white mb-6 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(255,255,255,0.05)]">
       <Icon size={24} />
     </div>
     <h3 className="text-xl font-bold mb-3">{title}</h3>

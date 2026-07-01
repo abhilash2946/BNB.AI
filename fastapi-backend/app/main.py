@@ -2,11 +2,7 @@ from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.models import ReportRequest, ReportResponse, AdviceSummarizeRequest
 from app.supabase_client import supabase
-from app.workers.performance_worker import run_performance_report
-from app.workers.seo_worker import run_seo_report
-from app.workers.social_worker import run_social_report
-from app.services.gemini import summarize_advice
-from app.routes import oauth
+# Deferred imports for workers to speed up startup
 import uuid
 print("---> Starting BNB.AI API Server...")
 
@@ -20,6 +16,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Defer router import to speed up startup if possible,
+# but usually routes are fine. Moving it here for consistency.
+from app.routes import oauth
 app.include_router(oauth.router)
 
 def check_existing_report(site_id: str, module: str, start_date: str, end_date: str):
@@ -38,6 +37,7 @@ def check_existing_report(site_id: str, module: str, start_date: str, end_date: 
 
 @app.post("/performance-report")
 async def performance_report(req: ReportRequest, background_tasks: BackgroundTasks):
+    from app.workers.performance_worker import run_performance_report
     print(f"---> Received Performance report request for site: {req.site_id}")
     
     # Check if we have a processed report already
@@ -78,6 +78,7 @@ async def performance_report(req: ReportRequest, background_tasks: BackgroundTas
 
 @app.post("/seo-report")
 async def seo_report(req: ReportRequest, background_tasks: BackgroundTasks):
+    from app.workers.seo_worker import run_seo_report
     print(f"---> Received SEO report request for site: {req.site_id}")
     
     # Check if we have a processed report already
@@ -122,6 +123,7 @@ async def seo_report(req: ReportRequest, background_tasks: BackgroundTasks):
 
 @app.post("/social-report")
 async def social_report(req: ReportRequest, background_tasks: BackgroundTasks):
+    from app.workers.social_worker import run_social_report
     print(f"---> Received Social report request for site: {req.site_id}")
     
     # Check if we have a processed report already
@@ -162,6 +164,7 @@ async def social_report(req: ReportRequest, background_tasks: BackgroundTasks):
 
 @app.post("/summarize-advice")
 async def api_summarize_advice(req: AdviceSummarizeRequest):
+    from app.services.gemini import summarize_advice
     print(f"---> Summarizing advice for report {req.report_id}")
     try:
         summarized = await summarize_advice(req.advice_list)

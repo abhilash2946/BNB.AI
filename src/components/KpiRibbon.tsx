@@ -14,7 +14,7 @@ export const KpiRibbon: React.FC<{ items: KpiItem[] }> = ({ items }) => (
       <div key={i} className="kpi-card group">
         <div className="flex justify-between items-start mb-3">
           <span className="text-xs uppercase tracking-wider text-gray-400">{item.label}</span>
-          <item.icon size={18} className="text-cyan-400 group-hover:text-cyan-300 transition" aria-hidden="true" />
+          <item.icon size={18} className="text-white group-hover:text-gray-300 transition" aria-hidden="true" />
         </div>
         <div className="text-2xl font-bold font-mono">{item.value}</div>
         <div className={`text-xs mt-2 ${item.change.startsWith('+') ? 'text-green-400' : item.change.startsWith('-') ? 'text-red-400' : 'text-gray-400'}`}>

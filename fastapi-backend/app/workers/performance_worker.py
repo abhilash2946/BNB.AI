@@ -36,8 +36,8 @@ from app.analytics.performance_analytics import *
 from app.analytics.radar_builder import build_dynamic_radar
 from app.config import settings
 import requests
-from app.services.gemini import call_gemini, call_ollama_simple
-from app.services.prompt_builders import build_performance_exec_prompt, build_performance_deep_dive_prompt, build_competitor_batch_prompt
+from app.services.gemini import call_gemini
+from app.services.prompt_builders import build_performance_exec_prompt, build_competitor_batch_prompt, build_performance_advice_prompt, build_performance_explanations_prompt
 from app.utils.date_utils import compute_previous_period
 from datetime import datetime, timezone, timedelta
 import asyncio
@@ -46,18 +46,32 @@ import traceback
 import re
 import shutil
 from bs4 import BeautifulSoup
-from keybert import KeyBERT
-import spacy
 import httpx
 
-# Load NLP models once (to avoid reloading per report)
-try:
-    kw_model = KeyBERT()
-    nlp = spacy.load("en_core_web_sm")
-except Exception as e:
-    print(f"!!! Error loading NLP models: {e}")
-    kw_model = None
-    nlp = None
+# Lazy load NLP models to speed up server startup
+_kw_model = None
+_nlp = None
+
+def get_nlp_models():
+    """Initialize models only when needed."""
+    global _kw_model, _nlp
+    if _kw_model is None or _nlp is None:
+        print("---> Initializing Performance NLP models (KeyBERT & spaCy)...")
+        try:
+            from keybert import KeyBERT
+            import spacy
+            if _kw_model is None:
+                _kw_model = KeyBERT()
+            if _nlp is None:
+                try:
+                    _nlp = spacy.load("en_core_web_sm")
+                except OSError:
+                    print("---> Downloading spaCy model 'en_core_web_sm'...")
+                    spacy.cli.download("en_core_web_sm")
+                    _nlp = spacy.load("en_core_web_sm")
+        except Exception as e:
+            print(f"!!! Error loading NLP models: {e}")
+    return _kw_model, _nlp
 
 def clean_domain(domain: str) -> str:
     """Remove www. and common TLDs, capitalise first letter."""
@@ -85,8 +99,67 @@ EXCLUDED_DOMAINS = {
     "instagram.com", "twitter.com", "linkedin.com", "youtube.com",
     "gov.in", "nic.in", "tourism.telangana.gov.in", "redbus.in",
     "tripadvisor.in", "scribd.com", "yourstory.com",
-    "whatsapp.com", "pinterest.com"
+    "whatsapp.com", "pinterest.com", "x.com", "reddit.com",
+    "quora.com", "yelp.com", "yellowpages.com", "ind.5bestincity.com",
+    "threebestrated.in", "datagemba.com", "yappe.in", "cybo.com"
 }
+
+def validate_competitor_relevance(content: str, industry: str, city: str) -> bool:
+    """Validate if the site is a business service provider in the same industry and city."""
+    if not content or len(content) < 300:
+        return False
+
+    content_lower = content.lower()
+    industry_lower = industry.lower()
+
+    # 1. Social Profile Markers (Be careful not to block legit sites that mention social)
+    # Only block if it looks like a PURE profile page (X/Twitter pattern)
+    if ("followers" in content_lower and "following" in content_lower and "tweets" in content_lower):
+        print(f"DEBUG: Skipping as social profile (X/Twitter pattern)")
+        return False
+
+    social_markers = ["join for free", "karma", "reddit", "tweet", "following count", "followers count"]
+    if any(marker in content_lower for marker in social_markers):
+        print(f"DEBUG: Skipping as social profile (specific markers found)")
+        return False
+
+    # 2. Industry Keywords (Expanded and Flexible)
+    industry_keywords = {
+        "travel": ["tour", "holiday", "package", "travel", "yatra", "itinerary", "booking", "hotel", "resort", "vacation", "agency", "trip", "destination"],
+        "construction": ["builder", "architect", "civil", "renovation", "interior", "structural", "engineering", "housing", "project", "construction", "developer"],
+    }
+
+    # Determine which list to use based on industry name
+    check_list = []
+    if "travel" in industry_lower:
+        check_list = industry_keywords["travel"]
+    elif "construction" in industry_lower or "build" in industry_lower:
+        check_list = industry_keywords["construction"]
+    else:
+        # Fallback: just use the words in the industry name itself
+        check_list = [w for w in re.split(r'\W+', industry_lower) if len(w) > 3]
+
+    if not check_list: check_list = [industry_lower]
+
+    # Count industry keyword matches
+    found_kws = [kw for kw in check_list if kw in content_lower]
+    if not found_kws:
+        print(f"DEBUG: Skipping as industry mismatch (no keywords from {check_list} found for {industry})")
+        return False
+
+    # 3. City Match (Less strict if industry match is very strong)
+    if city:
+        city_lower = city.lower()
+        if city_lower not in content_lower:
+            # If we have 3+ industry keywords, we consider it a match even if city isn't on homepage
+            if len(found_kws) >= 3:
+                print(f"DEBUG: City mismatch for {city}, but strong industry match ({len(found_kws)} kws). Allowing.")
+                return True
+            else:
+                print(f"DEBUG: Skipping as city mismatch (city {city} not found and weak industry match)")
+                return False
+
+    return True
 
 async def extract_with_webclaw(url: str) -> str:
     # Multiple user‑agents to avoid blocking
@@ -95,22 +168,55 @@ async def extract_with_webclaw(url: str) -> str:
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     ]
+
+    dead_patterns = [
+        "domain for sale", "buy this domain", "powered by godaddy", "powered by sedo",
+        "under construction", "coming soon", "site maintenance", "parked for free",
+        "parking page", "this domain is for sale", "domain is parked", "website coming soon",
+        "404 page not found", "error 404", "page not found"
+    ]
+
     for ua in user_agents:
         try:
-            async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=25) as client:
+            async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=20) as client:
                 resp = await client.get(url, headers={"User-Agent": ua})
+
                 if resp.status_code == 200:
                     soup = BeautifulSoup(resp.text, "lxml")
+
+                    # Check title and content for dead patterns
+                    page_title = soup.title.string.lower() if soup.title else ""
+                    page_text = soup.get_text().lower()
+
+                    if any(pattern in page_title or pattern in page_text for pattern in dead_patterns):
+                        print(f"!!! Dead content detected on {url}. Skipping.")
+                        return "ERROR_SITE_DOWN"
+
                     for tag in soup(["script", "style", "nav", "footer", "header"]):
                         tag.decompose()
                     text = soup.get_text(separator=" ", strip=True)
                     text = " ".join(text.split())
-                    if len(text) > 200:
-                        return text[:8000]   # keep up to 8000 chars
-        except Exception:
+
+                    if len(text) < 300: # Exclude thin content
+                        print(f"!!! Thin content on {url} ({len(text)} chars). Skipping.")
+                        return "ERROR_SITE_DOWN"
+
+                    return text[:8000]
+
+                elif resp.status_code == 404:
+                    print(f"!!! Site {url} returned 404. Marking as invalid.")
+                    return "ERROR_404"
+                elif resp.status_code >= 500:
+                    print(f"!!! Site {url} returned {resp.status_code}. Marking as down.")
+                    return "ERROR_SITE_DOWN"
+        except (httpx.ConnectTimeout, httpx.ConnectError):
+            print(f"!!! Connection failed for {url}. Marking as down.")
+            return "ERROR_SITE_DOWN"
+        except Exception as e:
+            print(f"!!! Error extracting {url}: {e}")
             continue
 
-    # Fallback to Webclaw
+    # Fallback to Webclaw if direct HTTP failed but not with 404/500
     webclaw_path = shutil.which('webclaw')
     if webclaw_path:
         try:
@@ -121,7 +227,10 @@ async def extract_with_webclaw(url: str) -> str:
             )
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=20)
             if proc.returncode == 0 and stdout:
-                return stdout.decode().strip()[:8000]
+                content = stdout.decode().strip()
+                if any(pattern in content.lower() for pattern in dead_patterns) or len(content) < 300:
+                    return "ERROR_SITE_DOWN"
+                return content[:8000]
         except Exception:
             pass
     return ""
@@ -130,6 +239,8 @@ def analyse_competitor_text(content: str) -> dict:
     """Extract key phrases, CTAs, entities, trust signals."""
     if not content:
         return {"key_phrases": [], "cta": [], "entities": {}, "trust_signals": []}
+
+    kw_model, nlp = get_nlp_models()
 
     # Key phrases using KeyBERT
     key_phrases = []
@@ -183,6 +294,47 @@ def cap_meta_date(date_str: str) -> str:
         pass
     return date_str
 
+async def scrape_duckduckgo_fallback(query: str) -> list:
+    """Last resort scraper for DDG if OpenSERP is failing."""
+    url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Referer": "https://duckduckgo.com/"
+    }
+    try:
+        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                soup = BeautifulSoup(resp.text, "lxml")
+                results = []
+                # DDG HTML often uses 'result__a' or 'result__url'
+                for link in soup.find_all("a", class_=re.compile(r"result__(url|a)")):
+                    href = link.get("href")
+                    if href:
+                        # DDG sometimes wraps the real URL
+                        if "uddg=" in href:
+                            match = re.search(r"uddg=([^&]+)", href)
+                            if match:
+                                from urllib.parse import unquote
+                                href = unquote(match.group(1))
+
+                        if href.startswith("http"):
+                            results.append({"url": href.strip()})
+
+                # Broad fallback if specific classes fail
+                if not results:
+                    for link in soup.select(".links_main a.result__a"):
+                         href = link.get("href")
+                         if href and href.startswith("http"):
+                             results.append({"url": href.strip()})
+
+                return results
+    except Exception as e:
+        print(f"!!! DDG Fallback failed: {e}")
+    return []
+
 async def run_performance_report(user_id: str, site_id: str, start_date: str, end_date: str, report_id: str, bnb_mode: bool = False):
     print(f"---> Background Task Started for Performance report {report_id} (BnB Mode: {bnb_mode})")
     supabase.table("report_status").update({"status": "fetching_data"}).eq("report_id", report_id).execute()
@@ -221,6 +373,8 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
 
         # 2. Compute previous period
         prev_start, prev_end = compute_previous_period(start_date, end_date)
+        print(f"DEBUG: Report Range: {start_date} to {end_date}")
+        print(f"DEBUG: Comparison Period: {prev_start} to {prev_end}")
 
         # 3. Initialize tasks for all platforms
         google_tasks = []
@@ -237,9 +391,13 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
                     fetch_google_ads_totals(user_id, ga_customer_id, prev_start, prev_end),
                     fetch_google_ads_data(user_id, ga_customer_id, start_date, end_date),
                     fetch_google_ads_campaigns(user_id, ga_customer_id, start_date, end_date),
+                    fetch_google_ads_campaigns(user_id, ga_customer_id, prev_start, prev_end),
                     fetch_google_ads_keywords(user_id, ga_customer_id, start_date, end_date),
+                    fetch_google_ads_keywords(user_id, ga_customer_id, prev_start, prev_end),
                     fetch_google_ads_search_terms(user_id, ga_customer_id, start_date, end_date),
+                    fetch_google_ads_search_terms(user_id, ga_customer_id, prev_start, prev_end),
                     fetch_google_ads_devices(user_id, ga_customer_id, start_date, end_date),
+                    fetch_google_ads_devices(user_id, ga_customer_id, prev_start, prev_end),
                     fetch_google_ads_demographics(user_id, ga_customer_id, start_date, end_date),
                     fetch_google_ads_day_hour(user_id, ga_customer_id, start_date, end_date),
                     fetch_google_ads_networks(user_id, ga_customer_id, start_date, end_date),
@@ -272,9 +430,12 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
                     fetch_meta_ads_aggregate(meta_ad_account_id, meta_token, m_start, m_end),
                     fetch_meta_ads_aggregate(meta_ad_account_id, meta_token, m_prev_start, m_prev_end),
                     fetch_meta_ads_campaigns(meta_ad_account_id, meta_token, m_start, m_end),
+                    fetch_meta_ads_campaigns(meta_ad_account_id, meta_token, m_prev_start, m_prev_end),
                     fetch_meta_ads_daily(meta_ad_account_id, meta_token, m_start, m_end),
                     fetch_meta_ads_adsets(meta_ad_account_id, meta_token, m_start, m_end),
+                    fetch_meta_ads_adsets(meta_ad_account_id, meta_token, m_prev_start, m_prev_end),
                     fetch_meta_ads_devices(meta_ad_account_id, meta_token, m_start, m_end),
+                    fetch_meta_ads_devices(meta_ad_account_id, meta_token, m_prev_start, m_prev_end),
                     return_exceptions=True
                 )
 
@@ -283,12 +444,21 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             if ga4_property_id:
                 print(f"---> Queueing GA4 tasks for {ga4_property_id}...")
                 ga4_token = await get_ga4_token(user_id)
+
+                ga4_sem = asyncio.Semaphore(2)
+                async def sem_ga4(task):
+                    async with ga4_sem:
+                        return await task
+
                 ga4_tasks = [
-                    fetch_ga4_totals(ga4_property_id, ga4_token, start_date, end_date, prev_start, prev_end),
-                    fetch_ga4_daily_users(ga4_property_id, ga4_token, start_date, end_date),
-                    fetch_ga4_sessions_by_channel(ga4_property_id, ga4_token, start_date, end_date),
-                    fetch_ga4_geography(ga4_property_id, ga4_token, start_date, end_date),
-                    fetch_ga4_landing_pages(ga4_property_id, ga4_token, start_date, end_date)
+                    sem_ga4(fetch_ga4_totals(ga4_property_id, ga4_token, start_date, end_date, prev_start, prev_end)),
+                    sem_ga4(fetch_ga4_daily_users(ga4_property_id, ga4_token, start_date, end_date)),
+                    sem_ga4(fetch_ga4_sessions_by_channel(ga4_property_id, ga4_token, start_date, end_date)),
+                    sem_ga4(fetch_ga4_sessions_by_channel(ga4_property_id, ga4_token, prev_start, prev_end)),
+                    sem_ga4(fetch_ga4_geography(ga4_property_id, ga4_token, start_date, end_date)),
+                    sem_ga4(fetch_ga4_geography(ga4_property_id, ga4_token, prev_start, prev_end)),
+                    sem_ga4(fetch_ga4_landing_pages(ga4_property_id, ga4_token, start_date, end_date)),
+                    sem_ga4(fetch_ga4_landing_pages(ga4_property_id, ga4_token, prev_start, prev_end))
                 ]
 
         if gbp_creds:
@@ -315,22 +485,26 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
         # 5. Extract results
         idx = 0
         if google_tasks:
-            g_res = all_results[idx:idx+16]
+            g_res = all_results[idx:idx+20]
             google_results = [r if not isinstance(r, Exception) else None for r in g_res]
             google_cur = google_results[0] or {}
             google_prev = google_results[1] or {}
             google_current_data = google_results[2] or []
             google_ads_details = {
                 "top_campaigns": google_results[3] or [],
-                "top_keywords": google_results[4] or [],
-                "search_terms": google_results[5] or [],
-                "devices": google_results[6] or [],
-                "demographics": google_results[7] or [],
-                "day_hour": google_results[8] or [],
-                "networks": google_results[9] or [],
-                "top_assets": google_results[10] or [],
+                "prev_top_campaigns": google_results[4] or [],
+                "top_keywords": google_results[5] or [],
+                "prev_top_keywords": google_results[6] or [],
+                "search_terms": google_results[7] or [],
+                "prev_search_terms": google_results[8] or [],
+                "devices": google_results[9] or [],
+                "prev_devices": google_results[10] or [],
+                "demographics": google_results[11] or [],
+                "day_hour": google_results[12] or [],
+                "networks": google_results[13] or [],
+                "top_assets": google_results[14] or [],
             }
-            auction_insights = google_results[15] or []
+            auction_insights = google_results[19] or []
             print(f"✅ [GADS] DATA FETCH SUCCESS.")
             print(f"DEBUG: GADS Spend: ₹{google_cur.get('cost')}, Leads: {google_cur.get('conversions')}")
             print(f"DEBUG: GADS Top Campaigns count: {len(google_ads_details['top_campaigns'])}")
@@ -348,7 +522,7 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
                 {"label": date, "valueA": data["spend"], "valueB": data["impressions"], "valueC": data["clicks"]}
                 for date, data in sorted(daily.items())
             ]
-            idx += 16
+            idx += 20
 
         if meta_task:
             m_res_raw = all_results[idx]
@@ -364,9 +538,20 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
                 meta_current = m_results[0] or {}
                 meta_previous = m_results[1] or {}
                 meta_campaigns = m_results[2] or []
-                meta_daily = m_results[3] or []
-                meta_adsets = m_results[4] or []
-                meta_devices = m_results[5] or []
+                meta_campaigns_prev = m_results[3] or []
+                meta_daily = m_results[4] or []
+                meta_adsets = m_results[5] or []
+                meta_adsets_prev = m_results[6] or []
+                meta_devices = m_results[7] or []
+                meta_devices_prev = m_results[8] or []
+                meta_details = {
+                    "top_campaigns": meta_campaigns,
+                    "prev_top_campaigns": meta_campaigns_prev,
+                    "top_adsets": meta_adsets,
+                    "prev_top_adsets": meta_adsets_prev,
+                    "devices": meta_devices,
+                    "prev_devices": meta_devices_prev
+                }
 
                 print(f"✅ [META] DATA FETCH SUCCESS.")
                 print(f"DEBUG: META Spend: ₹{meta_current.get('spend')}, Leads: {meta_current.get('leads')}")
@@ -376,11 +561,11 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             idx += 1
 
         if ga4_tasks:
-            ga_res = all_results[idx:idx+5]
+            ga_res = all_results[idx:idx+8]
             ga_results = [r if not isinstance(r, Exception) else {} for r in ga_res]
-            ga4_totals, daily_ga4, sessions_by_channel, geo_users, top_landing = ga_results
+            ga4_totals, daily_ga4, sessions_by_channel, prev_sessions_by_channel, geo_users, prev_geo_users, top_landing, prev_top_landing = ga_results
             print(f"✅ [GA4] DATA FETCH SUCCESS.")
-            idx += 5
+            idx += 8
 
         if gbp_task:
             gbp_res = all_results[idx]
@@ -397,8 +582,9 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
 
         # 6. Perform Advanced Performance Analytics
         print("---> Running Performance Analytics...")
+        print(f"DEBUG: Mapping Comparison - Gcur: {google_cur.get('cost')} Gprev: {google_prev.get('cost')} Mcur: {meta_current.get('spend')} Mprev: {meta_previous.get('spend')}")
         perf_kpi_analysis = analyse_performance_kpis(google_cur, meta_current, google_prev, meta_previous)
-        print(f"DEBUG: Perf KPI Analysis: {perf_kpi_analysis}")
+        print(f"DEBUG: Perf KPI Analysis Results: {perf_kpi_analysis.get('total_leads')} leads, {perf_kpi_analysis.get('total_spend')} spend")
         campaign_eff_analysis = analyse_campaign_efficiency(google_ads_details.get('top_campaigns', []))
         self_radar = compute_performance_self_radar(google_cur, meta_current, ga4_totals)
 
@@ -406,105 +592,329 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
         site_city = site_info.get("city")
         competitor_insights = []
         if site_city and settings.openserp_url:
-            print(f"---> Discovering competitors in {site_city} via OpenSERP...")
+            print(f"---> Discovering competitors in {site_city} via OpenSERP (Cache-First)...")
             your_domain = site_info.get("url", "").replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
-            top_kw = [k.get('keyword') for k in google_ads_details.get('top_keywords', [])[:3] if k.get('keyword')]
-            competitor_domains = set()
-            for kw in top_kw:
+            competitor_discovery_map = {} # domain -> discovery_query
+
+            # A. Fetch Historical Competitors first
+            try:
                 try:
-                    query = f"{kw} {site_city}"
-                    resp = requests.get(f"{settings.openserp_url}/google/search", params={"text": query}, timeout=20)
-                    if resp.ok:
-                        results_list = resp.json().get("results", [])
-                        for res in results_list[:3]:
-                            link = res.get("url", "")
-                            if link:
-                                domain = link.split("/")[2].lower().replace("www.", "")
-                                if domain and is_valid_competitor_domain(domain) and domain != your_domain and domain not in EXCLUDED_DOMAINS:
-                                    competitor_domains.add(domain)
-                except Exception: continue
+                    # Try fetching with the new column and source filter
+                    history = supabase.table("competitor_insights").select("competitor_url, discovery_query").eq("site_id", site_id).eq("source_module", "performance").execute()
+                except Exception as db_e:
+                    print(f"!!! DB history fetch (enhanced) failed, falling back to basic: {db_e}")
+                    # Fallback if column is missing (should not happen after migration)
+                    history = supabase.table("competitor_insights").select("competitor_url").eq("site_id", site_id).execute()
 
-            # Limit competitors to avoid overloading AI (Top 6)
-            competitor_domains = list(competitor_domains)[:6]
+                if history and history.data:
+                    for item in history.data:
+                        h_url = item["competitor_url"]
+                        h_query = item.get("discovery_query", "Historical Cache")
+                        h_domain = h_url.replace("https://", "").replace("http://", "").split('/')[0].replace("www.", "").lower()
+                        if h_domain and h_domain != your_domain and h_domain not in EXCLUDED_DOMAINS:
+                            print(f"DEBUG: Including historical competitor from cache: {h_domain}")
+                            competitor_discovery_map[h_domain] = h_query
+            except Exception as e:
+                print(f"!!! Error fetching competitor history: {e}")
 
-            for domain in competitor_domains:
+            # B. Live Discovery (OpenSERP)
+            top_kw = list(dict.fromkeys([k.get('keyword') for k in google_ads_details.get('top_keywords', [])[:10] if k.get('keyword')]))
+            if not top_kw and site_info.get("industry"):
+                top_kw = [site_info.get("industry")]
+                print(f"DEBUG: No top keywords found, falling back to industry: {top_kw}")
+
+            print(f"DEBUG: Keywords for live discovery: {top_kw}")
+
+            engines_to_try = ["google", "duckduckgo", "bing"]
+            unavailable_engines = set()
+
+            for kw in top_kw:
+                if len(competitor_discovery_map) >= 20: break
+                query = f"{kw} {site_city}"
+                results_list = []
+                found_engine = None
+
+                # Multi-engine fallback loop
+                for engine in engines_to_try:
+                    if engine in unavailable_engines:
+                        continue
+
+                    try:
+                        print(f"DEBUG: Searching OpenSERP ({engine}) for query: '{query}'")
+                        async with httpx.AsyncClient(timeout=20) as client:
+                            resp = await client.get(f"{settings.openserp_url}/{engine}/search", params={"text": query})
+
+                            if resp.status_code == 200:
+                                data = resp.json()
+                                if isinstance(data, dict) and (data.get("error") or data.get("code") == 429):
+                                    print(f"!!! OpenSERP {engine} blocked/captcha: {data.get('error')}. Trying next...")
+                                    continue
+
+                                results_list = data.get("results", [])
+                                if results_list:
+                                    found_engine = engine
+                                    break
+                            elif resp.status_code == 404:
+                                print(f"!!! OpenSERP {engine} engine NOT FOUND (404). Disabling for this run.")
+                                unavailable_engines.add(engine)
+                            else:
+                                print(f"!!! OpenSERP {engine} HTTP {resp.status_code}. Trying next...")
+                    except Exception as e:
+                        print(f"!!! Error searching OpenSERP {engine}: {e}")
+                        continue
+
+                # LAST RESORT: Direct DDG Scrape if all OpenSERP engines failed
+                if not results_list:
+                    print(f"DEBUG: All OpenSERP engines failed. Trying direct DDG fallback for '{query}'...")
+                    results_list = await scrape_duckduckgo_fallback(query)
+                    if results_list:
+                        found_engine = "ddg_fallback"
+
+                # Process results if any were found
+                if results_list:
+                    print(f"✅ Found {len(results_list)} results via {found_engine} for '{query}'")
+                    for res in results_list[:10]:
+                        link = res.get("url", "")
+                        if link:
+                            domain = link.split("/")[2].lower().replace("www.", "")
+                            if not domain: continue
+
+                            if domain == your_domain:
+                                print(f"DEBUG: Skipping your domain: {domain}")
+                            elif domain in EXCLUDED_DOMAINS:
+                                print(f"DEBUG: Skipping excluded domain: {domain}")
+                            elif not is_valid_competitor_domain(domain):
+                                    print(f"DEBUG: Skipping invalid domain: {domain}")
+                            else:
+                                if domain not in competitor_discovery_map:
+                                    print(f"DEBUG: Found new potential competitor: {domain}")
+                                    competitor_discovery_map[domain] = query
+
+            print(f"DEBUG: Total unique potential competitor domains (Cache + Live): {len(competitor_discovery_map)}")
+            # Try to get exactly 6 successfully processed competitors
+            potential_domains = list(competitor_discovery_map.keys())
+
+            # 2-Week Freshness Threshold
+            FRESHNESS_THRESHOLD_DAYS = 14
+
+            processed_count = 0
+            for domain in potential_domains:
+                if len(competitor_insights) >= 6: break # STOP exactly at 6
+                processed_count += 1
+
                 url = f"https://{domain}"
-                cached = supabase.table("competitor_insights").select("*").eq("site_id", site_id).eq("competitor_url", url).maybe_single().execute()
+                query = competitor_discovery_map.get(domain, "Local Search")
+                print(f"DEBUG: Processing competitor: {domain} ({url})")
+                cached = supabase.table("competitor_insights").select("*").eq("site_id", site_id).eq("competitor_url", url).eq("source_module", "performance").maybe_single().execute()
+
+                is_fresh = False
                 if cached and cached.data and cached.data.get("extracted_at"):
                     last = datetime.fromisoformat(cached.data["extracted_at"].replace('Z', '+00:00'))
-                    if last > datetime.now(timezone.utc) - timedelta(days=7):
-                        print(f"Using cached insights for {domain}")
+                    if last > datetime.now(timezone.utc) - timedelta(days=FRESHNESS_THRESHOLD_DAYS):
+                        # Filter out cached 404s or down sites if they were previously marked
+                        status = cached.data.get("full_text")
+                        if status in ["ERROR_404", "ERROR_SITE_DOWN"]:
+                            print(f"Skipping cached dead site for {domain} (Status: {status})")
+                            continue
+
+                        is_fresh = True
+                        print(f"Using cached insights for {domain} (Freshness: {last.date()})")
                         competitor_insights.append({
                             "competitor_name": clean_domain(domain), "url": url,
                             "full_text": cached.data.get("full_text") or cached.data.get("raw_text_preview", ""),
                             "key_phrases": cached.data.get("key_phrases", []),
                             "cta": cached.data.get("cta", []),
                             "entities": cached.data.get("entities", {}),
-                            "trust_signals": cached.data.get("trust_signals", [])
+                            "trust_signals": cached.data.get("trust_signals", []),
+                            "discovery_query": cached.data.get("discovery_query") or query
                         })
-                        continue
 
-                content = await extract_with_webclaw(url)
-                if content and len(content) > 100:
-                    analysis = analyse_competitor_text(content)
-                    full_text = content[:4000]
-                    competitor_insights.append({
-                        "competitor_name": clean_domain(domain), "url": url, "full_text": full_text,
-                        "key_phrases": analysis["key_phrases"], "cta": analysis["cta"],
-                        "entities": analysis["entities"], "trust_signals": analysis["trust_signals"]
-                    })
-                    supabase.table("competitor_insights").upsert({
-                        "site_id": site_id, "competitor_url": url, "competitor_name": clean_domain(domain),
-                        "full_text": full_text, "key_phrases": analysis["key_phrases"], "cta": analysis["cta"],
-                        "entities": analysis["entities"], "trust_signals": analysis["trust_signals"],
-                        "raw_text_preview": content[:500], "extracted_at": datetime.now(timezone.utc).isoformat()
-                    }, on_conflict="site_id,competitor_url").execute()
+                if not is_fresh:
+                    if cached and cached.data:
+                        print(f"---> Competitor {domain} data is OLD (>14 days). Re-crawling...")
+                    else:
+                        print(f"---> New competitor discovered: {domain}. Crawling...")
+
+                    content = await extract_with_webclaw(url)
+                    if content in ["ERROR_404", "ERROR_SITE_DOWN"]:
+                         # Store dead state to avoid re-crawling
+                         payload = {
+                            "site_id": site_id, "competitor_url": url, "competitor_name": clean_domain(domain),
+                            "full_text": content, "extracted_at": datetime.now(timezone.utc).isoformat(),
+                            "source_module": "performance"
+                         }
+                         supabase.table("competitor_insights").upsert(payload, on_conflict="site_id,competitor_url,source_module").execute()
+                         continue
+
+                    if content and len(content) > 100:
+                        # NEW: Validate Industry and City relevance
+                        if not validate_competitor_relevance(content, site_info.get("industry", ""), site_info.get("city", "")):
+                            print(f"!!! Skipping {domain} - Fails Industry/City relevance check.")
+                            continue
+
+                        analysis = analyse_competitor_text(content)
+                        full_text = content[:4000]
+                        competitor_insights.append({
+                            "competitor_name": clean_domain(domain), "url": url, "full_text": full_text,
+                            "key_phrases": analysis["key_phrases"], "cta": analysis["cta"],
+                            "entities": analysis["entities"], "trust_signals": analysis["trust_signals"],
+                            "discovery_query": query
+                        })
+                        payload = {
+                            "site_id": site_id, "competitor_url": url, "competitor_name": clean_domain(domain),
+                            "full_text": full_text, "key_phrases": analysis["key_phrases"], "cta": analysis["cta"],
+                            "entities": analysis["entities"], "trust_signals": analysis["trust_signals"],
+                            "raw_text_preview": content[:500], "extracted_at": datetime.now(timezone.utc).isoformat(),
+                            "discovery_query": query, "source_module": "performance"
+                        }
+                        try:
+                            supabase.table("competitor_insights").upsert(payload, on_conflict="site_id,competitor_url,source_module").execute()
+                        except Exception as db_e:
+                            if "discovery_query" in str(db_e).lower() or "PGRST204" in str(db_e):
+                                print(f"!!! DB Upsert Warning: Column 'discovery_query' likely missing. Retrying without it...")
+                                payload.pop("discovery_query", None)
+                                supabase.table("competitor_insights").upsert(payload, on_conflict="site_id,competitor_url,source_module").execute()
+                            else:
+                                raise db_e
+                    else:
+                        print(f"!!! Failed to crawl {domain} or content too short. Skipping to next candidate.")
+                        # Fallback to old data if crawl failed, to at least show something
+                        if cached and cached.data and cached.data.get("full_text") not in ["ERROR_404", "ERROR_SITE_DOWN"]:
+                             # Validate cached data too
+                             c_text = cached.data.get("full_text") or cached.data.get("raw_text_preview", "")
+                             if validate_competitor_relevance(c_text, site_info.get("industry", ""), site_info.get("city", "")):
+                                 print(f"Using OLD cached data as fallback for {domain}")
+                                 competitor_insights.append({
+                                    "competitor_name": clean_domain(domain), "url": url,
+                                    "full_text": c_text,
+                                    "key_phrases": cached.data.get("key_phrases", []),
+                                    "cta": cached.data.get("cta", []),
+                                    "entities": cached.data.get("entities", {}),
+                                    "trust_signals": cached.data.get("trust_signals", []),
+                                    "discovery_query": cached.data.get("discovery_query") or query
+                                 })
+                             else:
+                                 print(f"!!! Skipping cached {domain} - Fails relevance check.")
+
+                # FALLBACK: If we've processed all current potential_domains and still have < 6,
+                # trigger a broader search (no city) to fill the remaining slots.
+                if processed_count == len(potential_domains) and len(competitor_insights) < 6:
+                    print(f"!!! Still only have {len(competitor_insights)} competitors. Triggering global fallback search...")
+                    broad_query = f"{top_kw[0] if top_kw else site_info.get('industry', 'Travel')} India"
+                    broad_results = await scrape_duckduckgo_fallback(broad_query)
+
+                    if broad_results:
+                        new_domains = []
+                        for res in broad_results:
+                            link = res.get("url", "")
+                            if link:
+                                d = link.split("/")[2].lower().replace("www.", "")
+                                if d and d != your_domain and d not in EXCLUDED_DOMAINS and d not in competitor_discovery_map:
+                                    new_domains.append(d)
+                                    competitor_discovery_map[d] = broad_query
+
+                        if new_domains:
+                            print(f"DEBUG: Found {len(new_domains)} new domains via global search. Adding to queue.")
+                            potential_domains.extend(new_domains)
+
+            if len(competitor_insights) < 2:
+                print(f"!!! WARNING: Found only {len(competitor_insights)} competitors. Attempting broader discovery...")
+                # Add logic for even broader discovery if needed, but for now we've processed up to 20 domains.
+                # The primary requirement is ensuring we don't STOP if we have dead sites and more candidates exist.
+                # The loop above already processes all potential_domains (up to 20).
+
             print(f"✅ Discovered {len(competitor_insights)} competitors: {[c['competitor_name'] for c in competitor_insights]}")
 
         competitor_names = [c["competitor_name"] for c in competitor_insights]
         radar_data = build_dynamic_radar(self_radar, competitor_names)
 
-        # 8. Call Gemini (Only 3 combined calls)
-        print("---> Generating AI Analysis (3 Combined Calls)...")
+        # 8. Call Gemini (3 Efficient Tasks)
+        print("---> Generating AI Analysis (3 Efficient Tasks)...")
         supabase.table("report_status").update({"status": "generating_ai"}).eq("report_id", report_id).execute()
 
-        # Build the 3 combined prompts
+        # Build the prompts (Split Competitors into 2 batches to avoid truncation)
         exec_prompt = build_performance_exec_prompt(
-            site_info, google_cur, google_prev, google_ads_details,
+            site_info, google_cur, google_prev,
             meta_current, meta_previous, ga4_totals,
-            perf_kpi_analysis, campaign_eff_analysis
+            perf_kpi_analysis, campaign_eff_analysis,
+            google_ads_details=google_ads_details,
+            meta_details=meta_details
         )
-        deep_dive_prompt = build_performance_deep_dive_prompt(
-            site_info, google_cur, google_prev, google_ads_details,
-            meta_current, meta_campaigns, meta_adsets, meta_devices,
-            ga4_totals, gbp_details
+        advice_prompt = build_performance_advice_prompt(
+            site_info, google_ads_details, meta_campaigns, meta_adsets, meta_devices
         )
-        competitor_prompt = build_competitor_batch_prompt(site_info, competitor_insights) if competitor_insights else None
+        explanations_prompt = build_performance_explanations_prompt(
+            site_info, google_ads_details, meta_campaigns, meta_adsets, meta_devices
+        )
 
-        # Execute the 3 calls in parallel
+        # Split competitors into 2 batches
+        comp_batch1 = competitor_insights[:3]
+        comp_batch2 = competitor_insights[3:6]
+
+        comp_prompt1 = build_competitor_batch_prompt(site_info, comp_batch1) if comp_batch1 else None
+        comp_prompt2 = build_competitor_batch_prompt(site_info, comp_batch2) if comp_batch2 else None
+
+        # Execute the 5 calls in parallel (sequenced by semaphore)
         tasks = [
-            call_gemini(exec_prompt, normalize=True),  # 1
-            call_gemini(deep_dive_prompt, normalize=True),  # 2
+            call_gemini(exec_prompt, normalize=True),        # 0
+            call_gemini(advice_prompt, normalize=True),      # 1
+            call_gemini(explanations_prompt, normalize=True), # 2
         ]
-        if competitor_prompt:
-            tasks.append(call_gemini(competitor_prompt, normalize=True))  # 3
+
+        if comp_prompt1:
+            tasks.append(call_gemini(comp_prompt1, normalize=True))  # 3
+        else:
+            tasks.append(asyncio.sleep(0, result={}))
+
+        if comp_prompt2:
+            tasks.append(call_gemini(comp_prompt2, normalize=True))  # 4
         else:
             tasks.append(asyncio.sleep(0, result={}))
 
         results = await asyncio.gather(*tasks)
-        exec_res, deep_dive_res, batch_res = results
+        exec_res, advice_res, explanations_res, batch_res1, batch_res2 = results
 
         if exec_res: print("✅ [GEMINI] Success for Executive Strategy")
-        if deep_dive_res: print("✅ [GEMINI] Success for Deep Dive Analysis")
-        if batch_res: print("✅ [GEMINI] Success for Competitor Analysis")
+        if advice_res: print("✅ [GEMINI] Success for Detailed Advice")
+        if explanations_res: print("✅ [GEMINI] Success for Table Explanations")
+        if batch_res1: print("✅ [GEMINI] Success for Competitor Analysis Batch 1")
+        if batch_res2: print("✅ [GEMINI] Success for Competitor Analysis Batch 2")
 
         # 9. Process Result
         ai_result = {}
         if exec_res: ai_result.update(exec_res)
-        if deep_dive_res: ai_result.update(deep_dive_res)
 
-        ai_result["competitor_breakdown"] = batch_res.get("competitors", []) if batch_res else []
-        ai_result["overall_threat_summary"] = batch_res.get("overall_threat_summary", "Market landscape remains competitive.") if batch_res else "Market landscape remains competitive."
+        if advice_res:
+            if "section_specific_advice" in advice_res:
+                ai_result["section_specific_advice"] = advice_res["section_specific_advice"]
+            else:
+                ai_result.update(advice_res)
+        if explanations_res:
+            if "table_explanations" in explanations_res:
+                ai_result["table_explanations"] = explanations_res["table_explanations"]
+            else:
+                ai_result.update(explanations_res)
+
+        ai_result["ai_comparison"] = ai_result.get("ai_comparison") or "Data synchronization complete."
+        ai_result["ai_recommendations"] = ai_result.get("neural_strategy_markers") or []
+
+        # Map re-indexed recommendations_summarized if needed
+        if "recommendations_summarized" in ai_result:
+            pass # Already correctly named
+
+        # Merge competitor data
+        merged_competitors = []
+        if batch_res1 and "competitors" in batch_res1: merged_competitors.extend(batch_res1["competitors"])
+        if batch_res2 and "competitors" in batch_res2: merged_competitors.extend(batch_res2["competitors"])
+
+        # Inject ground truth discovery_query
+        for comp in merged_competitors:
+            match = next((ci for ci in competitor_insights if ci["competitor_name"] == comp.get("name")), None)
+            if match:
+                comp["discovery_query"] = match.get("discovery_query", "Local Search Discovery")
+
+        ai_result["competitor_breakdown"] = merged_competitors
+        ai_result["overall_threat_summary"] = batch_res1.get("overall_threat_summary", "Market landscape remains competitive.") if batch_res1 else "Market landscape remains competitive."
         ai_result["radar_self"] = self_radar
         ai_result["radar_data"] = radar_data
 
@@ -554,7 +964,9 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
 
         # Recommendations
         recs = ai_result.get("recommendations", [])
-        ai_result["recommendations"] = [str(r) for r in recs] if isinstance(recs, list) else [str(recs)]
+        if recs and isinstance(recs[0], str):
+            ai_result["recommendations"] = [str(r) for r in recs]
+        # If already objects, leave them alone for ReportViews.tsx
 
         # Use recommendations_summarized from Gemini if available, otherwise fallback
         summarized_recs = ai_result.get("recommendations_summarized", [])
@@ -567,6 +979,9 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             if not isinstance(ai_result.get(key), str): ai_result[key] = "Detailed analysis in sections."
 
         # 9.5. Build Presentation Insights for the new slides
+        kpis = perf_kpi_analysis.get("overall_kpis", [])
+        print(f"DEBUG: Performance Worker Overall KPIs: {json.dumps(kpis, separators=(',', ':'))}")
+
         presentation_insights = {
             "branding": {
                 "siteName": site_info.get("name"),
@@ -587,21 +1002,37 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
         }
 
         # 10. Store to Database
+        kpi_to_store = {
+            "ga4": ga4_totals,
+            "google_ads": {"current": google_cur, "previous": google_prev},
+            "meta_ads": {"current": meta_current, "previous": meta_previous}
+        }
+        print(f"DEBUG: Storing KPI Summary: {json.dumps(kpi_to_store, separators=(',', ':'))}")
+
+        # Preserve raw data before AI overwriting logic (if any)
+        processed_google_details = {**google_ads_details}
+        # Force top_keywords to be the raw array for the frontend
+        top_keywords_array = google_ads_details.get("top_keywords", [])
+        if not isinstance(top_keywords_array, list): top_keywords_array = []
+
         supabase.table("processed_reports").insert({
             "report_id": report_id, "user_id": user_id, "site_id": site_id, "module": "performance",
             "start_date": start_date, "end_date": end_date,
-            "kpi_summary": {"google_ads": {"current": google_cur, "previous": google_prev}, "meta_ads": {"current": meta_current, "previous": meta_previous}},
+            "kpi_summary": kpi_to_store,
+            "top_keywords": top_keywords_array, # Store raw array here!
             "top_landing_pages": top_landing, "users_by_country": geo_users, "sessions_by_channel": sessions_by_channel,
             "charts": {"overview": chart_data_overview, "devices": google_results[11], "demographics": google_results[12], "search_terms": google_results[13], "campaigns": google_results[14]},
-            "google_ads_details": google_ads_details, "competitor_data": auction_insights, "radar_data": radar_data,
+            "google_ads_details": processed_google_details, "competitor_data": auction_insights, "radar_data": radar_data,
             "ga4_details": {"daily_users": [{"date": d["date"], "users": d["users"], "returningUsers": max(0, d["users"]-d["newUsers"])} for d in daily_ga4], "gbp_details": gbp_details},
             "chart_datasets": [{"label": d["date"], "valueA": d["users"], "valueB": max(0, d["users"]-d["newUsers"]), "valueC": 0} for d in daily_ga4],
-            "ai_summary": ai_result.get("summary"), "ai_insights": presentation_insights, "ai_recommendations": ai_result.get("recommendations", []),
+            "ai_summary": ai_result.get("summary"),
+            "ai_insights": presentation_insights,
+            "ai_recommendations": ai_result.get("neural_strategy_markers") or ai_result.get("recommendations", []),
             "ai_recommendations_summarized": summarized_recs, "ai_competitor_analysis": ai_result.get("competitor_analysis"), "ai_top_keywords_overview": ai_result.get("top_keywords_overview"),
             "ai_table_explanations": ai_result.get("table_explanations", {}), "improvement_roadmap": ai_result.get("improvement_roadmap"), "competitor_intelligence": {"competitors": competitor_breakdown, "overall_threat_summary": overall_threat_summary},
             "section_advice": section_advice, "ai_slide_descriptions": ai_result.get("slide_descriptions", {}),
             "meta_ads_kpi": {"current": meta_current, "previous": meta_previous},
-            "meta_ads_details": {"top_campaigns": meta_campaigns, "top_adsets": meta_adsets, "devices": meta_devices},
+            "meta_ads_details": {"top_campaigns": meta_campaigns, "prev_top_campaigns": meta_campaigns_prev, "top_adsets": meta_adsets, "prev_top_adsets": meta_adsets_prev, "devices": meta_devices, "prev_devices": meta_devices_prev},
             "meta_ads_charts": {"daily": meta_daily}
         }).execute()
 

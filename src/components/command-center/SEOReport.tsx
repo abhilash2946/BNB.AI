@@ -22,7 +22,7 @@ const renderCompetitorBlock = (data: ReportResponse['aiCompetitorAnalysis'], tit
   const isObject = typeof data === 'object' && data !== null && !Array.isArray(data);
   return (
     <GlassCard className="p-6 mb-6">
-      <h4 className="text-lg font-bold text-cyan-400 mb-4">{title}</h4>
+      <h4 className="text-lg font-bold text-white mb-4">{title}</h4>
       {isObject ? (
         <div className="space-y-4">
           {Array.isArray(data.inferred_actions) && data.inferred_actions.length > 0 && (
@@ -92,8 +92,8 @@ export const SEOReport: React.FC<SEOReportProps> = ({ reportData, includeCharts,
             <XAxis type="number" stroke="#9CA3AF" fontSize={10} />
             <YAxis type="category" dataKey="country" width={100} stroke="#9CA3AF" fontSize={10} />
             <Tooltip
-              contentStyle={{ background: '#111827', border: '1px solid #00D4FF', borderRadius: '8px' }}
-              itemStyle={{ color: '#00D4FF' }}
+              contentStyle={{ background: '#111111', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
+              itemStyle={{ color: '#FFFFFF' }}
             />
             <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
             <ReBar dataKey="users" name="Active Users" fill={PALETTE.cyan} radius={[0, 4, 4, 0]} />
@@ -113,8 +113,8 @@ export const SEOReport: React.FC<SEOReportProps> = ({ reportData, includeCharts,
             <XAxis dataKey="date" stroke="#9CA3AF" fontSize={10} />
             <YAxis stroke="#9CA3AF" fontSize={10} />
             <Tooltip
-              contentStyle={{ background: '#111827', border: '1px solid #00D4FF', borderRadius: '8px' }}
-              itemStyle={{ color: '#00D4FF' }}
+              contentStyle={{ background: '#111111', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
+              itemStyle={{ color: '#FFFFFF' }}
             />
             <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
             <ReLine type="monotone" dataKey="users" name="Active Users" stroke={PALETTE.violet} strokeWidth={2} dot={false} />
@@ -134,8 +134,8 @@ export const SEOReport: React.FC<SEOReportProps> = ({ reportData, includeCharts,
             <XAxis dataKey="title" stroke="#9CA3AF" fontSize={10} hide={false} />
             <YAxis stroke="#9CA3AF" fontSize={10} />
             <Tooltip
-              contentStyle={{ background: '#111827', border: '1px solid #00D4FF', borderRadius: '8px' }}
-              itemStyle={{ color: '#00D4FF' }}
+              contentStyle={{ background: '#111111', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
+              itemStyle={{ color: '#FFFFFF' }}
             />
             <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
             <ReBar dataKey="views" name="Page Views" fill={PALETTE.emerald} radius={[4, 4, 0, 0]} />
@@ -157,8 +157,8 @@ export const SEOReport: React.FC<SEOReportProps> = ({ reportData, includeCharts,
               ))}
             </RePie>
             <Tooltip
-              contentStyle={{ background: '#111827', border: '1px solid #00D4FF', borderRadius: '8px' }}
-              itemStyle={{ color: '#00D4FF' }}
+              contentStyle={{ background: '#111111', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
+              itemStyle={{ color: '#FFFFFF' }}
             />
             <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
           </RePieChart>
@@ -177,8 +177,8 @@ export const SEOReport: React.FC<SEOReportProps> = ({ reportData, includeCharts,
             <XAxis type="number" stroke="#9CA3AF" fontSize={10} />
             <YAxis type="category" dataKey="eventName" width={120} stroke="#9CA3AF" fontSize={10} />
             <Tooltip
-              contentStyle={{ background: '#111827', border: '1px solid #00D4FF', borderRadius: '8px' }}
-              itemStyle={{ color: '#00D4FF' }}
+              contentStyle={{ background: '#111111', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
+              itemStyle={{ color: '#FFFFFF' }}
             />
             <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
             <ReBar dataKey="count" name="Event Count" fill={PALETTE.amber} radius={[0, 4, 4, 0]} />
@@ -200,8 +200,8 @@ export const SEOReport: React.FC<SEOReportProps> = ({ reportData, includeCharts,
               ))}
             </RePie>
             <Tooltip
-              contentStyle={{ background: '#111827', border: '1px solid #00D4FF', borderRadius: '8px' }}
-              itemStyle={{ color: '#00D4FF' }}
+              contentStyle={{ background: '#111111', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
+              itemStyle={{ color: '#FFFFFF' }}
             />
             <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
           </RePieChart>
@@ -228,8 +228,8 @@ export const SEOReport: React.FC<SEOReportProps> = ({ reportData, includeCharts,
           <div key={i}>
             {renderStandardBlock(b.title, b.sentence, b.headers, b.rows, includeCharts ? b.chart : undefined)}
             {showAdvice && adviceList.length > 0 && (
-              <div className="mt-[-1rem] mb-6 mx-6 p-4 bg-cyan-500/5 border-l-4 border-cyan-500 rounded-r-xl">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 mb-2">📌 Strategic Protocol</p>
+              <div className="mt-[-1rem] mb-6 mx-6 p-4 bg-white/5 border-l-4 border-white rounded-r-xl">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white mb-2">📌 Strategic Protocol</p>
                 <ul className="list-disc pl-5 text-sm text-gray-300 space-y-1">
                   {adviceList.map((adv, idx) => <li key={idx}>{adv}</li>)}
                 </ul>

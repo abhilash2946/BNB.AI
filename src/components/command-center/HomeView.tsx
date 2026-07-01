@@ -40,14 +40,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ reportData, onGenerate }) =>
         <div>
           <h2 className="text-4xl font-bold text-white mb-2 tracking-tight">Neural Command Center</h2>
           <div className="flex items-center gap-2 text-gray-400">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+            <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse shadow-[0_0_8px_#FFFFFF]" />
             <span className="text-sm font-medium">Live Marketing Ecosystem Stream</span>
           </div>
         </div>
         {!reportData && (
           <button
             onClick={onGenerate}
-            className="px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold transition-all hover:border-cyan-500/30"
+            className="px-6 py-2.5 bg-white text-black border border-white rounded-xl text-sm font-bold transition-all hover:bg-gray-200"
           >
             Quick Sync
           </button>
@@ -57,9 +57,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ reportData, onGenerate }) =>
       <KpiRibbon items={kpiItems} />
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <GlassCard className="p-8 border-l-4 border-l-cyan-500 shadow-xl">
+        <GlassCard className="p-8 border-l-4 border-l-white shadow-xl">
           <div className="flex items-center gap-3 mb-6">
-            <div className="p-2.5 bg-cyan-500/10 rounded-xl text-cyan-400 border border-cyan-500/20">
+            <div className="p-2.5 bg-white/10 rounded-xl text-white border border-white/20">
               <Sparkles size={24} />
             </div>
             <h3 className="text-xl font-bold text-white">Executive Intel</h3>
@@ -73,7 +73,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ reportData, onGenerate }) =>
 
         <GlassCard className="p-8 shadow-xl">
           <div className="flex items-center gap-3 mb-6">
-            <div className="p-2.5 bg-violet-500/10 rounded-xl text-violet-400 border border-violet-500/20">
+            <div className="p-2.5 bg-white/10 rounded-xl text-white border border-white/20">
               <Zap size={24} />
             </div>
             <h3 className="text-xl font-bold text-white">Priority Protocols</h3>
@@ -82,9 +82,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ reportData, onGenerate }) =>
             {(reportData?.adviceList || []).slice(0, 3).map((adv: any, i: number) => (
               <div
                 key={i}
-                className="flex items-center gap-4 p-4 bg-white/[0.03] rounded-2xl border border-white/[0.05] hover:border-violet-500/30 transition-all group"
+                className="flex items-center gap-4 p-4 bg-white/[0.03] rounded-2xl border border-white/[0.05] hover:border-white/30 transition-all group"
               >
-                <div className="w-2 h-2 rounded-full bg-violet-500 group-hover:scale-125 transition-transform shadow-[0_0_10px_rgba(124,58,237,0.6)]" />
+                <div className="w-2 h-2 rounded-full bg-white group-hover:scale-125 transition-transform shadow-[0_0_10px_#FFFFFF]" />
                 <span className="text-gray-200 text-sm font-medium">{typeof adv === 'string' ? adv : adv.title}</span>
               </div>
             ))}

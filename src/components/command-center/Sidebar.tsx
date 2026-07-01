@@ -116,11 +116,11 @@ const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed }: { icon: 
     title={collapsed ? label : ""}
     className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all relative group ${
       active
-        ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 shadow-[0_0_15px_rgba(0,212,255,0.15)]'
+        ? 'bg-white/10 text-white border border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.05)]'
         : 'hover:bg-white/5 text-gray-400 hover:text-white'
     }`}
   >
-    <Icon size={20} className={`shrink-0 ${active ? "text-cyan-400" : "group-hover:text-cyan-400 transition-colors"}`} />
+    <Icon size={20} className={`shrink-0 ${active ? "text-white" : "group-hover:text-white transition-colors"}`} />
     {!collapsed && (
       <span className="text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300">
         {label}
@@ -129,7 +129,7 @@ const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed }: { icon: 
     {active && (
       <motion.div
         layoutId="active-pill"
-        className="absolute left-0 w-1 h-6 bg-cyan-400 rounded-r-full"
+        className="absolute left-0 w-1 h-6 bg-white rounded-r-full"
       />
     )}
   </button>

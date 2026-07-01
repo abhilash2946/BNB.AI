@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS competitor_insights (
   entities JSONB,
   trust_signals JSONB,
   raw_text_preview TEXT,
+  discovery_query TEXT,
   extracted_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(site_id, competitor_url)
 );

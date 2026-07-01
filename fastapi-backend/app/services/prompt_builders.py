@@ -2,251 +2,241 @@ import json
 
 # --- GLOBAL TONE ---
 ANALYST_TONE = """
-You are a Senior Marketing Data Analyst writing an internal memo for C-level executives.
-Your rules:
-1. NO FLUFF: Every insight must contain a specific metric AND the reason it changed.
-2. BALANCED DEPTH: Write exactly 2-3 concise, data-packed sentences per field (approx 40-60 words total).
-3. STRUCTURE: Sentence 1 = The observation/diagnosis with numbers. Sentence 2 (and 3) = The recommended action and expected outcome.
-4. ACTIONABLE: Recommendations must start with a verb and include a target metric.
+You are a Senior Marketing Data Analyst writing a technical briefing for C-level executives.
+RULES:
+1. MANDATORY RIGOR: Every single field MUST contain specific numbers, deltas, and real-world metrics.
+2. ANALYST TONE: Informal but data-heavy (analyst-to-analyst). No corporate fluff.
+3. DETAILED 3-SENTENCE STRUCTURE: Every briefing/node MUST be exactly 3 sentences.
+   - Sentence 1: Direct diagnosis with numbers.
+   - Sentence 2: Comparative cross-platform context.
+   - Sentence 3: Technical move with target metric.
+   - STRICT: Keep sentences concise, punchy, and data-dense. Each sentence MUST be between 15 and 18 words. No more, no less. This ensures the output fits exactly 4 lines in the UI.
+4. VALID JSON: Strictly avoid unescaped double quotes inside values; use single quotes instead. Ensure the JSON is properly terminated.
 """
 
 # --- PERFORMANCE PROMPTS ---
 
 def build_performance_exec_prompt(
-    site_info: dict,
-    google_cur: dict,
-    google_prev: dict,
-    google_ads_details: dict,
-    meta_current: dict,
-    meta_previous: dict,
-    ga4_totals: dict,
-    perf_kpi_analysis: dict,
-    campaign_eff_analysis: str,
+    site_info: dict, google_cur: dict, google_prev: dict,
+    meta_current: dict, meta_previous: dict, ga4_totals: dict,
+    perf_kpi_analysis: dict, campaign_eff_analysis: str,
+    google_ads_details: dict = None, meta_details: dict = None
 ) -> str:
+    # Add detailed matrix deltas to context
+    matrix_context = ""
+    if google_ads_details:
+        g_cur_c = google_ads_details.get('top_campaigns', [])[:3]
+        g_cur_k = google_ads_details.get('top_keywords', [])[:3]
+        matrix_context += f" | G-Matrix: Campaigns: {json.dumps(g_cur_c, separators=(',', ':'))} | Keywords: {json.dumps(g_cur_k, separators=(',', ':'))}"
+
+    if meta_details:
+        m_cur_c = meta_details.get('top_campaigns', [])[:3]
+        matrix_context += f" | M-Matrix: Campaigns: {json.dumps(m_cur_c, separators=(',', ':'))}"
+
     return f"""
 {ANALYST_TONE}
-Generate an Executive Strategy Report in JSON.
+Generate a detailed Core Strategy Report in JSON.
+BUSINESS: {site_info.get('name')}
+DATA: G-Spend ₹{google_cur.get('cost',0):.0f}. M-Spend ₹{meta_current.get('spend',0):.0f}.{matrix_context}
 
-BUSINESS: {site_info.get('name')} ({site_info.get('url')})
-INDUSTRY: {site_info.get('industry', 'General')}
-
-DATA SUMMARY:
-- Google Ads: ₹{google_cur.get('cost',0):.2f} spend, {google_cur.get('conversions',0)} leads.
-- Meta Ads: ₹{meta_current.get('spend',0):.2f} spend, {meta_current.get('leads',0)} leads.
-- GA4: {ga4_totals.get('totalUsers',{}).get('current',0)} users.
-- Combined CPL: ₹{perf_kpi_analysis.get('combined_cpl')}
-- Campaign Efficiency: {campaign_eff_analysis}
-
-Return a JSON object with these EXACT keys:
-1. "summary": "A single, hard-hitting sentence that captures the biggest performance story with a number."
-2. "insights": ["List of 5-7 observations, each exactly 2 sentences (diagnosis + implication)."]
-3. "recommendations": ["List of 8-12 action items, each exactly 2 sentences (action + expected metric outcome)."]
-4. "recommendations_summarized": ["Shorter versions (under 10 words) for slide headlines."]
-5. "top_keywords_overview": "A 2-sentence analysis. Sentence 1: State the top 1-2 keywords with their exact metrics (clicks/CTR). Sentence 2: Explain how to leverage them (e.g., 'Expand these into long-tail variants to capture additional 15% of search volume.')."
-6. "slide_descriptions": {{
-    "meta_titles": "Advice on meta titles based on ad performance.",
-    "heading_structure": "Advice on landing page heading structure.",
-    "internal_linking": "Strategy for internal linking.",
-    "content_formatting": "How to improve content formatting for conversions.",
-    "gmb_authority": "Strategy to increase GBP authority.",
-    "gmb_support": "How to leverage GBP for better ads performance."
-}}
-7. "improvement_roadmap": {{
-    "summary": "One-sentence strategic overview of growth plan.",
-    "strengths": ["List of 3-5 short phrases of current strengths."],
-    "weaknesses": ["List of 3-5 short phrases of areas needing improvement."],
-    "opportunities": ["List of 3-5 short phrases of growth opportunities."],
-    "actions": [{{ "title": "Verb + Object", "target": "Metric Goal", "effort": "Low|Medium|High" }}]
-}}
+Return JSON with EXACT keys:
+1. "summary": "3 sentences. S1: G-Ads conversion delta. S2: Meta ads comparison. S3: Scaling protocol. Each sentence 15-18 words."
+2. "insights": ["5 observations. Each 1 sentence with metrics. Each sentence 15-18 words."]
+3. "neural_strategy_markers": [
+    {{
+      "title": "Headline",
+      "description": "Exactly 2 detailed sentences with numbers. Each sentence 15-18 words.",
+      "target": "Specific goal",
+      "priority": "High|Medium|Low", "impact": "High Impact", "effort": "Low Effort"
+    }}
+] (Exactly 6 Markers)
+4. "ai_comparison": "Exactly 3 statistical sentences. Each sentence 15-18 words."
+5. "recommendations_summarized": ["6 headlines."]
+6. "slide_descriptions": {{ "meta_titles": "...", "heading_structure": "...", "internal_linking": "...", "content_formatting": "...", "gmb_authority": "...", "gmb_support": "..." }}
+7. "improvement_roadmap": {{ "summary": "Data-dense. 15-18 words.", "strengths": ["3 items. 15-18 words each."], "weaknesses": ["3 items. 15-18 words each."], "opportunities": ["3 items. 15-18 words each."], "actions": [{{ "title": "Headline", "target": "Specific metric", "effort": "High|Medium|Low" }}] (Exactly 3 Tactical Actions) }}
 8. "self_gap_analysis": {{
-    "strengths": ["List of 3-5 strengths. Each must be a full sentence (1-2 sentences) that includes a specific metric and explains why it matters. Example: 'Organic traffic grew 12% to 23K users, indicating strong content resonance – continue publishing high-intent blogs to sustain this momentum.'"],
-    "weaknesses": ["List of 3-5 weaknesses. Each must be a full sentence (1-2 sentences) naming the specific gap, its current metric, and its business impact. Example: 'GSC CTR dropped 0.5% to 2.1%, far below the 4% benchmark – rewrite meta descriptions for the top 10 landing pages to improve click-through.'"],
-    "missed_opportunities": ["List of 3-5 missed opportunities. Each must be a full sentence (1-2 sentences) describing the untapped area and the potential gain. Example: 'Branded keywords like \"Hyderabad tour packages\" drive 400+ clicks – expand into 10 long-tail variants to capture an additional 15% of search volume.'"],
-    "actionable_gaps": ["List of 3-5 actionable gaps. Each must be a full sentence (1-2 sentences) stating the specific action, target metric, and timeline. Example: 'Implement schema markup on 5 key service pages within 14 days to improve rich snippet visibility and boost CTR by 10%.'"]
+    "strengths": ["List 3 items. Exactly 2 sentences. Each sentence 15-18 words."],
+    "weaknesses": ["List 3 items. Exactly 2 sentences with numbers. Each sentence 15-18 words."],
+    "missed_opportunities": ["List 2 items. Exactly 2 sentences with metrics. Each sentence 15-18 words."],
+    "actionable_gaps": ["List 2 items. Exactly 2 sentences with metrics. Each sentence 15-18 words. DO NOT LEAVE EMPTY."]
 }}
-
-Return ONLY valid JSON.
 """
 
-def build_performance_deep_dive_prompt(
-    site_info: dict,
-    google_cur: dict,
-    google_prev: dict,
-    google_ads_details: dict,
-    meta_current: dict,
-    meta_campaigns: list,
-    meta_adsets: list,
-    meta_devices: list,
-    ga4_totals: dict,
-    gbp_details: dict,
+def build_performance_roadmap_prompt(
+    site_info: dict, google_cur: dict, meta_current: dict
 ) -> str:
+    # [DEPRECATED] Merged into exec prompt.
+    return ""
+
+def build_performance_advice_prompt(
+    site_info: dict, google_ads_details: dict,
+    meta_campaigns: list, meta_adsets: list, meta_devices: list
+) -> str:
+    g_trimmed = {k: v[:3] for k, v in google_ads_details.items() if isinstance(v, list)}
     return f"""
 {ANALYST_TONE}
-Generate Detailed Table Explanations and Section Advice in JSON.
+Generate detailed SECTION ADVICE in JSON.
+DATA: G-Ads: {json.dumps(g_trimmed, separators=(',', ':'))} | Meta: {json.dumps(meta_campaigns[:3], separators=(',', ':'))}
 
-BUSINESS: {site_info.get('name')}
-
-DATA:
-- Google Ads Granular: {json.dumps(google_ads_details, indent=2)}
-- Meta Ads Granular: {json.dumps({"campaigns": meta_campaigns, "adsets": meta_adsets, "devices": meta_devices}, indent=2)}
-- GBP: {json.dumps(gbp_details.get('aggregated', {}), indent=2)}
-
-INSTRUCTIONS:
-- Every "advice" field MUST be exactly 2-3 sentences (approx 40-60 words total).
-  * Sentence 1: State the performance trend with a specific number and comparison (e.g., "Mobile CTR dropped 0.5% to 2.1% vs desktop 4.2%.").
-  * Sentence 2: Prescribe a concrete action with a measurable goal (e.g., "Pause low-performing mobile placements and reallocate 15% budget to tablet campaigns to improve overall ROI.").
-- Every "table_explanations" field MUST be exactly 2 sentences:
-  * Sentence 1: State the most important metric from the table with its exact value (e.g., "India accounts for 17,378 users, making up 95% of total traffic.").
-  * Sentence 2: Explain why that metric matters for strategy (e.g., "This concentration signals a need for hyper-local SEO in Hyderabad to further grow the dominant segment.").
-- Do NOT use generic phrases like "improve" or "optimize" without a target.
-- Always include the "Delta" (change %) to explain WHY the number matters.
-
-Return a JSON object with these EXACT keys:
-1. "section_specific_advice": {{
-    "kpi_advice": "...", "campaign_advice": "...", "keyword_advice": "...", "device_advice": "...",
-    "search_term_advice": "...", "demographic_advice": "...", "day_hour_advice": "...",
-    "network_advice": "...", "asset_advice": "...", "meta_kpi_advice": "...",
-    "meta_campaign_advice": "...", "meta_adset_advice": "...", "meta_device_advice": "..."
+Return JSON with EXACT key:
+"section_specific_advice": {{
+    "kpi_advice": "Exactly 3 statistical sentences as defined in RULES.",
+    "campaign_advice": "Exactly 3 statistical sentences.",
+    "keyword_advice": "Exactly 3 statistical sentences.",
+    "device_advice": "Exactly 3 statistical sentences.",
+    "search_term_advice": "Exactly 3 statistical sentences.",
+    "demographic_advice": "Exactly 3 statistical sentences.",
+    "day_hour_advice": "Exactly 3 statistical sentences.",
+    "network_advice": "Exactly 3 statistical sentences.",
+    "asset_advice": "Exactly 3 statistical sentences.",
+    "meta_kpi_advice": "Exactly 3 statistical sentences.",
+    "meta_campaign_advice": "Exactly 3 statistical sentences.",
+    "meta_adset_advice": "Exactly 3 statistical sentences.",
+    "meta_device_advice": "Exactly 3 statistical sentences."
 }}
-2. "table_explanations": {{
-    "kpi_overview": "...", "top_campaigns": "...", "top_keywords": "...", "devices": "...",
-    "search_terms": "...", "demographics": "...", "day_hour": "...", "networks": "...",
-    "top_assets": "...", "meta_kpi_overview": "...", "meta_campaigns": "...",
-    "meta_adsets": "...", "meta_devices": "..."
-}}
+"""
 
-Return ONLY valid JSON.
+def build_performance_explanations_prompt(
+    site_info: dict, google_ads_details: dict,
+    meta_campaigns: list, meta_adsets: list, meta_devices: list
+) -> str:
+    g_trimmed = {k: v[:3] for k, v in google_ads_details.items() if isinstance(v, list)}
+    return f"""
+{ANALYST_TONE}
+Generate detailed TABLE EXPLANATIONS in JSON.
+DATA: G-Ads: {json.dumps(g_trimmed, separators=(',', ':'))} | Meta: {json.dumps(meta_campaigns[:3], separators=(',', ':'))}
+
+Return JSON with EXACT key:
+"table_explanations": {{
+    "kpi_overview": "Exactly 3 statistical sentences as defined in RULES.",
+    "top_campaigns": "Exactly 3 statistical sentences.",
+    "top_keywords": "Exactly 3 statistical sentences.",
+    "devices": "Exactly 3 statistical sentences.",
+    "search_terms": "Exactly 3 statistical sentences.",
+    "demographics": "Exactly 3 statistical sentences.",
+    "day_hour": "Exactly 3 statistical sentences.",
+    "networks": "Exactly 3 statistical sentences.",
+    "top_assets": "Exactly 3 statistical sentences.",
+    "meta_kpi_overview": "Exactly 3 statistical sentences.",
+    "meta_campaigns": "Exactly 3 statistical sentences.",
+    "meta_adsets": "Exactly 3 statistical sentences.",
+    "meta_devices": "Exactly 3 statistical sentences."
+}}
 """
 
 # --- SEO PROMPTS ---
 
 def build_seo_exec_prompt(
-    site_info: dict,
-    ga4_totals: dict,
-    gsc_agg: dict,
-    seo_work_details: dict,
-    cwv_data: dict,
-    page_analysis: dict,
-    keyword_analysis: dict,
-    traffic_trend: str,
-    event_analysis: dict
+    site_info: dict, ga4_totals: dict, gsc_agg: dict, seo_work_details: dict,
+    gsc_agg_prev: dict = None,
+    top_landing: list = None, prev_top_landing: list = None,
+    sessions_by_channel: list = None, prev_sessions_by_channel: list = None,
+    geo_users: list = None, prev_geo_users: list = None,
+    events_by_event_name: list = None, prev_events_by_event_name: list = None
 ) -> str:
+    matrix_context = ""
+    if top_landing: matrix_context += f" | Pages: {json.dumps(top_landing[:3], separators=(',', ':'))}"
+    if sessions_by_channel: matrix_context += f" | Channels: {json.dumps(sessions_by_channel[:3], separators=(',', ':'))}"
+
     return f"""
 {ANALYST_TONE}
-Generate an Executive SEO Strategy Report in JSON.
+Generate a detailed Executive SEO Strategy in JSON.
+BUSINESS: {site_info.get('name')}
+DATA: GSC: {gsc_agg.get('clicks',0)} clicks. GA4: {ga4_totals.get('totalUsers',{}).get('current',0)} users.{matrix_context}
 
-BUSINESS: {site_info.get('name')} ({site_info.get('url')})
-
-DATA SUMMARY:
-- GSC: {gsc_agg.get('clicks',0)} clicks, {gsc_agg.get('ctr',0):.2%} CTR, {gsc_agg.get('position',0):.1f} avg pos.
-- GA4: {ga4_totals.get('totalUsers',{}).get('current',0)} users.
-- SEO Work: {json.dumps(seo_work_details)}
-- CWV: {json.dumps(cwv_data)}
-- Conversion: {event_analysis.get('conversion_rate_pct')}%
-
-Return a JSON object with these EXACT keys:
-1. "summary": "A single, hard-hitting sentence that captures the biggest performance story with a number."
-2. "insights": ["List of 5-7 observations, each exactly 2 sentences (diagnosis + implication)."]
-3. "recommendations": ["List of 8-12 action items, each exactly 2 sentences (action + expected metric outcome)."]
-4. "recommendations_summarized": ["Shorter versions (under 10 words) for slide headlines."]
-5. "top_keywords_overview": "A 2-sentence analysis. Sentence 1: State the top 1-2 keywords with their exact metrics (clicks/CTR). Sentence 2: Explain how to leverage them (e.g., 'Expand these into long-tail variants to capture additional 15% of search volume.')."
-6. "slide_descriptions": {{
-    "meta_titles": "Advice on meta titles.",
-    "heading_structure": "Advice on heading structure.",
-    "internal_linking": "Strategy for internal linking.",
-    "content_formatting": "How to improve content formatting.",
-    "gmb_authority": "Strategy to increase GBP authority.",
-    "gmb_support": "How to leverage GBP for SEO."
-}}
-7. "improvement_roadmap": {{
-    "summary": "One-sentence strategic overview.",
-    "strengths": ["Short phrases of current SEO strengths."],
-    "weaknesses": ["Short phrases of technical or content gaps."],
-    "opportunities": ["Short phrases of growth opportunities."],
-    "actions": [{{ "title": "Verb + Action", "target": "SEO Goal", "effort": "Low|Medium|High" }}]
-}}
+Return JSON with EXACT keys:
+1. "summary": "3 sentences. S1: GSC click delta. S2: GA4 user comparison. S3: SEO growth protocol. Each sentence 15-18 words."
+2. "insights": ["5 data-packed sentences. Each sentence 15-18 words."]
+3. "neural_strategy_markers": [{{ "title": "...", "description": "Exactly 2 sentences. Each sentence 15-18 words.", "target": "SEO Goal", "priority": "...", "impact": "...", "effort": "..." }}] (Exactly 6 items)
+4. "ai_comparison": "Exactly 3 statistical sentences. Each sentence 15-18 words."
+5. "recommendations_summarized": ["6 headlines."]
+6. "slide_descriptions": {{ "meta_titles": "...", "heading_structure": "...", "internal_linking": "...", "content_formatting": "...", "gmb_authority": "...", "gmb_support": "..." }}
+7. "improvement_roadmap": {{ "summary": "Data-dense. 15-18 words.", "strengths": ["3 items. 15-18 words each."], "weaknesses": ["3 items. 15-18 words each."], "opportunities": ["3 items. 15-18 words each."], "actions": [{{ "title": "Headline", "target": "Specific metric", "effort": "High|Medium|Low" }}] (Exactly 3 Tactical Actions) }}
 8. "self_gap_analysis": {{
-    "strengths": ["List of 3-5 strengths. Each must be a full sentence (1-2 sentences) that includes a specific metric and explains why it matters. Example: 'Organic traffic grew 12% to 23K users, indicating strong content resonance – continue publishing high-intent blogs to sustain this momentum.'"],
-    "weaknesses": ["List of 3-5 weaknesses. Each must be a full sentence (1-2 sentences) naming the specific gap, its current metric, and its business impact. Example: 'GSC CTR dropped 0.5% to 2.1%, far below the 4% benchmark – rewrite meta descriptions for the top 10 landing pages to improve click-through.'"],
-    "missed_opportunities": ["List of 3-5 missed opportunities. Each must be a full sentence (1-2 sentences) describing the untapped area and the potential gain. Example: 'Branded keywords like \"Hyderabad tour packages\" drive 400+ clicks – expand into 10 long-tail variants to capture an additional 15% of search volume.'"],
-    "actionable_gaps": ["List of 3-5 actionable gaps. Each must be a full sentence (1-2 sentences) stating the specific action, target metric, and timeline. Example: 'Implement schema markup on 5 key service pages within 14 days to improve rich snippet visibility and boost CTR by 10%.'"]
+    "strengths": ["List 3 items. Exactly 2 sentences. Each sentence 15-18 words."],
+    "weaknesses": ["List 3 items. Exactly 2 sentences with numbers. Each sentence 15-18 words."],
+    "missed_opportunities": ["List 2 items. Exactly 2 sentences with metrics. Each sentence 15-18 words."],
+    "actionable_gaps": ["List 2 items. Exactly 2 sentences with metrics. Each sentence 15-18 words. DO NOT LEAVE EMPTY."]
 }}
-
-Return ONLY valid JSON.
 """
 
-def build_seo_deep_dive_prompt(
-    site_info: dict,
-    ga4_totals: dict,
-    geo_users: list,
-    daily_ga4: list,
-    sessions_by_channel: list,
-    events_by_event_name: list,
-    key_events_by_platform: list,
-    gsc_agg: dict,
-    top_keywords_full: list,
-    top_page_titles: list,
-    gbp_details: dict,
+def build_seo_roadmap_prompt(
+    site_info: dict, ga4_totals: dict, gsc_agg: dict
+) -> str:
+    # [DEPRECATED] Merged into exec prompt.
+    return ""
+
+def build_seo_advice_prompt(
+    site_info: dict, top_keywords_full: list, top_page_titles: list,
+    sessions_by_channel: list, geo_users: list, events_by_event_name: list
 ) -> str:
     return f"""
 {ANALYST_TONE}
-Generate Detailed SEO Table Explanations and Section Advice in JSON.
+Generate detailed SEO SECTION ADVICE in JSON.
+DATA: Keywords: {json.dumps(top_keywords_full[:5], separators=(',', ':'))} | Channels: {json.dumps(sessions_by_channel[:5], separators=(',', ':'))}
 
-BUSINESS: {site_info.get('name')}
-
-DATA:
-- GSC Keywords: {json.dumps(top_keywords_full[:15], indent=2)}
-- GSC Page Titles: {json.dumps(top_page_titles[:15], indent=2)}
-- GA4 Channels: {json.dumps(sessions_by_channel[:10], indent=2)}
-- GA4 Geo: {json.dumps(geo_users[:10], indent=2)}
-- GA4 Events: {json.dumps(events_by_event_name[:10], indent=2)}
-- GBP: {json.dumps(gbp_details.get('aggregated', {}), indent=2)}
-
-INSTRUCTIONS:
-- Every "advice" field MUST be exactly 2-3 sentences (approx 40-60 words total).
-  * Sentence 1: Diagnose the issue with a specific number (e.g., "GSC clicks dropped 15% to 850, while impressions stayed flat, indicating a CTR problem.").
-  * Sentence 2: Recommend a specific fix with a target (e.g., "Rewrite meta descriptions for the top 5 landing pages to boost CTR by 5% within 30 days.").
-- Every "table_explanations" field MUST be exactly 2 sentences:
-  * Sentence 1: State the most important metric from the table with its exact value (e.g., "India accounts for 17,378 users, making up 95% of total traffic.").
-  * Sentence 2: Explain why that metric matters for strategy (e.g., "This concentration signals a need for hyper-local SEO in Hyderabad to further grow the dominant segment.").
-- Use exact values from data (e.g., "12.5% CTR", "85 conversions").
-
-Return a JSON object with these EXACT keys:
-1. "section_specific_advice": {{
-    "kpi_advice": "...", "country_advice": "...", "demographic_advice": "...",
-    "activity_advice": "...", "timeline_advice": "...", "channel_advice": "...",
-    "event_advice": "...", "platform_advice": "...", "page_title_advice": "...",
-    "keyword_advice": "..."
+Return JSON with EXACT key:
+"section_specific_advice": {{
+    "kpi_advice": "Exactly 3 statistical sentences as defined in RULES.",
+    "country_advice": "Exactly 3 statistical sentences.",
+    "demographic_advice": "Exactly 3 statistical sentences.",
+    "activity_advice": "Exactly 3 statistical sentences.",
+    "timeline_advice": "Exactly 3 statistical sentences.",
+    "channel_advice": "Exactly 3 statistical sentences.",
+    "event_advice": "Exactly 3 statistical sentences.",
+    "platform_advice": "Exactly 3 statistical sentences.",
+    "page_title_advice": "Exactly 3 statistical sentences.",
+    "keyword_advice": "Exactly 3 statistical sentences."
 }}
-2. "table_explanations": {{
-    "kpi_overview": "...", "active_users_by_country": "...", "user_activity_over_time": "...",
-    "sessions_by_channel": "...", "event_count_by_event_name": "...", "key_events_by_platform": "...",
-    "views_by_page_title": "...", "secondary_overview": "..."
-}}
+"""
 
-Return ONLY valid JSON.
+def build_seo_explanations_prompt(
+    site_info: dict, top_keywords_full: list, top_page_titles: list,
+    sessions_by_channel: list, geo_users: list
+) -> str:
+    return f"""
+{ANALYST_TONE}
+Generate detailed SEO TABLE EXPLANATIONS in JSON.
+DATA: Keywords: {json.dumps(top_keywords_full[:5], separators=(',', ':'))} | Channels: {json.dumps(sessions_by_channel[:5], separators=(',', ':'))}
+
+Return JSON with EXACT key:
+"table_explanations": {{
+    "kpi_overview": "Exactly 3 statistical sentences as defined in RULES.",
+    "active_users_by_country": "Exactly 3 statistical sentences.",
+    "user_activity_over_time": "Exactly 3 statistical sentences.",
+    "sessions_by_channel": "Exactly 3 statistical sentences.",
+    "event_count_by_event_name": "Exactly 3 statistical sentences.",
+    "key_events_by_platform": "Exactly 3 statistical sentences.",
+    "views_by_page_title": "Exactly 3 statistical sentences.",
+    "secondary_overview": "Exactly 3 statistical sentences."
+}}
 """
 
 def build_competitor_batch_prompt(site_info: dict, competitor_insights: list) -> str:
-    competitors_data = []
-    for c in competitor_insights:
-        competitors_data.append({
-            "name": c["competitor_name"],
-            "url": c.get("url", ""),
-            "homepage_text": c.get("full_text", "")[:3000]
-        })
-
+    c_data = [{"n": c["competitor_name"], "u": c.get("url", ""), "t": c.get("full_text", "")[:1200], "dq": c.get("discovery_query", "Local Search")} for c in competitor_insights]
     return f"""
 {ANALYST_TONE}
 GENERATE COMPETITOR INTELLIGENCE (JSON)
-Business: {site_info.get('name')}
+COMPETITORS: {json.dumps(c_data, separators=(',', ':'))}
 
-COMPETITORS:
-{json.dumps(competitors_data, indent=2)}
+STRICT RULES:
+1. For this section, be extremely concise to avoid truncation.
+2. Each observation (inferred_actions, strengths, weaknesses) MUST be exactly 2 technical sentences (not 3).
+3. If the provided competitor data indicates a '404 Error' or 'Site Down' state, EXCLUDE it from the analysis entirely and do not mention it.
+4. Ensure you process ALL valid competitors provided.
 
-Return a JSON object with:
-1. "competitors": list of objects with "name", "url", "inferred_actions" (list of short phrases), "strengths" (list of short phrases), "weaknesses" (list of short phrases).
-2. "overall_threat_summary": A 2-sentence paragraph naming the biggest threat. Sentence 1: State the competitor and their specific advantage (with a metric if available). Sentence 2: Explain the direct impact on your business and a countermeasure.
+Return JSON with:
+1. "competitors": [
+    {{
+      "name": "...",
+      "url": "...",
+      "discovery_query": "...",
+      "inferred_actions": ["List 2 detailed strategy observations. Each 15-18 words."],
+      "strengths": ["List 2 technical strengths. Each 15-18 words."],
+      "weaknesses": ["List 2 specific gaps. Each 15-18 words."]
+    }}
+]
+2. "overall_threat_summary": "Exactly 2 technical sentences naming the biggest threat. Each sentence 15-18 words."
 
 Return ONLY valid JSON.
 """

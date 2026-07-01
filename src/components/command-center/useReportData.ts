@@ -11,45 +11,97 @@ import {
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
+const formatPads = (v: any) => (typeof v === "number" ? v.toLocaleString('en-IN') : v || "0");
+
+const formatPct = (cur: number, prev: number) => {
+  if (!prev) return cur > 0 ? "+100%" : "0%";
+  const pct = ((cur - prev) / prev) * 100;
+  return (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%";
+};
+
+const parseNumeric = (val: any): number => {
+  if (typeof val === 'number') return val;
+  if (!val || typeof val !== 'string') return 0;
+  const cleaned = val.replace(/[₹$,%X]/g, '').replace(/,/g, '').trim();
+  return parseFloat(cleaned) || 0;
+};
+
 const toIsoDateLabel = (rawDate: string) => {
   if (!rawDate || rawDate.length !== 8) return rawDate;
   return `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`;
 };
 
-const buildSeoReport = (report: RawReport, startDate: string, endDate: string): ReportResponse => {
-  const kpi = report.kpi_summary || {};
-  const aiTableExplanations = report.ai_table_explanations || {};
-  const multiCharts = report.charts || null;
-  const rawCompetitorAnalysis = report.ai_competitor_analysis || null;
-  const normalizeList = (val: any) => {
-    if (Array.isArray(val)) return val;
-    if (typeof val === 'string' && val.trim()) return [val];
-    return [];
+const safeJsonParse = (val: any) => {
+  if (typeof val !== 'string') return val;
+  try { return JSON.parse(val); } catch (e) { return val; }
+};
+
+const normalizeList = (val: any) => {
+  const parsed = safeJsonParse(val);
+  if (Array.isArray(parsed)) return parsed;
+  if (typeof parsed === 'string' && parsed.trim()) return [parsed];
+  return [];
+};
+
+const extractGa4Lists = (report: RawReport) => {
+  const ga4Details = safeJsonParse(report.ga4_details) || {};
+
+  return {
+    topPageTitles: normalizeList(report.top_page_titles).length > 0
+      ? normalizeList(report.top_page_titles)
+      : normalizeList(ga4Details.top_page_titles),
+    topLandingPages: normalizeList(report.top_landing_pages).length > 0
+      ? normalizeList(report.top_landing_pages)
+      : normalizeList(ga4Details.top_landing_pages),
+    sessionsByChannel: normalizeList(report.sessions_by_channel).length > 0
+      ? normalizeList(report.sessions_by_channel)
+      : normalizeList(ga4Details.sessions_by_channel),
+    eventsByEventName: normalizeList(report.events_by_event_name).length > 0
+      ? normalizeList(report.events_by_event_name)
+      : normalizeList(ga4Details.events_by_event_name),
+    keyEventsByPlatform: normalizeList(report.key_events_by_platform).length > 0
+      ? normalizeList(report.key_events_by_platform)
+      : normalizeList(ga4Details.key_events_by_platform),
+    usersByCountry: normalizeList(report.users_by_country).length > 0
+      ? normalizeList(report.users_by_country)
+      : normalizeList(ga4Details.users_by_country)
   };
-  const aiCompetitorAnalysis = rawCompetitorAnalysis ? {
-    inferredActions: normalizeList(rawCompetitorAnalysis.inferred_actions || rawCompetitorAnalysis.inferredActions),
-    recommendedSteps: normalizeList(rawCompetitorAnalysis.actionable_steps || rawCompetitorAnalysis.recommended_steps || rawCompetitorAnalysis.recommendedSteps),
-    competitor_breakdown: rawCompetitorAnalysis.competitor_breakdown,
-    overall_threat_summary: rawCompetitorAnalysis.overall_threat_summary,
-    self_gap_analysis: rawCompetitorAnalysis.self_gap_analysis
-  } : { inferredActions: [], recommendedSteps: [] };
+};
 
-  const sectionAdvice = report.section_advice || {};
+const buildSeoReport = (report: RawReport, startDate: string, endDate: string): ReportResponse => {
+  const kpi = safeJsonParse(report.kpi_summary) || {};
+  const aiTableExplanations = safeJsonParse(report.ai_table_explanations) || {};
+  const multiCharts = safeJsonParse(report.charts) || null;
+  const rawCompetitorAnalysis = safeJsonParse(report.ai_competitor_analysis) || null;
+  const sectionAdvice = safeJsonParse(report.section_advice) || {};
+  const ai_insights = safeJsonParse(report.ai_insights) || {};
 
-  const rawAdvice = Array.isArray(report.ai_recommendations) ? report.ai_recommendations : [];
+  const ga4Lists = extractGa4Lists(report);
+
+  const aiCompetitorAnalysis = {
+    inferredActions: normalizeList(rawCompetitorAnalysis?.inferred_actions || rawCompetitorAnalysis?.inferredActions),
+    recommendedSteps: normalizeList(rawCompetitorAnalysis?.actionable_steps || rawCompetitorAnalysis?.recommended_steps || rawCompetitorAnalysis?.recommendedSteps),
+    competitor_breakdown: rawCompetitorAnalysis?.competitor_breakdown || rawCompetitorAnalysis?.competitors || [],
+    overall_threat_summary: rawCompetitorAnalysis?.overall_threat_summary || rawCompetitorAnalysis?.biggest_threat || "",
+    self_gap_analysis: safeJsonParse(report.ai_competitor_analysis)?.self_gap_analysis || safeJsonParse(report.ai_self_gap_analysis) || safeJsonParse(report.self_gap_analysis) || {}
+  };
+
+  const rawAdvice = normalizeList(report.ai_recommendations);
   const adviceList = rawAdvice.map((adv: any) => {
     if (typeof adv === 'string') return adv;
     return {
       title: adv?.title || "Strategic Advice",
       description: adv?.description || "Actionable insight",
       impact: adv?.impact || "High",
-      effort: adv?.effort || "Medium"
+      effort: adv?.effort || "Medium",
+      priority: adv?.priority,
+      target: adv?.target
     };
   });
 
   const ga4 = kpi.ga4 || {};
   const gsc = kpi.gsc || {};
-  const topKeywords = Array.isArray(report.top_keywords) ? report.top_keywords : [];
+  const topKeywords = normalizeList(report.top_keywords);
   let topKeywordsOverview = "";
   const rawOverview = report.ai_top_keywords_overview;
   if (typeof rawOverview === 'string') {
@@ -60,24 +112,6 @@ const buildSeoReport = (report: RawReport, startDate: string, endDate: string): 
   if (!topKeywordsOverview && typeof aiTableExplanations.secondary_overview === 'string') {
     topKeywordsOverview = aiTableExplanations.secondary_overview;
   }
-  const rawCountries = Array.isArray(report.users_by_country) ? report.users_by_country : [];
-  const rawLandingPages = Array.isArray(report.top_landing_pages) ? report.top_landing_pages : [];
-  const rawPageTitles = Array.isArray(report.top_page_titles) ? report.top_page_titles : [];
-  const rawSessionsByChannel = Array.isArray(report.sessions_by_channel)
-    ? report.sessions_by_channel
-    : Array.isArray(report.ga4_details?.sessions_by_channel)
-      ? report.ga4_details.sessions_by_channel
-      : [];
-  const rawEventsByName = Array.isArray(report.events_by_event_name)
-    ? report.events_by_event_name
-    : Array.isArray(report.ga4_details?.events_by_event_name)
-      ? report.ga4_details.events_by_event_name
-      : [];
-  const rawKeyEventsByPlatform = Array.isArray(report.key_events_by_platform)
-    ? report.key_events_by_platform
-    : Array.isArray(report.ga4_details?.key_events_by_platform)
-      ? report.ga4_details.key_events_by_platform
-      : [];
 
   const formatChange = (metric: any) => {
     if (metric?.change_percent === undefined || metric?.change_percent === null) {
@@ -99,7 +133,7 @@ const buildSeoReport = (report: RawReport, startDate: string, endDate: string): 
     { metric: "Sessions", current: ga4.sessions?.current?.toLocaleString('en-IN') || "0", previous: ga4.sessions?.previous?.toLocaleString('en-IN') || "0", change: formatChange(ga4.sessions) },
     { metric: "New Users", current: ga4.newUsers?.current?.toLocaleString('en-IN') || "0", previous: ga4.newUsers?.previous?.toLocaleString('en-IN') || "0", change: formatChange(ga4.newUsers) },
     { metric: "Events", current: ga4.eventCount?.current?.toLocaleString('en-IN') || "0", previous: ga4.eventCount?.previous?.toLocaleString('en-IN') || "0", change: formatChange(ga4.eventCount) },
-    { metric: "Bounce Rate", current: `${(ga4.bounceRate?.current || 0).toFixed(1)}%`, previous: `${(ga4.bounceRate?.previous || 0).toFixed(1)}%`, change: formatChange(ga4.bounceRate) },
+    { metric: "Bounce Rate", current: `${((ga4.bounceRate?.current || 0) * 100).toFixed(1)}%`, previous: `${((ga4.bounceRate?.previous || 0) * 100).toFixed(1)}%`, change: formatChange(ga4.bounceRate) },
     { metric: "Avg. Duration", current: `${(ga4.averageSessionDuration?.current || 0).toFixed(0)}s`, previous: `${(ga4.averageSessionDuration?.previous || 0).toFixed(0)}s`, change: formatChange(ga4.averageSessionDuration) },
   ];
 
@@ -119,9 +153,10 @@ const buildSeoReport = (report: RawReport, startDate: string, endDate: string): 
     value: String(keyword.clicks ?? 0),
     share: `${typeof keyword.ctr === "number" ? (keyword.ctr * 100).toFixed(1) : keyword.ctr || "0.0"}%`,
     trend: `${typeof keyword.position === "number" ? keyword.position.toFixed(1) : keyword.position || "0.0"}`,
+    prev: typeof keyword.previous_position === "number" && keyword.previous_position > 0 ? keyword.previous_position.toFixed(1) : "-",
   }));
 
-  const countryMap = rawCountries.reduce((acc: Record<string, number>, row: any) => {
+  const countryMap = ga4Lists.usersByCountry.reduce((acc: Record<string, number>, row: any) => {
     if (row.country) acc[row.country] = (acc[row.country] || 0) + (Number(row.users) || 0);
     return acc;
   }, {});
@@ -139,18 +174,20 @@ const buildSeoReport = (report: RawReport, startDate: string, endDate: string): 
       keyword: k.keyword,
       clicks: k.clicks,
       ctr: `${((k.ctr || 0) * 100).toFixed(2)}%`,
-      position: (k.position || 0).toFixed(1)
+      position: (k.position || 0).toFixed(1),
+      previous_position: typeof k.previous_position === "number" && k.previous_position > 0 ? k.previous_position.toFixed(1) : "-"
     })),
     averagePosition: gsc.position,
     topKeywordsInsight: topKeywordsOverview || "Search query resonance mapping.",
-    viewsByPageTitle: rawPageTitles.map(p => ({ pageTitle: p.title, views: p.views })),
+    viewsByPageTitle: ga4Lists.topPageTitles.map(p => ({ pageTitle: p.title, views: p.views })),
     viewsByPageInsight: aiTableExplanations.views_by_page_title || "Content resonance metrics.",
-    sessionsByChannel: rawSessionsByChannel.map(s => ({ channel: s.channel, sessions: s.sessions })),
+    sessionsByChannel: ga4Lists.sessionsByChannel.map(s => ({ channel: s.channel, sessions: s.sessions })),
     sessionsInsight: aiTableExplanations.sessions_by_channel || "Source node distribution.",
-    eventCountByEventName: rawEventsByName.map(e => ({ event: e.eventName, count: e.count })),
+    eventCountByEventName: ga4Lists.eventsByEventName.map(e => ({ event: e.eventName, count: e.count })),
     eventInsight: aiTableExplanations.event_count_by_event_name || "Neural event density.",
-    keyEventsByPlatform: rawKeyEventsByPlatform.map(p => ({ platform: p.platform, events: p.keyEvents })),
+    keyEventsByPlatform: ga4Lists.keyEventsByPlatform.map(p => ({ platform: p.platform, events: p.keyEvents })),
     platformInsight: aiTableExplanations.key_events_by_platform || "Hardware vector access analytics.",
+    totals: ga4,
     sectionAdvice: {
       kpi_advice: sectionAdvice.kpi_advice || [],
       demographics: sectionAdvice.country_advice || sectionAdvice.demographic_advice || [],
@@ -184,28 +221,28 @@ const buildSeoReport = (report: RawReport, startDate: string, endDate: string): 
       icon: ["Globe", "Zap", "User", "Activity", "BarChart", "Clock"][i] || "Activity"
     })),
      topCountries: topCountries,
-    users_by_country: rawCountries,
-    topPages: rawLandingPages.map(p => ({ page: p.page, views: Number(p.sessions || 0) })),
-    topPageTitles: rawPageTitles.map(p => ({ title: p.title, views: p.views })),
-    sessionsByChannel: rawSessionsByChannel,
-    eventsByEventName: rawEventsByName,
-    keyEventsByPlatform: rawKeyEventsByPlatform,
+    users_by_country: ga4Lists.usersByCountry,
+    topPages: ga4Lists.topLandingPages.map(p => ({ page: p.page, views: Number(p.sessions || 0), bounceRate: p.bounceRate })),
+    topPageTitles: ga4Lists.topPageTitles.map(p => ({ title: p.title, views: p.views })),
+    sessionsByChannel: ga4Lists.sessionsByChannel,
+    eventsByEventName: ga4Lists.eventsByEventName,
+    keyEventsByPlatform: ga4Lists.keyEventsByPlatform,
     userActivityOverTime: (report.chart_datasets || []).map((d: any) => ({
       date: toIsoDateLabel(String(d.label || "")),
       users: Number(d.valueA || 0)
     })),
     aiTopKeywordsOverview: topKeywordsOverview, aiComparison: report.ai_comparison || "",
-    tableExplanations: aiTableExplanations, google_ads_details: report.google_ads_details, multiCharts, aiCompetitorAnalysis, sectionAdvice,
-    ai_insights: report.ai_insights,
+    tableExplanations: aiTableExplanations, google_ads_details: safeJsonParse(report.google_ads_details), multiCharts, aiCompetitorAnalysis, sectionAdvice,
+    ai_insights: ai_insights,
     executiveSummary: narrative1,
-    seo_work_details: report.seo_work_details,
-    gbp_details: report.gbp_details,
-    radarData: report.radar_data || [],
-    radar_data: report.radar_data,
-    improvement_roadmap: report.improvement_roadmap,
-    competitor_intelligence: report.competitor_intelligence,
-    radar_self: report.radar_self,
-    seo: seoData // Add this for ReportViews.tsx
+    seo_work_details: safeJsonParse(report.seo_work_details),
+    gbp_details: safeJsonParse(report.gbp_details),
+    radarData: safeJsonParse(report.radar_data) || [],
+    radar_data: safeJsonParse(report.radar_data),
+    improvement_roadmap: safeJsonParse(report.improvement_roadmap),
+    competitor_intelligence: safeJsonParse(report.competitor_intelligence),
+    radar_self: safeJsonParse(report.radar_self),
+    seo: seoData
   };
 };
 
@@ -218,13 +255,6 @@ const getPerformanceKpis = (report: RawReport): MarketingMetric[] => {
   const metaKpi = report.meta_ads_kpi || { current: {}, previous: {} };
   const mc = metaKpi.current || {};
   const mp = metaKpi.previous || {};
-
-  const formatPads = (v: any) => (typeof v === "number" ? v.toLocaleString('en-IN') : v || "0");
-  const formatPct = (cur: number, prev: number) => {
-    if (!prev) return cur > 0 ? "+100%" : "0%";
-    const pct = ((cur - prev) / prev) * 100;
-    return (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%";
-  };
 
   // Combine Google + Meta for top-level overview
   const totalImpr = (gc.impressions || 0) + (mc.impressions || 0);
@@ -239,11 +269,20 @@ const getPerformanceKpis = (report: RawReport): MarketingMetric[] => {
   const totalSpend = (gc.cost || 0) + (mc.spend || mc.cost || 0);
   const totalSpendPrev = (gp.cost || 0) + (mp.spend || mp.cost || 0);
 
+  const totalRevenue = (gc.conversions_value || 0) + (mc.revenue || 0);
+  const totalRevenuePrev = (gp.conversions_value || 0) + (mp.revenue || 0);
+
   const totalCtr = totalImpr > 0 ? (totalClicks / totalImpr) * 100 : 0;
   const totalCtrPrev = totalImprPrev > 0 ? (totalClicksPrev / totalImprPrev) * 100 : 0;
 
+  const totalCpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
+  const totalCpcPrev = totalClicksPrev > 0 ? totalSpendPrev / totalClicksPrev : 0;
+
   const totalCpl = totalLeads > 0 ? totalSpend / totalLeads : 0;
   const totalCplPrev = totalLeadsPrev > 0 ? totalSpendPrev / totalLeadsPrev : 0;
+
+  const totalRoas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
+  const totalRoasPrev = totalSpendPrev > 0 ? totalRevenuePrev / totalSpendPrev : 0;
 
   return [
     { metric: "Impressions", current: formatPads(totalImpr), previous: formatPads(totalImprPrev), change: formatPct(totalImpr, totalImprPrev) },
@@ -251,38 +290,40 @@ const getPerformanceKpis = (report: RawReport): MarketingMetric[] => {
     { metric: "Leads", current: formatPads(totalLeads), previous: formatPads(totalLeadsPrev), change: formatPct(totalLeads, totalLeadsPrev) },
     { metric: "Spend", current: `₹${totalSpend.toLocaleString('en-IN')}`, previous: `₹${totalSpendPrev.toLocaleString('en-IN')}`, change: formatPct(totalSpend, totalSpendPrev) },
     { metric: "CTR", current: `${totalCtr.toFixed(2)}%`, previous: `${totalCtrPrev.toFixed(2)}%`, change: formatPct(totalCtr, totalCtrPrev) },
-    { metric: "Cost per Lead", current: `₹${totalCpl.toLocaleString('en-IN')}`, previous: `₹${totalCplPrev.toLocaleString('en-IN')}`, change: formatPct(totalCpl, totalCplPrev) },
+    { metric: "CPC", current: `₹${totalCpc.toLocaleString('en-IN')}`, previous: `₹${totalCpcPrev.toLocaleString('en-IN')}`, change: formatPct(totalCpc, totalCpcPrev) },
+    { metric: "CPL", current: `₹${totalCpl.toLocaleString('en-IN')}`, previous: `₹${totalCplPrev.toLocaleString('en-IN')}`, change: formatPct(totalCpl, totalCplPrev) },
+    { metric: "ROAS", current: `${totalRoas.toFixed(2)}X`, previous: `${totalRoasPrev.toFixed(2)}X`, change: formatPct(totalRoas, totalRoasPrev) },
   ];
 };
 
 const buildPerformanceReport = (report: RawReport, startDate: string, endDate: string): ReportResponse => {
-  const kpi = report.kpi_summary || {};
-  const aiTableExplanations = report.ai_table_explanations || {};
-  const multiCharts = report.charts || null;
-  const rawCompetitorAnalysis = report.ai_competitor_analysis || null;
-  const normalizeList = (val: any) => {
-    if (Array.isArray(val)) return val;
-    if (typeof val === 'string' && val.trim()) return [val];
-    return [];
+  const kpi = safeJsonParse(report.kpi_summary) || {};
+  const aiTableExplanations = safeJsonParse(report.ai_table_explanations) || {};
+  const multiCharts = safeJsonParse(report.charts) || null;
+  const rawCompetitorAnalysis = safeJsonParse(report.ai_competitor_analysis) || null;
+  const sectionAdvice = safeJsonParse(report.section_advice) || {};
+  const ai_insights = safeJsonParse(report.ai_insights) || {};
+
+  const ga4Lists = extractGa4Lists(report);
+
+  const aiCompetitorAnalysis = {
+    inferredActions: normalizeList(rawCompetitorAnalysis?.inferred_actions || rawCompetitorAnalysis?.inferredActions),
+    recommendedSteps: normalizeList(rawCompetitorAnalysis?.actionable_steps || rawCompetitorAnalysis?.recommended_steps || rawCompetitorAnalysis?.recommendedSteps),
+    competitor_breakdown: rawCompetitorAnalysis?.competitor_breakdown || rawCompetitorAnalysis?.competitors || [],
+    overall_threat_summary: rawCompetitorAnalysis?.overall_threat_summary || rawCompetitorAnalysis?.biggest_threat || "",
+    self_gap_analysis: safeJsonParse(report.ai_competitor_analysis)?.self_gap_analysis || safeJsonParse(report.ai_self_gap_analysis) || safeJsonParse(report.self_gap_analysis) || {}
   };
-  const aiCompetitorAnalysis = rawCompetitorAnalysis ? {
-    inferredActions: normalizeList(rawCompetitorAnalysis.inferred_actions || rawCompetitorAnalysis.inferredActions),
-    recommendedSteps: normalizeList(rawCompetitorAnalysis.actionable_steps || rawCompetitorAnalysis.recommended_steps || rawCompetitorAnalysis.recommendedSteps),
-    competitor_breakdown: rawCompetitorAnalysis.competitor_breakdown,
-    overall_threat_summary: rawCompetitorAnalysis.overall_threat_summary,
-    self_gap_analysis: rawCompetitorAnalysis.self_gap_analysis
-  } : { inferredActions: [], recommendedSteps: [] };
 
-  const sectionAdvice = report.section_advice || {};
-
-  const rawAdvice = Array.isArray(report.ai_recommendations) ? report.ai_recommendations : [];
+  const rawAdvice = normalizeList(report.ai_recommendations);
   const adviceList = rawAdvice.map((adv: any) => {
     if (typeof adv === 'string') return adv;
     return {
       title: adv?.title || "Strategic Advice",
       description: adv?.description || "Actionable insight",
       impact: adv?.impact || "High",
-      effort: adv?.effort || "Medium"
+      effort: adv?.effort || "Medium",
+      priority: adv?.priority,
+      target: adv?.target
     };
   });
 
@@ -294,31 +335,94 @@ const buildPerformanceReport = (report: RawReport, startDate: string, endDate: s
   }
   const narrative1 = (typeof aiTableExplanations.kpi_overview === 'string' ? aiTableExplanations.kpi_overview : "") || (typeof rawSummary === 'string' ? rawSummary : "Performance summary unavailable.");
 
-  const formatPct = (cur: number, prev: number) => {
-    if (!prev) return cur > 0 ? "+100%" : "0%";
-    const pct = ((cur - prev) / prev) * 100;
-    return (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%";
+  const gads_details = safeJsonParse(report.google_ads_details) || {};
+  const gads_totals = kpi.google_ads || { current: {}, previous: {} };
+  const gtc = gads_totals.current || {};
+  const gtp = gads_totals.previous || {};
+
+  const googleAdsKpis: any[] = [
+    { metric: "Impressions", current: formatPads(gtc.impressions), previous: formatPads(gtp.impressions), change: formatPct(gtc.impressions, gtp.impressions) },
+    { metric: "Clicks", current: formatPads(gtc.clicks), previous: formatPads(gtp.clicks), change: formatPct(gtc.clicks, gtp.clicks) },
+    { metric: "Spend", current: `₹${(gtc.cost || 0).toLocaleString('en-IN')}`, previous: `₹${(gtp.cost || 0).toLocaleString('en-IN')}`, change: formatPct(gtc.cost, gtp.cost) },
+    { metric: "Leads", current: formatPads(gtc.conversions), previous: formatPads(gtp.conversions), change: formatPct(gtc.conversions, gtp.conversions) },
+    { metric: "CTR", current: `${(gtc.ctr || 0).toFixed(2)}%`, previous: `${(gtp.ctr || 0).toFixed(2)}%`, change: formatPct(gtc.ctr, gtp.ctr) },
+    { metric: "CPC", current: `₹${(gtc.clicks > 0 ? gtc.cost / gtc.clicks : 0).toFixed(2)}`, previous: `₹${(gtp.clicks > 0 ? gtp.cost / gtp.clicks : 0).toFixed(2)}`, change: formatPct((gtc.clicks > 0 ? gtc.cost / gtc.clicks : 0), (gtp.clicks > 0 ? gtp.cost / gtp.clicks : 0)) },
+    { metric: "CPL", current: `₹${(gtc.conversions > 0 ? gtc.cost / gtc.conversions : 0).toFixed(2)}`, previous: `₹${(gtp.conversions > 0 ? gtp.cost / gtp.conversions : 0).toFixed(2)}`, change: formatPct((gtc.conversions > 0 ? gtc.cost / gtc.conversions : 0), (gtp.conversions > 0 ? gtp.cost / gtp.conversions : 0)) },
+    { metric: "ROAS", current: `${(gtc.roas || 0).toFixed(2)}X`, previous: `${(gtp.roas || 0).toFixed(2)}X`, change: formatPct(gtc.roas, gtp.roas) },
+  ].map(m => ({ ...m, pctChange: parseFloat(m.change.replace(/[+%]/g, '')), isGood: !m.change.startsWith('-'), currentValue: parseNumeric(m.current), previousValue: parseNumeric(m.previous) }));
+
+  const topCampaigns: any[] = (gads_details.top_campaigns || []).map((c: any) => {
+    const costValue = c.cost || (c.cost_micros / 1000000) || 0;
+    const leadsValue = c.conversions || c.leads || 0;
+    const calculatedCpa = leadsValue > 0 ? costValue / leadsValue : 0;
+
+    return {
+      campaign: c.campaign || c.name || "Unknown",
+      impressions: c.impressions || 0,
+      clicks: c.clicks || 0,
+      cost: `₹${costValue.toLocaleString('en-IN')}`,
+      leads: leadsValue,
+      cpa: `₹${(c.cpa || calculatedCpa).toLocaleString('en-IN')}`,
+      cpl: `₹${(c.cpl || calculatedCpa).toLocaleString('en-IN')}`,
+      costPerLead: (c.costPerLead || calculatedCpa),
+      costValue
+    };
+  });
+
+  // Helper to extract keywords from sentences (AI explanations)
+  const extractKeywordsFromText = (text: any): any[] => {
+    if (typeof text !== 'string') return [];
+    // Find everything between single or double quotes
+    const matches = text.match(/['"](.*?)['"]/g);
+    if (!matches) return [];
+    // Filter out very short matches or empty ones
+    return matches
+      .map(m => m.replace(/['"]/g, '').trim())
+      .filter(m => m.length > 3)
+      .map(m => ({
+        keyword: m,
+        clicks: 0,
+        conversions: 0,
+        ctr: "N/A"
+      }));
   };
 
-  const gads_details = report.google_ads_details || {};
-  const topCampaigns: any[] = (gads_details.top_campaigns || []).map((c: any) => ({
-    campaign: c.campaign || c.name || "Unknown",
-    impressions: c.impressions || 0,
-    clicks: c.clicks || 0,
-    cost: `₹${(c.cost || (c.cost_micros/1000000) || 0).toLocaleString('en-IN')}`,
-    leads: c.conversions || c.leads || 0,
-    cpa: `₹${(c.cpa || 0).toLocaleString('en-IN')}`,
-    costValue: c.cost || (c.cost_micros/1000000) || 0
-  }));
+  const rawKeywords = Array.isArray(gads_details.top_keywords)
+    ? gads_details.top_keywords
+    : Array.isArray(gads_details.search_terms)
+      ? gads_details.search_terms
+      : Array.isArray(report.top_keywords)
+        ? normalizeList(report.top_keywords)
+        : [
+            ...extractKeywordsFromText(gads_details.search_terms),
+            ...extractKeywordsFromText(gads_details.top_keywords)
+          ];
 
-  const topKeywords: any[] = (gads_details.top_keywords || []).map((k: any) => ({
-    keyword: k.keyword || "Unknown",
-    impressions: k.impressions || 0,
-    clicks: k.clicks || 0,
-    ctr: `${(k.ctr || 0).toFixed(2)}%`,
-    impressionsValue: k.impressions || 0,
-    clicksValue: k.clicks || 0
-  }));
+  const topKeywords: any[] = rawKeywords.map((k: any) => {
+    const impressionsVal = Number(k.impressions || k.impr || 0);
+    const clicksVal = Number(k.clicks || 0);
+    const convVal = Number(k.conversions || k.leads || k.conv || 0);
+
+    let ctrVal = "0.00%";
+    if (typeof k.ctr === 'number') {
+      // If it's a small decimal (e.g. 0.05), multiply by 100. If it's already > 1 (e.g. 5.0), keep as is.
+      const val = k.ctr < 1 && k.ctr > 0 ? k.ctr * 100 : k.ctr;
+      ctrVal = `${val.toFixed(2)}%`;
+    } else if (k.ctr) {
+      ctrVal = String(k.ctr);
+    }
+
+    return {
+      keyword: k.keyword || k.query || k.item || k.kw || "Unknown",
+      impressions: formatPads(impressionsVal),
+      clicks: formatPads(clicksVal),
+      conversions: formatPads(convVal),
+      ctr: ctrVal,
+      impressionsValue: impressionsVal,
+      clicksValue: clicksVal,
+      conversionsValue: convVal
+    };
+  });
 
   const googleDeviceBreakdown: any[] = (gads_details.devices || []).map((d: any) => ({
     device: d.device || "Unknown",
@@ -329,7 +433,7 @@ const buildPerformanceReport = (report: RawReport, startDate: string, endDate: s
     costValue: d.cost || 0
   }));
 
-  const metaKpiRaw = report.meta_ads_kpi || { current: {}, previous: {} };
+  const metaKpiRaw = safeJsonParse(report.meta_ads_kpi) || { current: {}, previous: {} };
   const mc = metaKpiRaw.current || {};
   const mp = metaKpiRaw.previous || {};
 
@@ -339,9 +443,10 @@ const buildPerformanceReport = (report: RawReport, startDate: string, endDate: s
     { metric: "Spend", current: `₹${(mc.spend || 0).toLocaleString('en-IN')}`, previous: `₹${(mp.spend || 0).toLocaleString('en-IN')}`, pctChange: parseFloat(formatPct(mc.spend, mp.spend)), isGood: mc.spend <= mp.spend, currentValue: mc.spend, previousValue: mp.spend },
     { metric: "Leads", current: (mc.leads || 0).toLocaleString('en-IN'), previous: (mp.leads || 0).toLocaleString('en-IN'), pctChange: parseFloat(formatPct(mc.leads, mp.leads)), isGood: mc.leads >= mp.leads, currentValue: mc.leads, previousValue: mp.leads },
     { metric: "Cost per Lead", current: `₹${(mc.leads > 0 ? mc.spend / mc.leads : 0).toFixed(2)}`, previous: `₹${(mp.leads > 0 ? mp.spend / mp.leads : 0).toFixed(2)}`, pctChange: parseFloat(formatPct((mc.leads > 0 ? mc.spend / mc.leads : 0), (mp.leads > 0 ? mp.spend / mp.leads : 0))), isGood: (mc.leads > 0 ? mc.spend / mc.leads : 0) <= (mp.leads > 0 ? mp.spend / mp.leads : 0), currentValue: mc.leads > 0 ? mc.spend / mc.leads : 0, previousValue: mp.leads > 0 ? mp.spend / mp.leads : 0 },
+    { metric: "ROAS", current: `${(mc.roas || 0).toFixed(2)}X`, previous: `${(mp.roas || 0).toFixed(2)}X`, pctChange: parseFloat(formatPct(mc.roas, mp.roas)), isGood: mc.roas >= mp.roas, currentValue: mc.roas, previousValue: mp.roas },
   ].map(k => ({ ...k, pctChange: parseFloat(k.pctChange.toFixed(1)) }));
 
-  const metaDetails = report.meta_ads_details || {};
+  const metaDetails = safeJsonParse(report.meta_ads_details) || {};
   const metaTopCampaigns: any[] = (metaDetails.top_campaigns || []).map((c: any) => ({
     campaign: c.campaign || "Unknown",
     status: c.status || "N/A",
@@ -372,6 +477,14 @@ const buildPerformanceReport = (report: RawReport, startDate: string, endDate: s
     impressionsValue: d.impressions || 0,
     costValue: d.spend || 0
   }));
+
+  const metaCharts = safeJsonParse(report.meta_ads_charts) || {};
+
+  const kpi_data = safeJsonParse(report.kpi_summary) || {};
+  const gads_local = kpi_data.google_ads || { current: {}, previous: {} };
+  const gc_local = gads_local.current || {};
+
+  const mc_local = metaKpiRaw.current || {};
 
   const performanceData: any = {
     googleAdsKpis: tableData1.map(m => ({
@@ -405,9 +518,10 @@ const buildPerformanceReport = (report: RawReport, startDate: string, endDate: s
       users: Number(d.valueA || 0)
     })),
     dailyWebsiteActivityInsight: aiTableExplanations.user_activity_over_time || "Temporal activity flux.",
-    sessionsByChannel: (report.sessions_by_channel || []).map((s: any) => ({ channel: s.channel, sessions: s.sessions })),
+    sessionsByChannel: ga4Lists.sessionsByChannel.map(s => ({ channel: s.channel, sessions: s.sessions })),
     sessionsInsight: aiTableExplanations.sessions_by_channel || "Source node distribution.",
     aiCompetitorAnalysis: aiCompetitorAnalysis,
+    totals: { google: gc_local, meta: mc_local },
     sectionAdvice: {
       kpi_advice: sectionAdvice.kpi_advice || [],
       campaign_advice: sectionAdvice.campaign_advice || [],
@@ -444,65 +558,69 @@ const buildPerformanceReport = (report: RawReport, startDate: string, endDate: s
       icon: ["BarChart", "Zap", "Target", "Wallet", "TrendingUp", "DollarSign"][i] || "Activity"
     })),
     executiveSummary: narrative1,
-    radarData: report.radar_data || [],
-    users_by_country: Array.isArray(report.users_by_country) ? report.users_by_country : [],
+    radarData: safeJsonParse(report.radar_data) || [],
+    users_by_country: ga4Lists.usersByCountry,
     topCountries: [],
-    topPageTitles: [],
-    sessionsByChannel: (report.sessions_by_channel || []).map((s: any) => ({ channel: s.channel, sessions: s.sessions })),
-    eventsByEventName: [],
-    keyEventsByPlatform: [],
-    userActivityOverTime: (report.chart_datasets || []).map((d: any) => ({
+    topPages: ga4Lists.topLandingPages.map(p => ({ page: p.page, views: Number(p.sessions || 0), bounceRate: p.bounceRate })),
+    topPageTitles: ga4Lists.topPageTitles.map(p => ({ title: p.title, views: p.views })),
+    sessionsByChannel: ga4Lists.sessionsByChannel,
+    eventsByEventName: ga4Lists.eventsByEventName,
+    keyEventsByPlatform: ga4Lists.keyEventsByPlatform,
+    userActivityOverTime: (safeJsonParse(report.chart_datasets) || []).map((d: any) => ({
       date: toIsoDateLabel(String(d.label || "")),
       users: Number(d.valueA || 0)
     })),
     aiTopKeywordsOverview: report.ai_top_keywords_overview || "", aiComparison: report.ai_comparison || "",
-    tableExplanations: aiTableExplanations, google_ads_details: report.google_ads_details, multiCharts, aiCompetitorAnalysis, sectionAdvice,
-    ai_insights: report.ai_insights,
-    metaKpi: report.meta_ads_kpi,
-    metaCampaigns: report.meta_ads_details?.top_campaigns,
-    metaAdsets: report.meta_ads_details?.top_adsets,
-    metaDevices: report.meta_ads_details?.devices,
-    metaDaily: report.meta_ads_charts?.daily,
-    radar_data: report.radar_data,
-    radarData: report.radar_data || [],
-    improvement_roadmap: report.improvement_roadmap,
-    competitor_intelligence: report.competitor_intelligence,
-    radar_self: report.radar_self,
-    performance: performanceData // This is what ReportViews.tsx uses
+    tableExplanations: aiTableExplanations, google_ads_details: gads_details, multiCharts, aiCompetitorAnalysis, sectionAdvice,
+    ai_insights: ai_insights,
+    metaKpi: metaKpiRaw,
+    metaCampaigns: metaDetails?.top_campaigns,
+    metaAdsets: metaDetails?.top_adsets,
+    metaDevices: metaDetails?.devices,
+    metaDaily: metaCharts?.daily,
+    radar_data: safeJsonParse(report.radar_data),
+    improvement_roadmap: safeJsonParse(report.improvement_roadmap),
+    competitor_intelligence: safeJsonParse(report.competitor_intelligence),
+    radar_self: safeJsonParse(report.radar_self),
+    performance: {
+      ...performanceData,
+      topKeywords, // ADD THIS
+      googleAdsKpis,
+      metaAdsKpis
+    } // This is what ReportViews.tsx uses
   };
 };
 
 const buildSocialReport = (report: RawReport, startDate: string, endDate: string): ReportResponse => {
-  const aiTableExplanations = report.ai_table_explanations || {};
-  const multiCharts = report.charts || null;
-  const rawCompetitorAnalysis = report.ai_competitor_analysis || null;
-  const normalizeList = (val: any) => {
-    if (Array.isArray(val)) return val;
-    if (typeof val === 'string' && val.trim()) return [val];
-    return [];
+  const aiTableExplanations = safeJsonParse(report.ai_table_explanations) || {};
+  const multiCharts = safeJsonParse(report.charts) || null;
+  const rawCompetitorAnalysis = safeJsonParse(report.ai_competitor_analysis) || null;
+  const ai_insights = safeJsonParse(report.ai_insights) || {};
+
+  const aiCompetitorAnalysis = {
+    inferredActions: normalizeList(rawCompetitorAnalysis?.inferred_actions || rawCompetitorAnalysis?.inferredActions),
+    recommendedSteps: normalizeList(rawCompetitorAnalysis?.actionable_steps || rawCompetitorAnalysis?.recommended_steps || rawCompetitorAnalysis?.recommendedSteps),
+    competitor_breakdown: rawCompetitorAnalysis?.competitor_breakdown || rawCompetitorAnalysis?.competitors || [],
+    overall_threat_summary: rawCompetitorAnalysis?.overall_threat_summary || rawCompetitorAnalysis?.biggest_threat || "",
+    self_gap_analysis: safeJsonParse(report.ai_competitor_analysis)?.self_gap_analysis || safeJsonParse(report.ai_self_gap_analysis) || safeJsonParse(report.self_gap_analysis) || {}
   };
-  const aiCompetitorAnalysis = rawCompetitorAnalysis ? {
-    inferredActions: normalizeList(rawCompetitorAnalysis.inferred_actions || rawCompetitorAnalysis.inferredActions),
-    recommendedSteps: normalizeList(rawCompetitorAnalysis.actionable_steps || rawCompetitorAnalysis.recommended_steps || rawCompetitorAnalysis.recommendedSteps),
-    competitor_breakdown: rawCompetitorAnalysis.competitor_breakdown,
-    overall_threat_summary: rawCompetitorAnalysis.overall_threat_summary,
-    self_gap_analysis: rawCompetitorAnalysis.self_gap_analysis
-  } : { inferredActions: [], recommendedSteps: [] };
 
-  const sectionAdvice = report.section_advice || {};
+  const sectionAdvice = safeJsonParse(report.section_advice) || {};
 
-  const rawAdvice = Array.isArray(report.ai_recommendations) ? report.ai_recommendations : [];
+  const rawAdvice = normalizeList(report.ai_recommendations);
   const adviceList = rawAdvice.map((adv: any) => {
     if (typeof adv === 'string') return adv;
     return {
-      title: "Strategic Advice",
+      title: adv?.title || "Strategic Advice",
       description: adv?.description || "Actionable insight",
-      impact: "High",
-      effort: "Medium"
+      impact: adv?.impact || "High",
+      effort: adv?.effort || "Medium",
+      priority: adv?.priority,
+      target: adv?.target
     };
   });
 
-  const kpi = report.kpi_summary || {};
+  const kpi = safeJsonParse(report.kpi_summary) || {};
   const fi = kpi.fb_impressions || {};
   const ii = kpi.ig_impressions || {};
 
@@ -557,16 +675,16 @@ const buildSocialReport = (report: RawReport, startDate: string, endDate: string
       icon: i === 0 ? "Facebook" : "Instagram"
     })),
     executiveSummary: narrative1,
-    radarData: report.radar_data || [],
+    radarData: safeJsonParse(report.radar_data) || [],
     aiTopKeywordsOverview: report.ai_top_keywords_overview || "", aiComparison: report.ai_comparison || "",
-    tableExplanations: aiTableExplanations, google_ads_details: report.google_ads_details, multiCharts, aiCompetitorAnalysis, sectionAdvice,
-    ai_insights: report.ai_insights,
-    radar_data: report.radar_data,
-    seo_work_details: report.seo_work_details,
-    gbp_details: report.gbp_details,
-    improvement_roadmap: report.improvement_roadmap,
-    competitor_intelligence: report.competitor_intelligence,
-    radar_self: report.radar_self,
+    tableExplanations: aiTableExplanations, google_ads_details: safeJsonParse(report.google_ads_details), multiCharts, aiCompetitorAnalysis, sectionAdvice,
+    ai_insights: ai_insights,
+    radar_data: safeJsonParse(report.radar_data),
+    seo_work_details: safeJsonParse(report.seo_work_details),
+    gbp_details: safeJsonParse(report.gbp_details),
+    improvement_roadmap: safeJsonParse(report.improvement_roadmap),
+    competitor_intelligence: safeJsonParse(report.competitor_intelligence),
+    radar_self: safeJsonParse(report.radar_self),
     social: socialData // Add this for ReportViews.tsx
   };
 };
@@ -575,49 +693,95 @@ const buildCombinedReport = (report: RawReport, startDate: string, endDate: stri
   const seoPart = buildSeoReport(report, startDate, endDate);
   const perfPart = buildPerformanceReport(report, startDate, endDate);
 
-  return {
-    ...seoPart,
-    ...perfPart,
+  const combinedTableData = [
+    seoPart.tableData1[0], // Organic Traffic (Users)
+    perfPart.tableData1[2], // Leads
+    perfPart.tableData1[6], // Cost per Lead (was index 5, now 6 after adding CPC)
+    perfPart.tableData1[0], // Impressions
+    perfPart.tableData1[3], // Spend
+    seoPart.tableData1[4],  // Bounce Rate
+  ];
+
+  // Build the result explicitly to avoid property shadowing from spreads
+  // This ensures SEO and Performance data are kept 100% separate in their own branches
+  const result: ReportResponse = {
+    report_id: report.report_id || `${seoPart.report_id}_${perfPart.report_id}`,
     title: `Combined Intelligence Briefing`,
     category: "Combined Intelligence",
-    tableData1: [
-      seoPart.tableData1[0], // Organic Traffic (Users)
-      perfPart.tableData1[2], // Leads
-      perfPart.tableData1[5], // Cost per Lead
-      perfPart.tableData1[0], // Impressions
-      perfPart.tableData1[3], // Spend
-      seoPart.tableData1[4],  // Bounce Rate
-    ],
+    siteName: seoPart.siteName || perfPart.siteName,
+    dateRange: seoPart.dateRange,
+    generatedAt: seoPart.generatedAt,
+    executiveSummary: `${seoPart.executiveSummary}\n\n${perfPart.executiveSummary}`,
+    narrative1: `${seoPart.narrative1}\n\n${perfPart.narrative1}`,
+    narrative2: seoPart.narrative2,
+    tableHeader1: seoPart.tableHeader1,
+    tableData1: combinedTableData,
     tableHeader2: seoPart.tableHeader2,
     tableData2: seoPart.tableData2,
-    kpis: [...seoPart.kpis, ...perfPart.kpis].slice(0, 6),
-    executiveSummary: `${seoPart.executiveSummary}\n\n${perfPart.executiveSummary}`,
+
+    // KEEP ALL KPIS (Both SEO and Performance) - Total 12+ items
+    kpis: [...seoPart.kpis, ...perfPart.kpis],
+
+    chartData: seoPart.chartData,
+    chartLabelA: seoPart.chartLabelA,
+    chartLabelB: seoPart.chartLabelB,
+    chartLabelC: seoPart.chartLabelC,
+    adviceList: [...seoPart.adviceList, ...perfPart.adviceList],
+    summarizedAdviceList: [...(seoPart.summarizedAdviceList || []), ...(perfPart.summarizedAdviceList || [])],
+
+    // ISOLATED MODULE DATA (The "Tree-Way" approach)
+    seo: seoPart.seo,
+    performance: perfPart.performance,
+
+    // Preserved SEO Fields
+    topCountries: seoPart.topCountries,
+    users_by_country: seoPart.users_by_country,
+    topPages: seoPart.topPages,
+    topPageTitles: seoPart.topPageTitles,
+    sessionsByChannel: seoPart.sessionsByChannel,
+    eventsByEventName: seoPart.eventsByEventName,
+    keyEventsByPlatform: seoPart.keyEventsByPlatform,
+    userActivityOverTime: seoPart.userActivityOverTime,
+    ga4_details: seoPart.ga4_details, // CRITICAL: Preserves raw GA4 metrics for Slide 5
+
+    // Preserved Performance Fields
     googleAdsKpis: perfPart.tableData1,
-    metaKpi: report.meta_ads_kpi,
-    metaCampaigns: report.meta_ads_details?.top_campaigns,
-    metaAdsets: report.meta_ads_details?.top_adsets,
-    metaDevices: report.meta_ads_details?.devices,
-    metaDaily: report.meta_ads_charts?.daily,
-    google_ads_details: report.google_ads_details,
+    metaKpi: report.meta_ads_kpi || perfPart.metaKpi,
+    metaCampaigns: report.meta_ads_details ? safeJsonParse(report.meta_ads_details).top_campaigns : perfPart.metaCampaigns,
+    metaAdsets: report.meta_ads_details ? safeJsonParse(report.meta_ads_details).top_adsets : perfPart.metaAdsets,
+    metaDevices: report.meta_ads_details ? safeJsonParse(report.meta_ads_details).devices : perfPart.metaDevices,
+    metaDaily: report.meta_ads_charts ? safeJsonParse(report.meta_ads_charts).daily : perfPart.metaDaily,
+    google_ads_details: safeJsonParse(report.google_ads_details) || perfPart.google_ads_details,
+    meta_ads_kpi: safeJsonParse(report.meta_ads_kpi),
+    meta_ads_details: safeJsonParse(report.meta_ads_details),
+    meta_ads_charts: safeJsonParse(report.meta_ads_charts),
+
+    // AI Insights Merging
     ai_insights: {
       branding: seoPart.ai_insights?.branding || perfPart.ai_insights?.branding || {},
       cover: seoPart.ai_insights?.cover || perfPart.ai_insights?.cover || {},
       conclusion: seoPart.ai_insights?.conclusion || perfPart.ai_insights?.conclusion || "",
       slides: {
         ...(seoPart.ai_insights?.slides || {}),
-        ...(perfPart.ai_insights?.slides || {})
+        ...(perfPart.ai_insights?.slides || {}),
+        kpis: [...(seoPart.ai_insights?.slides?.kpis || []), ...(perfPart.ai_insights?.slides?.kpis || [])]
       }
     },
-    // Ensure SEO fields are preserved and not overwritten by perfPart empty arrays
-    topCountries: seoPart.topCountries,
-    users_by_country: seoPart.users_by_country || perfPart.users_by_country,
-    topPages: seoPart.topPages,
-    topPageTitles: seoPart.topPageTitles,
-    sessionsByChannel: seoPart.sessionsByChannel || perfPart.sessionsByChannel,
-    eventsByEventName: seoPart.eventsByEventName,
-    keyEventsByPlatform: seoPart.keyEventsByPlatform,
-    userActivityOverTime: seoPart.userActivityOverTime,
+
+    // Global Fields
+    radarData: [...(seoPart.radarData || []), ...(perfPart.radarData || [])],
+    radar_data: [...(seoPart.radar_data || []), ...(perfPart.radar_data || [])],
+    radar_self: { ...(seoPart.radar_self || {}), ...(perfPart.radar_self || {}) },
+    improvement_roadmap: report.improvement_roadmap || seoPart.improvement_roadmap || perfPart.improvement_roadmap,
+    competitor_intelligence: report.competitor_intelligence || seoPart.competitor_intelligence || perfPart.competitor_intelligence,
+    sectionAdvice: {
+      ...(seoPart.sectionAdvice || {}),
+      ...(perfPart.sectionAdvice || {})
+    },
+    chart_datasets: report.chart_datasets
   };
+
+  return result;
 };
 
 const buildReportFromRow = (report: RawReport, cat: string, startDate: string, endDate: string): ReportResponse => {
@@ -822,9 +986,9 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
           performance_overview: perfReport.ai_summary?.performance_overview || perfReport.ai_summary || ""
         },
         ai_insights: {
-          branding: seoReport.ai_insights?.branding || perfReport.ai_insights?.branding || {},
-          cover: seoReport.ai_insights?.cover || perfReport.ai_insights?.cover || {},
-          conclusion: seoReport.ai_insights?.conclusion || perfReport.ai_insights?.conclusion || "",
+          branding: seoReport.ai_insights?.branding || perfPart.ai_insights?.branding || {},
+          cover: seoReport.ai_insights?.cover || perfPart.ai_insights?.cover || {},
+          conclusion: seoReport.ai_insights?.conclusion || perfPart.ai_insights?.conclusion || "",
           slides: {
             ...(seoReport.ai_insights?.slides || {}),
             ...(perfReport.ai_insights?.slides || {})

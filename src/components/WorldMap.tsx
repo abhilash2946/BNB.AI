@@ -38,7 +38,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({ data }) => {
     try {
       return scaleLog<string>()
         .domain([1, maxUsers]) // Log scale needs domain > 0
-        .range(["#1a2234", "#00d4ff"]);
+        .range(["#1a2234", "#FFFFFF"]);
     } catch (e) {
       console.error("D3 scale error:", e);
       return () => "#1a2234";
@@ -58,7 +58,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({ data }) => {
     <div className="relative w-full h-full min-h-[450px] flex flex-col items-center justify-center bg-black/20 rounded-2xl border border-white/5 p-4 group overflow-hidden">
       <div className="absolute top-4 right-4 z-20 pointer-events-none">
         {tooltipContent && (
-          <div className="bg-[#0c101b] border border-[#00d4ff]/30 p-2 rounded-lg shadow-2xl backdrop-blur-md animate-in fade-in zoom-in duration-200">
+          <div className="bg-[#111111] border border-white/10 p-2 rounded-lg shadow-2xl backdrop-blur-md animate-in fade-in zoom-in duration-200">
             <p className="text-[10px] font-mono font-bold text-white uppercase tracking-widest">{tooltipContent}</p>
           </div>
         )}
@@ -102,14 +102,14 @@ export const WorldMap: React.FC<WorldMapProps> = ({ data }) => {
                         transition: "all 250ms",
                       },
                       hover: {
-                        fill: "#7c3aed",
-                        stroke: "#00d4ff",
+                        fill: "#FFFFFF",
+                        stroke: "#FFFFFF",
                         strokeWidth: 1,
                         outline: "none",
                         cursor: "pointer",
                       },
                       pressed: {
-                        fill: "#00d4ff",
+                        fill: "#FFFFFF",
                         outline: "none",
                       },
                     }}
@@ -127,7 +127,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({ data }) => {
           <span className="text-[9px] font-mono text-gray-500 uppercase tracking-tight">Lower Engagement</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-sm bg-[#00d4ff] shadow-[0_0_10px_rgba(0,212,255,0.3)]" />
+          <div className="w-3 h-3 rounded-sm bg-[#FFFFFF] shadow-[0_0_10px_rgba(255,255,255,0.2)]" />
           <span className="text-[9px] font-mono text-gray-500 uppercase tracking-tight">Primary Nodes</span>
         </div>
       </div>

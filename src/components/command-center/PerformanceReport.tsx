@@ -21,7 +21,7 @@ const renderCompetitorBlock = (data: ReportResponse['aiCompetitorAnalysis'], tit
   const isObject = typeof data === 'object' && data !== null && !Array.isArray(data);
   return (
     <GlassCard className="p-6 mb-6">
-      <h4 className="text-lg font-bold text-cyan-400 mb-4">{title}</h4>
+      <h4 className="text-lg font-bold text-white mb-4">{title}</h4>
       {isObject ? (
         <div className="space-y-4">
           {Array.isArray(data.inferred_actions) && data.inferred_actions.length > 0 && (
@@ -115,8 +115,8 @@ export const PerformanceReport: React.FC<PerformanceReportProps> = ({ reportData
             <XAxis dataKey="name" stroke="#9CA3AF" fontSize={10} />
             <YAxis stroke="#9CA3AF" fontSize={10} />
             <Tooltip
-              contentStyle={{ background: '#111827', border: '1px solid #00D4FF', borderRadius: '8px' }}
-              itemStyle={{ color: '#00D4FF' }}
+              contentStyle={{ background: '#111111', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
+              itemStyle={{ color: '#FFFFFF' }}
             />
             <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
             <ReBar dataKey="cur" name="Current" fill={PALETTE.cyan} radius={[4, 4, 0, 0]} />
@@ -175,8 +175,8 @@ export const PerformanceReport: React.FC<PerformanceReportProps> = ({ reportData
             <YAxis yAxisId="left" stroke="#9CA3AF" fontSize={10} />
             <YAxis yAxisId="right" orientation="right" stroke="#9CA3AF" fontSize={10} />
             <Tooltip
-              contentStyle={{ background: '#111827', border: '1px solid #00D4FF', borderRadius: '8px' }}
-              itemStyle={{ color: '#00D4FF' }}
+              contentStyle={{ background: '#111111', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
+              itemStyle={{ color: '#FFFFFF' }}
             />
             <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
             <ReLine yAxisId="left" type="monotone" dataKey="spend" stroke={PALETTE.cyan} strokeWidth={2} name="Spend (₹)" dot={false} />
@@ -251,8 +251,8 @@ export const PerformanceReport: React.FC<PerformanceReportProps> = ({ reportData
           <div key={i}>
             {renderStandardBlock(b.title, b.sentence, b.headers, b.rows, includeCharts ? b.chart : undefined)}
             {showAdvice && adviceList.length > 0 && (
-              <div className="mt-[-1rem] mb-6 mx-6 p-4 bg-violet-500/5 border-l-4 border-violet-500 rounded-r-xl">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-violet-400 mb-2">📌 Performance Protocol</p>
+              <div className="mt-[-1rem] mb-6 mx-6 p-4 bg-white/5 border-l-4 border-white rounded-r-xl">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white mb-2">📌 Performance Protocol</p>
                 <ul className="list-disc pl-5 text-sm text-gray-300 space-y-1">
                   {adviceList.map((adv, idx) => <li key={idx}>{adv}</li>)}
                 </ul>

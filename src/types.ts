@@ -49,6 +49,7 @@ export interface AcquisitionChannel {
   value: string;
   share: string;
   trend: string;
+  prev?: string;
 }
 
 export interface ChartPoint {
@@ -64,6 +65,8 @@ export interface StrategicAdvice {
   description: string;
   impact: string;
   effort: string;
+  priority?: 'High' | 'Medium' | 'Low';
+  target?: string;
 }
 
 export interface SectionAdvice {
@@ -164,7 +167,7 @@ export interface ReportResponse {
   reportStartDate?: string;
   reportEndDate?: string;
   topCountries?: Array<{ country: string; users: number }>;
-  topPages?: Array<{ page: string; views: number }>;
+  topPages?: Array<{ page: string; views: number; bounceRate?: number }>;
   topPageTitles?: Array<{ title: string; views: number }>;
   sessionsByChannel?: Array<{ channel: string; sessions: number }>;
   users_by_country?: any[];
@@ -230,6 +233,7 @@ export interface AdviceItem {
   priority: 'High' | 'Medium' | 'Low';
   impact: string; // e.g. "High Impact"
   effort: string; // e.g. "Low Effort"
+  target?: string; // e.g. "Increase leads by 15%"
 }
 
 export interface RadarDataPoint {
@@ -300,7 +304,7 @@ export interface SeoReportData {
   activeUsersInsight: string;
   userActivityOverTime: ActivityOverTime[];
   userActivityInsight: string;
-  topKeywords: { keyword: string; clicks: number; ctr: string; position: string }[];
+  topKeywords: { keyword: string; clicks: number; ctr: string; position: string; previous_position?: string | number }[];
   averagePosition?: number;
   topKeywordsInsight: string;
   viewsByPageTitle: PageViews[];
@@ -311,6 +315,7 @@ export interface SeoReportData {
   eventInsight: string;
   keyEventsByPlatform: PlatformEvents[];
   platformInsight: string;
+  totals?: any;
   sectionAdvice: {
     demographics: string[];
     timeline: string[];
@@ -321,16 +326,6 @@ export interface SeoReportData {
     platforms: string[];
   };
   aiCompetitorAnalysis: CompetitorAnalysis;
-  sectionAdvice?: {
-    kpi_advice: string[];
-    demographics: string[];
-    timeline: string[];
-    keywords: string[];
-    pages: string[];
-    channels: string[];
-    events: string[];
-    platforms: string[];
-  };
 }
 
 // Performance Details
@@ -428,17 +423,8 @@ export interface PerformanceReportData {
   dailyWebsiteActivityInsight: string;
   sessionsByChannel?: ChannelSessions[];
   sessionsInsight?: string;
+  totals?: any;
   aiCompetitorAnalysis: CompetitorAnalysis;
-  sectionAdvice?: {
-    kpi_advice: string[];
-    demographics: string[];
-    timeline: string[];
-    keywords: string[];
-    pages: string[];
-    channels: string[];
-    events: string[];
-    platforms: string[];
-  };
 }
 
 // Social Details
@@ -516,6 +502,10 @@ export interface MarketingReport {
   radar_self?: Record<string, number>;
   tableData1?: MarketingMetric[];
   tableData2?: AcquisitionChannel[];
+  topPages?: Array<{ page: string; views: number; bounceRate?: number }>;
+  topPageTitles?: Array<{ title: string; views: number }>;
+  sessionsByChannel?: Array<{ channel: string; sessions: number }>;
+  eventsByEventName?: Array<{ eventName: string; count: number }>;
 }
 
 export interface ChatMessage {
@@ -617,6 +607,24 @@ export interface RoadmapMonth {
 }
 
 export type SlideType =
+  | 'digital_cover'
+  | 'table_of_contents'
+  | 'exec_summary'
+  | 'services_delivered'
+  | 'overall_performance'
+  | 'seo_performance'
+  | 'website_analytics'
+  | 'social_performance'
+  | 'content_performance'
+  | 'meta_ads'
+  | 'google_ads'
+  | 'lead_gen'
+  | 'activities_completed'
+  | 'challenges_solutions'
+  | 'competitor_insights'
+  | 'recommendations'
+  | 'action_plan'
+  | 'thank_you'
   | 'cover'
   | 'summary'
   | 'scorecard'
@@ -641,6 +649,9 @@ export interface Slide {
     preparedBy?: string;
     classification?: string;
     version?: string;
+    client?: string;
+    platform?: string;
+    rightDesc?: string;
   };
   kpis?: SlideKPI[];
   scorecardGauges?: ScorecardMetric[];
@@ -656,4 +667,11 @@ export interface Slide {
   footer?: string;
   descriptionText?: string;
   insightsList?: { icon: 'win' | 'risk' | 'opportunity' | 'neutral'; title: string; text: string }[];
+
+  // High-fidelity image and custom parameters
+  images?: Record<string, string>; // slot ID to base64 Data URL
+  listItems?: string[];
+  listSections?: { title: string; items: string[] }[];
+  tableData?: Record<string, any>[];
+  customData?: any;
 }

@@ -385,15 +385,15 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <div className="w-full min-h-screen bg-gradient-to-br from-cyan-900/20 to-violet-900/20 bg-[#080B14] flex flex-col items-center justify-center gap-6 text-center">
+      <div className="w-full min-h-screen bg-[#000000] flex flex-col items-center justify-center gap-6 text-center">
         <div className="relative w-16 h-16">
-          <div className="absolute inset-0 border-4 border-cyan-500/20 rounded-full"></div>
-          <div className="absolute inset-0 border-4 border-t-cyan-500 border-transparent rounded-full animate-spin"></div>
-          <Sparkles className="absolute inset-0 m-auto text-cyan-400 animate-pulse" size={28} />
+          <div className="absolute inset-0 border-4 border-white/20 rounded-full"></div>
+          <div className="absolute inset-0 border-4 border-t-white border-transparent rounded-full animate-spin"></div>
+          <Sparkles className="absolute inset-0 m-auto text-white animate-pulse" size={28} />
         </div>
         <div>
-          <p className="text-xs font-mono font-bold text-cyan-400 uppercase tracking-widest animate-pulse">BNB.AI Neural Boot</p>
-          <p className="text-[10px] text-cyan-500/70 mt-1 uppercase tracking-tighter">Establishing secure neural link</p>
+          <p className="text-xs font-mono font-bold text-white uppercase tracking-widest animate-pulse">BNB.AI Neural Boot</p>
+          <p className="text-[10px] text-white/70 mt-1 uppercase tracking-tighter">Establishing secure neural link</p>
         </div>
       </div>
     );
@@ -441,25 +441,25 @@ export default function App() {
         {view === "dashboard" && user && !activeSite && (
           <motion.div key="dashboard-empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen flex items-center justify-center px-6">
             {isSyncing ? (
-              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full bg-[#111827] border border-white/10 rounded-[2.5rem] shadow-2xl p-12 text-center flex flex-col items-center gap-8">
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full bg-[#111111] border border-white/10 rounded-[2.5rem] shadow-2xl p-12 text-center flex flex-col items-center gap-8">
                 <div className="relative h-20 w-20">
-                  <div className="absolute inset-0 border-4 border-cyan-500/20 rounded-full"></div>
-                  <motion.div className="absolute inset-0 border-4 border-cyan-500 border-t-transparent rounded-full" animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} />
+                  <div className="absolute inset-0 border-4 border-white/20 rounded-full"></div>
+                  <motion.div className="absolute inset-0 border-4 border-white border-t-transparent rounded-full" animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} />
                 </div>
                 <div className="space-y-3">
                   <h3 className="text-xl font-bold text-white">Searching for available sites</h3>
                   <p className="text-sm text-gray-400">We're scanning your workspace to connect your properties.</p>
                 </div>
                 <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
-                  <motion.div className="h-full bg-cyan-500" initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 1, ease: "linear" }} />
+                  <motion.div className="h-full bg-white" initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 1, ease: "linear" }} />
                 </div>
-                <p className="text-[10px] font-mono font-bold text-cyan-400 uppercase tracking-widest animate-pulse">Live Workspace Scan</p>
+                <p className="text-[10px] font-mono font-bold text-white uppercase tracking-widest animate-pulse">Live Workspace Scan</p>
               </motion.div>
             ) : (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-lg w-full bg-[#111827] border border-white/10 rounded-3xl shadow-sm p-10 text-center">
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-lg w-full bg-[#111111] border border-white/10 rounded-3xl shadow-sm p-10 text-center">
                 <h2 className="text-2xl font-bold text-white mb-3">Workspace is ready</h2>
                 <p className="text-sm text-gray-400 mb-8">No site has been added yet. Open Site Management to add your first site.</p>
-                <button onClick={() => setView("site_management")} className="px-10 py-4 bg-cyan-600 text-white rounded-2xl font-bold text-sm hover:bg-cyan-500 transition-colors">Go to Site Management</button>
+                <button onClick={() => setView("site_management")} className="px-10 py-4 bg-white text-black rounded-2xl font-bold text-sm hover:bg-gray-200 transition-colors">Go to Site Management</button>
               </motion.div>
             )}
           </motion.div>

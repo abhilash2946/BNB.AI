@@ -2,11 +2,11 @@ import pandas as pd
 import math
 
 def format_currency(value):
-    if value is None: return "₹0"
+    if value is None or math.isnan(value) if isinstance(value, float) else False: return "₹0"
     return f"₹{int(value):,}"
 
 def format_number(value):
-    if value is None: return "0"
+    if value is None or math.isnan(value) if isinstance(value, float) else False: return "0"
     if value >= 1000:
         return f"{value/1000:.1f}K"
     return str(int(value))
@@ -20,6 +20,9 @@ def get_ads_kpis(cur, prev, platform="google"):
     Returns a list of KPI objects for Google or Meta Ads slides.
     Each object matches the 'GoogleAdsKpi' or 'MetaAdsKpi' interface in types.ts.
     """
+    print(f"DEBUG [{platform.upper()}] cur: {cur}")
+    print(f"DEBUG [{platform.upper()}] prev: {prev}")
+
     if platform == "google":
         metrics = [
             ("Impressions", "impressions", "number"),
@@ -27,7 +30,8 @@ def get_ads_kpis(cur, prev, platform="google"):
             ("Spend", "cost", "currency"),
             ("Leads", "conversions", "number"),
             ("CTR", "ctr", "percent"),
-            ("CPL", "cost_per_lead", "currency")
+            ("CPL", "cost_per_lead", "currency"),
+            ("ROAS", "roas", "multiplier")
         ]
     else: # meta
         metrics = [
@@ -36,18 +40,19 @@ def get_ads_kpis(cur, prev, platform="google"):
             ("Spend", "spend", "currency"),
             ("Leads", "leads", "number"),
             ("CTR", "ctr", "percent"),
-            ("CPL", "cost_per_lead", "currency")
+            ("CPL", "cost_per_lead", "currency"),
+            ("ROAS", "roas", "multiplier")
         ]
         # For Meta, CPL is often not in the aggregate, so we compute it
         if "cost_per_lead" not in cur and cur.get("leads", 0) > 0:
-            cur["cost_per_lead"] = cur["spend"] / cur["leads"]
+            cur["cost_per_lead"] = float(cur["spend"] or 0) / float(cur["leads"])
         if "cost_per_lead" not in prev and prev.get("leads", 0) > 0:
-            prev["cost_per_lead"] = prev["spend"] / prev["leads"]
+            prev["cost_per_lead"] = float(prev["spend"] or 0) / float(prev["leads"])
 
     results = []
     for label, key, unit in metrics:
-        c_val = cur.get(key, 0)
-        p_val = prev.get(key, 0)
+        c_val = float(cur.get(key, 0) or 0)
+        p_val = float(prev.get(key, 0) or 0)
         pct = calculate_pct_change(c_val, p_val)
 
         is_good = pct >= 0
@@ -65,6 +70,9 @@ def get_ads_kpis(cur, prev, platform="google"):
         elif unit == "percent":
             display_cur = f"{c_val:.2f}%"
             display_prev = f"{p_val:.2f}%"
+        elif unit == "multiplier":
+            display_cur = f"{c_val:.2f}X"
+            display_prev = f"{p_val:.2f}X"
 
         results.append({
             "metric": label,
@@ -81,27 +89,34 @@ def get_overall_performance_kpis(google_cur, google_prev, meta_cur, meta_prev):
     """
     Returns a list of KpiItem objects for the Overall Performance table.
     """
-    g_leads = google_cur.get('conversions', 0)
-    m_leads = meta_cur.get('leads', 0)
+    print(f"DEBUG [OVERALL] g_cur keys: {list(google_cur.keys())}")
+    print(f"DEBUG [OVERALL] g_prev keys: {list(google_prev.keys())}")
+    print(f"DEBUG [OVERALL] m_cur keys: {list(meta_cur.keys())}")
+    print(f"DEBUG [OVERALL] m_prev keys: {list(meta_prev.keys())}")
+
+    g_leads = float(google_cur.get('conversions', 0) or 0)
+    m_leads = float(meta_cur.get('leads', 0) or meta_cur.get('conversions', 0) or 0)
     total_leads = g_leads + m_leads
 
-    pg_leads = google_prev.get('conversions', 0)
-    pm_leads = meta_prev.get('leads', 0)
+    pg_leads = float(google_prev.get('conversions', 0) or 0)
+    pm_leads = float(meta_prev.get('leads', 0) or meta_prev.get('conversions', 0) or 0)
     ptotal_leads = pg_leads + pm_leads
+    print(f"DEBUG [OVERALL] Leads - Cur: {total_leads} (G:{g_leads}, M:{m_leads}) Prev: {ptotal_leads} (G:{pg_leads}, M:{pm_leads})")
 
-    g_spend = google_cur.get('cost', 0)
-    m_spend = meta_cur.get('spend', 0)
+    g_spend = float(google_cur.get('cost', 0) or 0)
+    m_spend = float(meta_cur.get('spend', 0) or 0)
     total_spend = g_spend + m_spend
 
-    pg_spend = google_prev.get('cost', 0)
-    pm_spend = meta_prev.get('spend', 0)
+    pg_spend = float(google_prev.get('cost', 0) or 0)
+    pm_spend = float(meta_prev.get('spend', 0) or 0)
     ptotal_spend = pg_spend + pm_spend
+    print(f"DEBUG [OVERALL] Spend - Cur: {total_spend} Prev: {ptotal_spend}")
 
     cpl = (total_spend / total_leads) if total_leads > 0 else 0
     pcpl = (ptotal_spend / ptotal_leads) if ptotal_leads > 0 else 0
 
-    combined_ctr = (google_cur.get('ctr', 0) + meta_cur.get('ctr', 0)) / 2
-    pcombined_ctr = (google_prev.get('ctr', 0) + meta_prev.get('ctr', 0)) / 2
+    combined_ctr = (float(google_cur.get('ctr', 0) or 0) + float(meta_cur.get('ctr', 0) or 0)) / 2
+    pcombined_ctr = (float(google_prev.get('ctr', 0) or 0) + float(meta_prev.get('ctr', 0) or 0)) / 2
 
     kpis = [
         {
@@ -177,12 +192,12 @@ def analyse_performance_kpis(google_ads_cur, meta_ads_cur, google_ads_prev=None,
     if google_ads_prev is None: google_ads_prev = {}
     if meta_ads_prev is None: meta_ads_prev = {}
 
-    g_leads = google_ads_cur.get('conversions', 0)
-    m_leads = meta_ads_cur.get('leads', 0)
+    g_leads = float(google_ads_cur.get('conversions', 0) or 0)
+    m_leads = float(meta_ads_cur.get('leads', 0) or meta_ads_cur.get('conversions', 0) or 0)
     total_leads = g_leads + m_leads
 
-    g_spend = google_ads_cur.get('cost', 0)
-    m_spend = meta_ads_cur.get('spend', 0)
+    g_spend = float(google_ads_cur.get('cost', 0) or 0)
+    m_spend = float(meta_ads_cur.get('spend', 0) or 0)
     total_spend = g_spend + m_spend
 
     cpl = (total_spend / total_leads) if total_leads > 0 else 0

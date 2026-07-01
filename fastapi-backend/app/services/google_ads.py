@@ -78,6 +78,7 @@ async def fetch_google_ads_data(user_id: str, customer_id: str, start_date: str,
         SELECT segments.date,
                metrics.impressions, metrics.clicks,
                metrics.cost_micros, metrics.conversions,
+               metrics.conversions_value,
                metrics.interactions, metrics.ctr, metrics.average_cpm
         FROM customer
         WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
@@ -90,6 +91,7 @@ async def fetch_google_ads_data(user_id: str, customer_id: str, start_date: str,
             "interactions": int(r.metrics.interactions or 0),
             "cost_micros": int(r.metrics.cost_micros or 0),
             "conversions": float(r.metrics.conversions or 0),
+            "conversions_value": float(r.metrics.conversions_value or 0),
             "ctr": float(r.metrics.ctr or 0),
             "average_cpm": float(r.metrics.average_cpm or 0)
         },
@@ -102,6 +104,7 @@ async def fetch_google_ads_totals(user_id: str, customer_id: str, start_date: st
     query = f"""
         SELECT metrics.impressions, metrics.clicks,
                metrics.cost_micros, metrics.conversions,
+               metrics.conversions_value,
                metrics.interactions, metrics.ctr
         FROM customer
         WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
@@ -115,6 +118,7 @@ async def fetch_google_ads_totals(user_id: str, customer_id: str, start_date: st
         fb_query = f"""
             SELECT metrics.impressions, metrics.clicks,
                    metrics.cost_micros, metrics.conversions,
+                   metrics.conversions_value,
                    metrics.interactions
             FROM campaign
             WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
@@ -123,7 +127,7 @@ async def fetch_google_ads_totals(user_id: str, customer_id: str, start_date: st
         if not rows:
             return {
                 "impressions": 0, "clicks": 0, "interactions": 0,
-                "cost": 0, "conversions": 0, "ctr": 0, "cpm": 0, "cost_per_lead": 0
+                "cost": 0, "conversions": 0, "conversions_value": 0, "ctr": 0, "cpm": 0, "cost_per_lead": 0, "roas": 0
             }
 
         # Manual aggregation from campaign rows
@@ -131,6 +135,7 @@ async def fetch_google_ads_totals(user_id: str, customer_id: str, start_date: st
         total_clicks = sum(int(r.metrics.clicks or 0) for r in rows)
         total_cost_micros = sum(int(r.metrics.cost_micros or 0) for r in rows)
         total_conv = sum(float(r.metrics.conversions or 0) for r in rows)
+        total_val = sum(float(r.metrics.conversions_value or 0) for r in rows)
         cost = total_cost_micros / 1_000_000
 
         return {
@@ -139,28 +144,33 @@ async def fetch_google_ads_totals(user_id: str, customer_id: str, start_date: st
             "interactions": sum(int(r.metrics.interactions or 0) for r in rows),
             "cost": round(cost, 2),
             "conversions": total_conv,
+            "conversions_value": total_val,
             "ctr": round((total_clicks / total_impr * 100), 2) if total_impr > 0 else 0,
             "cpm": round((cost / total_impr * 1000), 2) if total_impr > 0 else 0,
-            "cost_per_lead": round(cost / total_conv, 2) if total_conv > 0 else 0
+            "cost_per_lead": round(cost / total_conv, 2) if total_conv > 0 else 0,
+            "roas": round(total_val / cost, 2) if cost > 0 else 0
         }
 
     r = rows[0]
     cost = float(r.metrics.cost_micros or 0) / 1_000_000
     conversions = float(r.metrics.conversions or 0)
+    conversions_value = float(r.metrics.conversions_value or 0)
     return {
         "impressions": int(r.metrics.impressions or 0),
         "clicks": int(r.metrics.clicks or 0),
         "interactions": int(r.metrics.interactions or 0),
         "cost": round(cost, 2),
         "conversions": conversions,
+        "conversions_value": conversions_value,
         "ctr": round(float(r.metrics.ctr or 0) * 100, 2),
         "cpm": 0,
-        "cost_per_lead": round(cost / conversions, 2) if conversions > 0 else 0
+        "cost_per_lead": round(cost / conversions, 2) if conversions > 0 else 0,
+        "roas": round(conversions_value / cost, 2) if cost > 0 else 0
     }
 
 async def fetch_google_ads_campaigns(user_id: str, customer_id: str, start_date: str, end_date: str, limit: int = 10) -> List[Dict]:
     query = f"""
-        SELECT campaign.name, campaign.status, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.ctr, metrics.conversions, metrics.interactions
+        SELECT campaign.name, campaign.status, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.ctr, metrics.conversions, metrics.conversions_value, metrics.interactions
         FROM campaign
         WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
         ORDER BY metrics.cost_micros DESC
@@ -176,6 +186,7 @@ async def fetch_google_ads_campaigns(user_id: str, customer_id: str, start_date:
         "cost": r.metrics.cost_micros / 1_000_000,
         "ctr": r.metrics.ctr * 100,
         "conversions": r.metrics.conversions,
+        "conversions_value": r.metrics.conversions_value,
     } for r in rows]
 
 async def fetch_google_ads_keywords(user_id: str, customer_id: str, start_date: str, end_date: str, limit: int = 20) -> List[Dict]:

@@ -29,6 +29,7 @@ build/
 out/
 .eslintcache/
 .stylelintcache/
+.npm-cache/
 
 # IDEs and Editors
 .idea/
@@ -49,6 +50,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# Artifacts
+.artifacts/
+**/.artifacts/
 
 # Supabase
 supabase/.temp/

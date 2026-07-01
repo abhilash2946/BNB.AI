@@ -12,7 +12,7 @@ async def fetch_meta_ads_aggregate(ad_account_id: str, access_token: str, start_
     time_range = json.dumps({"since": start_date, "until": end_date})
     params = {
         "access_token": access_token,
-        "fields": "impressions,clicks,spend,reach,actions,cpc,ctr",
+        "fields": "impressions,clicks,spend,reach,actions,action_values,cpc,ctr",
         "time_range": time_range,
         "level": "account",
         "limit": 1
@@ -28,19 +28,28 @@ async def fetch_meta_ads_aggregate(ad_account_id: str, access_token: str, start_
             print(f"---> Meta Aggregate: No data returned for {start_date} to {end_date}")
             return {
                 "impressions": 0, "clicks": 0, "spend": 0, "reach": 0,
-                "leads": 0, "conversions": 0, "cpc": 0, "ctr": 0
+                "leads": 0, "conversions": 0, "cpc": 0, "ctr": 0, "revenue": 0, "roas": 0
             }
         data = data_list[0]
         actions = data.get("actions", [])
+        action_values = data.get("action_values", [])
+
         leads = sum(int(a.get("value") or 0) for a in actions if a.get("action_type") == "lead")
+        # Revenue from purchase or conversion value
+        revenue = sum(float(av.get("value") or 0) for av in action_values if av.get("action_type") in ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"])
+
+        spend = float(data.get("spend") or 0)
+        roas = (revenue / spend) if spend > 0 else 0
 
         return {
             "impressions": int(data.get("impressions") or 0),
             "clicks": int(data.get("clicks") or 0),
-            "spend": float(data.get("spend") or 0),
+            "spend": spend,
             "reach": int(data.get("reach") or 0),
             "leads": leads,
             "conversions": leads, # Alias for consistency
+            "revenue": revenue,
+            "roas": round(roas, 2),
             "cpc": float(data.get("cpc") or 0),
             "ctr": float(data.get("ctr") or 0) * 100,
         }
@@ -72,7 +81,7 @@ async def fetch_meta_ads_campaigns(ad_account_id: str, access_token: str, start_
         time_range = json.dumps({"since": start_date, "until": end_date})
         insights_params = {
             "access_token": access_token,
-            "fields": "campaign_id,campaign_name,impressions,clicks,spend,reach,actions,cpc,ctr",
+            "fields": "campaign_id,campaign_name,impressions,clicks,spend,reach,actions,action_values,cpc,ctr",
             "time_range": time_range,
             "level": "campaign",
             "limit": 100
@@ -94,6 +103,10 @@ async def fetch_meta_ads_campaigns(ad_account_id: str, access_token: str, start_
             actions = row.get("actions", [])
             return sum(int(a.get("value") or 0) for a in actions if a.get("action_type") == action_type)
 
+        def get_revenue_value(row):
+            action_values = row.get("action_values", [])
+            return sum(float(av.get("value") or 0) for av in action_values if av.get("action_type") in ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"])
+
         return [{
             "campaign": row.get("campaign_name", "Unknown"),
             "status": campaign_meta.get(row.get("campaign_id"), {}).get("effective_status", "N/A"),
@@ -104,6 +117,8 @@ async def fetch_meta_ads_campaigns(ad_account_id: str, access_token: str, start_
             "cost": float(row.get("spend") or 0),
             "reach": int(row.get("reach") or 0),
             "leads": get_actions_value(row, "lead"),
+            "revenue": get_revenue_value(row),
+            "roas": round(get_revenue_value(row) / float(row.get("spend") or 1), 2) if float(row.get("spend") or 0) > 0 else 0,
             "costPerLead": float(row.get("spend") or 0) / get_actions_value(row, "lead") if get_actions_value(row, "lead") > 0 else 0,
             "cpc": float(row.get("cpc") or 0),
             "ctr": float(row.get("ctr") or 0) * 100,

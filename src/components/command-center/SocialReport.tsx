@@ -53,12 +53,12 @@ export const SocialReport: React.FC<SocialReportProps> = ({ reportData, includeC
               <XAxis dataKey="label" stroke="#9CA3AF" fontSize={9} />
               <YAxis stroke="#9CA3AF" fontSize={9} />
               <Tooltip
-                contentStyle={{ background: '#111827', border: '1px solid #00D4FF', borderRadius: '8px' }}
-                itemStyle={{ color: '#00D4FF' }}
+                contentStyle={{ background: '#111111', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
+                itemStyle={{ color: '#FFFFFF' }}
               />
               <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
-              <ReLine type="monotone" dataKey="valueA" stroke={PALETTE.cyan} strokeWidth={2} name="FB Impressions" />
-              <ReLine type="monotone" dataKey="valueB" stroke={PALETTE.violet} strokeWidth={2} name="IG Impressions" />
+              <ReLine type="monotone" dataKey="valueA" stroke="#FFFFFF" strokeWidth={2} name="FB Impressions" />
+              <ReLine type="monotone" dataKey="valueB" stroke="#9CA3AF" strokeWidth={2} name="IG Impressions" />
             </ReLineChart>
           </ResponsiveContainer>
         ) : null

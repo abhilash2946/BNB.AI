@@ -89,11 +89,11 @@ export default function TopBar({
   };
 
   return (
-    <header className={`${isFullscreen ? 'hidden' : 'sticky'} top-0 z-50 h-[60px] w-full border-b border-white/10 bg-[rgba(17,24,39,0.5)] dark:bg-[rgba(17,24,39,0.5)] light:bg-[rgba(255,255,255,0.6)] backdrop-blur-md flex items-center justify-between px-4 transition-all`}>
+    <header className={`${isFullscreen ? 'hidden' : 'sticky'} top-0 z-50 h-[60px] w-full border-b border-white/10 bg-[#000000] backdrop-blur-md flex items-center justify-between px-4 transition-all`}>
       <div className="flex items-center gap-3">
         <button
           onClick={onToggleSidebar}
-          className="p-1.5 rounded-lg border border-[#00d4ff]/10 hover:border-[#00d4ff]/40 bg-white/5 text-white/80 hover:text-white transition-all group relative"
+          className="p-1.5 rounded-lg border border-white/10 hover:border-white/40 bg-white/5 text-white/80 hover:text-white transition-all group relative"
           title="Open / Close sidebar"
         >
           <Menu size={18} />
@@ -104,12 +104,9 @@ export default function TopBar({
 
         <button
           onClick={onNavigateHome}
-          className="flex items-center gap-1.5 focus:outline-none"
+          className="flex items-center focus:outline-none"
         >
-          <div className="p-1 rounded-md bg-gradient-to-tr from-[#00d4ff] to-[#7c3aed] text-white">
-            <Sparkles size={16} />
-          </div>
-          <span className="font-display font-bold text-lg tracking-wider bg-gradient-to-r from-[#00d4ff] to-[#7c3aed] bg-clip-text text-transparent">
+          <span className="font-display font-bold text-lg tracking-wider text-white">
             BNB.AI
           </span>
         </button>
@@ -119,14 +116,14 @@ export default function TopBar({
         <div className="relative" ref={siteRef}>
           <button
             onClick={() => setSiteDropdownOpen(!siteDropdownOpen)}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 border border-white/10 text-white hover:border-[#00d4ff]/30 transition-all cursor-pointer"
+            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 border border-white/10 text-white hover:border-white/30 transition-all cursor-pointer"
           >
             <span className="max-w-[120px] truncate">{selectedSite?.name || "Select Site"}</span>
             <ChevronDown size={14} className={`text-white/40 transition-transform ${siteDropdownOpen ? 'rotate-180' : ''}`} />
           </button>
 
           {siteDropdownOpen && (
-            <div className="absolute left-0 mt-2 w-56 rounded-xl border border-white/10 bg-[#0e1321] p-1.5 shadow-2xl z-50">
+            <div className="absolute left-0 mt-2 w-56 rounded-xl border border-white/10 bg-[#111111] p-1.5 shadow-2xl z-50">
               <div className="px-2.5 py-1 text-[10px] font-mono text-white/40 tracking-wider uppercase">ACTIVE PORT VECTOR</div>
               {sites.map((site) => (
                 <button
@@ -137,7 +134,7 @@ export default function TopBar({
                   }}
                   className={`w-full flex items-center justify-between text-left px-2.5 py-2 mt-1 rounded-lg text-xs gap-2 transition-all ${
                     selectedSite?.id === site.id
-                      ? 'bg-[#00d4ff]/10 text-[#00d4ff] border-l-2 border-[#00d4ff]'
+                      ? 'bg-white/10 text-white border-l-2 border-white'
                       : 'text-white/70 hover:bg-white/5 hover:text-white'
                   }`}
                 >
@@ -172,28 +169,20 @@ export default function TopBar({
           />
         </div>
 
-        {reportLoaded && (
-          <button
-            onClick={onExportPdf}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#00d4ff]/20 bg-[#00d4ff]/5 text-xs text-white hover:bg-[#00d4ff]/15 transition-all outline-none"
-          >
-            <FileText size={14} className="text-[#00d4ff]" />
-            <span className="font-medium">PDF</span>
-          </button>
-        )}
+        {/* PDF button removed to match reference image 2 */}
 
         <button
           onClick={onGenerate}
           disabled={isGenerating}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs text-white bg-gradient-to-r from-[#00d4ff] to-[#7c3aed] hover:shadow-[0_0_15px_rgba(0,212,255,0.3)] disabled:opacity-50 transition-all cursor-pointer"
+          className="flex items-center gap-2 px-4 py-1.5 rounded-lg border border-white/15 bg-white/[0.06] hover:bg-white/[0.12] hover:border-white/25 text-white font-semibold text-xs tracking-wide disabled:opacity-50 transition-all cursor-pointer shadow-[0_4px_12px_rgba(0,0,0,0.4)]"
         >
-          <Sparkles size={13} className={isGenerating ? 'animate-spin' : ''} />
+          <Sparkles size={13} className={isGenerating ? 'animate-spin text-white' : 'text-white'} />
           <span>{isGenerating ? 'Syncing...' : 'Generate AI Report'}</span>
         </button>
 
         <button
           onClick={onToggleTheme}
-          className="p-1.5 rounded-lg border border-white/10 hover:border-[#00d4ff]/30 bg-white/5 text-white/70 hover:text-white transition-all cursor-pointer"
+          className="p-1.5 rounded-lg border border-white/10 hover:border-white/30 bg-white/5 text-white/70 hover:text-white transition-all cursor-pointer"
         >
           {darkTheme ? <Sun size={15} /> : <Moon size={15} />}
         </button>
@@ -203,7 +192,7 @@ export default function TopBar({
             onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
             className="flex items-center gap-1.5 focus:outline-none cursor-pointer"
           >
-            <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#7c3aed] to-[#00d4ff] flex items-center justify-center text-xs font-bold text-white shadow-md border border-white/10 overflow-hidden">
+            <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-xs font-bold text-black shadow-md border border-white/10 overflow-hidden">
               {userAvatarUrl ? (
                 <img src={userAvatarUrl} alt={userName} className="w-full h-full object-cover" />
               ) : (
@@ -214,7 +203,7 @@ export default function TopBar({
           </button>
 
           {profileDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-52 rounded-xl border border-white/10 bg-[#0e1321] p-1.5 shadow-2xl z-50">
+            <div className="absolute right-0 mt-2 w-52 rounded-xl border border-white/10 bg-[#111111] p-1.5 shadow-2xl z-50">
               <div className="p-2 border-b border-white/5">
                 <div className="text-xs font-semibold text-white truncate">{userName || "User Profile"}</div>
                 <div className="text-[10px] text-white/40 truncate font-mono">{userEmail || "email@domain.com"}</div>

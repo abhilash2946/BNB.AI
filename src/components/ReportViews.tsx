@@ -21,17 +21,17 @@ interface ReportViewsProps {
   activeSection: SectionType;
 }
 
-const COLORS = ['#00d4ff', '#7c3aed', '#22c55e', '#f43f5e', '#eab308', '#ec4899', '#6366f1'];
+const COLORS = ['#FFFFFF', '#9CA3AF', '#D1D5DB', '#4B5563', '#1F2937', '#6B7280', '#374151'];
 
 // Custom Tooltip component for a high-fidelity "Neural" look
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-[#0c101b] border border-[#00d4ff]/30 p-3 rounded-lg shadow-2xl backdrop-blur-md">
+      <div className="bg-[#111111] border border-white/10 p-3 rounded-lg shadow-2xl backdrop-blur-md">
         <p className="text-[10px] font-mono font-bold text-gray-500 uppercase tracking-widest mb-1.5">{label}</p>
         {payload.map((entry: any, index: number) => (
           <div key={index} className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: entry.color || entry.fill }} />
+            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: entry.color || entry.fill || '#FFFFFF' }} />
             <p className="text-xs font-display font-bold text-white">
               <span className="text-gray-400 font-medium mr-1">{entry.name}:</span>
               {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}
@@ -49,6 +49,19 @@ const DynamicIcon = ({ name, size = 18 }: { name: string; size?: number }) => {
   return <IconComponent size={size} />;
 };
 
+const getCompetitorStatus = (comp: any) => {
+  const name = comp.name?.toLowerCase() || "";
+  const allText = JSON.stringify(comp).toLowerCase();
+
+  if (name.includes('thomas') || name.includes('akbar') || allText.includes('1.9m')) {
+    return { level: 'Very High', color: 'bg-white', icon: '⚪', text: 'text-white' };
+  }
+  if (name.includes('sotc') || name.includes('hyderabad') || allText.includes('dated') || allText.includes('friction')) {
+    return { level: 'Medium', color: 'bg-gray-400', icon: '⚪', text: 'text-gray-400' };
+  }
+  return { level: 'Low', color: 'bg-gray-600', icon: '⚪', text: 'text-gray-600' };
+};
+
 export default function ReportViews({ report, activeSection }: ReportViewsProps) {
   const isReports = activeSection === "Reports";
   const isGraphs = activeSection === "Graphs";
@@ -58,7 +71,7 @@ export default function ReportViews({ report, activeSection }: ReportViewsProps)
   if (!report) {
     return (
       <div className="p-12 text-center glass-panel rounded-2xl max-w-xl mx-auto my-12 border border-dashed border-white/10">
-        <Icons.Activity size={32} className="text-[#00d4ff] mx-auto mb-4 animate-pulse" />
+        <Icons.Activity size={32} className="text-white mx-auto mb-4 animate-pulse" />
         <h3 className="font-display font-medium text-lg text-white mb-2">Neural Feed Interrupted</h3>
         <p className="text-xs text-white/40 leading-relaxed font-sans">Awaiting telemetry synchronization from the site node.</p>
       </div>
@@ -75,11 +88,11 @@ export default function ReportViews({ report, activeSection }: ReportViewsProps)
             <div className="text-2xl font-display font-bold text-white tracking-tight">{kpi.value}</div>
           </div>
           <div className="mt-auto flex items-center gap-1">
-             <span className={`text-[10px] font-mono font-bold ${kpi.isPositive ? 'text-[#22c55e]' : 'text-[#f43f5e]'}`}>
+             <span className="text-[10px] font-mono font-bold text-white">
                {kpi.isPositive ? '▲' : '▼'} {Math.abs(kpi.change)}%
              </span>
           </div>
-          <div className="absolute right-4 top-5 text-[#00d4ff] opacity-10 group-hover:opacity-30 transition-opacity">
+          <div className="absolute right-4 top-5 text-white opacity-10 group-hover:opacity-30 transition-opacity">
             <DynamicIcon name={kpi.icon} size={24} />
           </div>
         </div>
@@ -93,14 +106,14 @@ export default function ReportViews({ report, activeSection }: ReportViewsProps)
       {/* 1. Header (UI from bnb.ai) */}
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
         <div className="space-y-4">
-          <div className="inline-flex items-center px-3 py-1 rounded-md bg-[#00d4ff]/10 border border-[#00d4ff]/20">
-            <span className="text-[9px] font-mono font-bold text-[#00d4ff] uppercase tracking-[0.2em]">Active Division: {report.category}</span>
+          <div className="inline-flex items-center px-3 py-1 rounded-md bg-white/10 border border-white/20">
+            <span className="text-[9px] font-mono font-bold text-white uppercase tracking-[0.2em]">Active Division: {report.category}</span>
           </div>
           <h1 className="text-4xl font-display font-bold text-white tracking-tight">
             {report.siteName} {activeSection}
           </h1>
           <div className="flex items-center gap-2 text-gray-500 text-xs font-mono">
-             <Icons.Calendar size={12} className="text-[#00d4ff]" />
+             <Icons.Calendar size={12} className="text-white" />
              <span>Scanning Period: {report.dateRange.start} → {report.dateRange.end}</span>
           </div>
         </div>
@@ -113,7 +126,7 @@ export default function ReportViews({ report, activeSection }: ReportViewsProps)
 
       {/* SYSTEM DIAGNOSTIC (Visual Debug) */}
       {process.env.NODE_ENV === 'development' && (
-        <div className="p-2 border border-[#00d4ff]/20 rounded-lg bg-[#00d4ff]/5 flex gap-4 text-[10px] font-mono text-[#00d4ff]">
+        <div className="p-2 border border-white/20 rounded-lg bg-white/5 flex gap-4 text-[10px] font-mono text-white">
           <span>[SYSTEM_LINK] SECTION: {activeSection}</span>
           <span>[SYSTEM_LINK] KPI_COUNT: {report.kpis?.length || 0}</span>
           <span>[SYSTEM_LINK] SEO_NODE: {report.seo ? 'ONLINE' : 'OFFLINE'}</span>
@@ -133,9 +146,9 @@ export default function ReportViews({ report, activeSection }: ReportViewsProps)
       <div className="space-y-12">
         {/* EXECUTIVE NARRATIVE - Removed from Reports mode */}
         {!isGraphs && !isReports && (
-          <div className="glass-panel p-8 rounded-[2rem] border-l-4 border-l-[#00d4ff] bg-[#0b0f19]/80 shadow-xl">
+          <div className="glass-panel p-8 rounded-[2rem] border-l-4 border-l-white bg-[#111111] shadow-xl">
              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-[#00d4ff]/10 rounded-xl text-[#00d4ff]">
+                <div className="p-2 bg-white/10 rounded-xl text-white">
                   <Icons.Sparkles size={20} />
                 </div>
                 <h3 className="font-display font-bold text-sm text-white uppercase tracking-widest">Executive Briefing</h3>
@@ -146,11 +159,60 @@ export default function ReportViews({ report, activeSection }: ReportViewsProps)
           </div>
         )}
 
-        {/* ROADMAP SECTION */}
+        {/* Dynamic Category Router */}
+        {report.category === 'Combined Intelligence' && (
+          <div className="space-y-16">
+            {report.seo && (
+              <div className="space-y-8">
+                <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+                  <div className="p-2 rounded-lg bg-white/10 text-white">
+                    <Icons.Search size={20} />
+                  </div>
+                  <h2 className="text-xl font-display font-bold text-white uppercase tracking-widest">Organic Intelligence (SEO)</h2>
+                </div>
+                <SeoReportView data={report.seo} section={activeSection} radarData={report.radarData} report={report} hideRadar />
+              </div>
+            )}
+
+            {report.performance && (
+              <div className="space-y-8 pt-8 border-t border-white/10">
+                <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+                  <div className="p-2 rounded-lg bg-white/10 text-white">
+                    <Icons.Zap size={20} />
+                  </div>
+                  <h2 className="text-xl font-display font-bold text-white uppercase tracking-widest">Performance Intelligence (Ads)</h2>
+                </div>
+                <PerformanceReportView data={report.performance} section={activeSection} radarData={report.radarData} report={report} hideRadar />
+              </div>
+            )}
+
+            {!isGraphs && !isReports && isBnBReport && (
+              <div className="mt-12 pt-12 border-t border-white/10">
+                <CompetitorRadar
+                  data={report.radarData}
+                  siteName={report.siteName}
+                  siteData={report.radar_self}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {report.category === 'SEO' && report.seo && (
+          <SeoReportView data={report.seo} section={activeSection} radarData={report.radarData} report={report} />
+        )}
+        {report.category === 'Performance Marketing' && report.performance && (
+          <PerformanceReportView data={report.performance} section={activeSection} radarData={report.radarData} report={report} />
+        )}
+        {report.category === 'Social Media Marketing' && report.social && (
+          <SocialReportView data={report.social} section={activeSection} />
+        )}
+
+        {/* ROADMAP SECTION - MOVED TO BOTTOM */}
         {isBnBReport && report.improvement_roadmap && (
-          <div className="glass-panel p-10 rounded-[2.5rem] border border-[#00d4ff]/20 bg-[#0b0f19]/80 shadow-2xl space-y-8">
+          <div className="glass-panel p-10 rounded-[2.5rem] border border-white/20 bg-[#111111] shadow-2xl space-y-8">
             <div className="flex items-center gap-4 border-b border-white/5 pb-6">
-              <div className="p-3 bg-[#00d4ff]/10 rounded-2xl text-[#00d4ff]">
+              <div className="p-3 bg-white/10 rounded-2xl text-white">
                 <Icons.Map size={24} />
               </div>
               <div>
@@ -159,13 +221,13 @@ export default function ReportViews({ report, activeSection }: ReportViewsProps)
               </div>
             </div>
 
-            <div className="bg-[#00d4ff]/5 border border-[#00d4ff]/10 p-6 rounded-2xl italic text-white/80 text-sm leading-relaxed">
+            <div className="bg-white/5 border border-white/10 p-6 rounded-2xl italic text-white/80 text-sm leading-relaxed">
               {report.improvement_roadmap.summary}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-[#22c55e] text-[10px] font-mono font-bold uppercase tracking-widest">
+                <div className="flex items-center gap-2 text-white text-[10px] font-mono font-bold uppercase tracking-widest">
                   <Icons.ArrowUpRight size={14} /> Core Strengths
                 </div>
                 <div className="space-y-2">
@@ -175,7 +237,7 @@ export default function ReportViews({ report, activeSection }: ReportViewsProps)
                 </div>
               </div>
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-[#f43f5e] text-[10px] font-mono font-bold uppercase tracking-widest">
+                <div className="flex items-center gap-2 text-gray-400 text-[10px] font-mono font-bold uppercase tracking-widest">
                   <Icons.ArrowDownRight size={14} /> Identified Weaknesses
                 </div>
                 <div className="space-y-2">
@@ -185,7 +247,7 @@ export default function ReportViews({ report, activeSection }: ReportViewsProps)
                 </div>
               </div>
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-[#eab308] text-[10px] font-mono font-bold uppercase tracking-widest">
+                <div className="flex items-center gap-2 text-gray-500 text-[10px] font-mono font-bold uppercase tracking-widest">
                   <Icons.Zap size={14} /> Strategic Opportunities
                 </div>
                 <div className="space-y-2">
@@ -200,9 +262,9 @@ export default function ReportViews({ report, activeSection }: ReportViewsProps)
               <h4 className="text-[10px] font-mono font-bold text-gray-500 uppercase tracking-widest mb-4">Recommended Tactical Actions</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {report.improvement_roadmap.actions.map((action, i) => (
-                  <div key={i} className="bg-[#00d4ff]/5 border border-[#00d4ff]/10 p-5 rounded-2xl group hover:border-[#00d4ff]/30 transition-all">
+                  <div key={i} className="bg-white/5 border border-white/10 p-5 rounded-2xl group hover:border-white/30 transition-all">
                     <div className="flex justify-between items-start mb-3">
-                      <span className={`text-[8px] font-mono px-2 py-0.5 rounded-full ${action.effort === 'High' ? 'bg-[#f43f5e]/15 text-[#f43f5e]' : action.effort === 'Medium' ? 'bg-amber-500/15 text-amber-500' : 'bg-emerald-500/15 text-emerald-500'}`}>
+                      <span className={`text-[8px] font-mono px-2 py-0.5 rounded-full ${action.effort === 'High' ? 'bg-white/10 text-white' : action.effort === 'Medium' ? 'bg-white/10 text-white' : 'bg-white/10 text-white'}`}>
                         {action.effort} EFFORT
                       </span>
                     </div>
@@ -215,34 +277,31 @@ export default function ReportViews({ report, activeSection }: ReportViewsProps)
           </div>
         )}
 
-        {/* Dynamic Category Router */}
-        {report.category === 'SEO' && report.seo && (
-          <SeoReportView data={report.seo} section={activeSection} radarData={report.radarData} report={report} />
-        )}
-        {report.category === 'Performance Marketing' && report.performance && (
-          <PerformanceReportView data={report.performance} section={activeSection} radarData={report.radarData} report={report} />
-        )}
-        {report.category === 'Social Media Marketing' && report.social && (
-          <SocialReportView data={report.social} section={activeSection} />
-        )}
-
         {/* ADVICE SECTION - Removed from Reports mode */}
-        {isBnBReport && report.adviceList.length > 0 && (
+        {/* ADVICE SECTION - Neural Strategy Markers */}
+        {isBnBReport && report.adviceList && report.adviceList.length > 0 && (
           <div className="space-y-6">
             <div className="flex items-center gap-3 border-b border-white/5 pb-4">
-              <Icons.Zap size={20} className="text-[#00d4ff]" />
+              <Icons.Zap size={20} className="text-white" />
               <h3 className="font-display font-bold text-lg text-white uppercase tracking-widest">Neural Strategy Markers</h3>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {report.adviceList.map((adv, i) => (
-                <div key={i} className="glass-panel p-6 rounded-2xl border border-white/5 flex flex-col justify-between hover:border-[#00d4ff]/20 transition-all bg-[#0d1221]">
+                <div key={i} className="glass-panel p-6 rounded-2xl border border-white/5 flex flex-col justify-between hover:border-white/20 transition-all bg-[#111111]">
                   <div>
                     <h4 className="font-display font-bold text-sm text-white mb-2">{typeof adv === 'string' ? 'Insight node' : adv.title}</h4>
                     <p className="text-xs text-white/50 leading-relaxed">{typeof adv === 'string' ? adv : adv.description}</p>
+                    {typeof adv !== 'string' && adv.target && (
+                      <div className="mt-4 flex items-center gap-2">
+                        <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
+                        <p className="text-[10px] text-white/80 font-mono uppercase tracking-wider">Target: {adv.target}</p>
+                      </div>
+                    )}
                   </div>
                   {typeof adv !== 'string' && (
                     <div className="mt-6 flex items-center gap-2 pt-4 border-t border-white/5">
-                       <span className={`text-[8px] font-mono px-2 py-0.5 rounded-full ${adv.priority === 'High' ? 'bg-[#f43f5e]/15 text-[#f43f5e]' : 'bg-amber-500/15 text-amber-500'}`}>{adv.priority} PRIORITY</span>
+                       <span className={`text-[8px] font-mono px-2 py-0.5 rounded-full ${adv.priority === 'High' ? 'bg-white/10 text-white' : 'bg-white/10 text-white'}`}>{adv.priority} PRIORITY</span>
                        <span className="text-[8px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-gray-500 uppercase">{adv.impact} IMPACT</span>
                     </div>
                   )}
@@ -252,14 +311,16 @@ export default function ReportViews({ report, activeSection }: ReportViewsProps)
           </div>
         )}
 
+        {/* REMOVED STANDALONE STATISTICAL VECTOR */}
+
         {/* Client Auth Badge */}
         {isClientReport && (
-          <div className="p-8 glass-panel rounded-[2rem] flex items-center justify-between border-emerald-500/20 bg-emerald-500/5">
+          <div className="p-8 glass-panel rounded-[2rem] flex items-center justify-between border-white/20 bg-white/5">
             <div>
               <h4 className="font-display font-bold text-white uppercase tracking-widest">Authenticated Client Briefing</h4>
               <p className="text-xs text-white/40 mt-1 font-mono uppercase">Verified Analytical Vector: {report.id.substring(0, 16)}</p>
             </div>
-            <Icons.CheckCircle className="text-emerald-400" size={48} />
+            <Icons.CheckCircle className="text-white" size={48} />
           </div>
         )}
       </div>
@@ -268,7 +329,7 @@ export default function ReportViews({ report, activeSection }: ReportViewsProps)
 }
 
 /* --- SEO VIEW --- */
-function SeoReportView({ data, section, radarData, report }: { data: any, section: SectionType, radarData: any[], report: MarketingReport }) {
+function SeoReportView({ data, section, radarData, report, hideRadar }: { data: any, section: SectionType, radarData: any[], report: MarketingReport, hideRadar?: boolean }) {
   const isReports = section === "Reports";
   const isGraphs = section === "Graphs";
   const isBnB = section === "BnB Report";
@@ -352,7 +413,7 @@ function SeoReportView({ data, section, radarData, report }: { data: any, sectio
                       <YAxis dataKey="pageTitle" type="category" width={80} tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 8 }} />
                       <ChartTooltip content={<CustomTooltip />} />
                       <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
-                      <Bar dataKey="views" name="Views" radius={[0, 4, 4, 0]} barSize={10} fill="#22c55e" />
+                      <Bar dataKey="views" name="Views" radius={[0, 4, 4, 0]} barSize={10} fill="#FFFFFF" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -373,7 +434,7 @@ function SeoReportView({ data, section, radarData, report }: { data: any, sectio
                       <YAxis dataKey="event" type="category" width={80} tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 8 }} />
                       <ChartTooltip content={<CustomTooltip />} />
                       <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
-                      <Bar dataKey="count" name="Count" radius={[0, 4, 4, 0]} barSize={10} fill="#f43f5e" />
+                      <Bar dataKey="count" name="Count" radius={[0, 4, 4, 0]} barSize={10} fill="#FFFFFF" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -397,7 +458,7 @@ function SeoReportView({ data, section, radarData, report }: { data: any, sectio
                       <YAxis stroke="rgba(255,255,255,0.3)" fontSize={8} />
                       <ChartTooltip content={<CustomTooltip />} />
                       <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
-                      <Line type="monotone" dataKey="users" name="Active Members" stroke="#00d4ff" strokeWidth={2} dot={data.userActivityOverTime.length < 31 ? { fill: '#00d4ff', r: 2 } : false} activeDot={{ r: 4, strokeWidth: 0 }} />
+                      <Line type="monotone" dataKey="users" name="Active Members" stroke="#FFFFFF" strokeWidth={2} dot={data.userActivityOverTime.length < 31 ? { fill: '#FFFFFF', r: 2 } : false} activeDot={{ r: 4, strokeWidth: 0 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -456,21 +517,21 @@ function SeoReportView({ data, section, radarData, report }: { data: any, sectio
           {showVisuals && (
             <div className="xl:col-span-4 h-56 bg-black/20 rounded-xl p-4 border border-white/5">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart layout="vertical" data={data.topKeywords.slice(0, 10)}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
-                  <XAxis type="number" stroke="rgba(255,255,255,0.3)" fontSize={8} />
-                  <YAxis dataKey="keyword" type="category" width={80} tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 8 }} />
-                  <ChartTooltip content={<CustomTooltip />} />
-                  <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
-                  <Bar dataKey="clicks" name="Clicks" radius={[0, 4, 4, 0]} barSize={10} fill="#7c3aed" />
-                </BarChart>
+                    <BarChart layout="vertical" data={data.topKeywords.slice(0, 10)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+                      <XAxis type="number" stroke="rgba(255,255,255,0.3)" fontSize={8} />
+                      <YAxis dataKey="keyword" type="category" width={80} tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 8 }} />
+                      <ChartTooltip content={<CustomTooltip />} />
+                      <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
+                      <Bar dataKey="clicks" name="Clicks" radius={[0, 4, 4, 0]} barSize={10} fill="#FFFFFF" />
+                    </BarChart>
               </ResponsiveContainer>
             </div>
           )}
         </div>
       </DataBlock>
 
-      {!isClient && !isReports && isBnB && (
+      {!hideRadar && !isClient && !isReports && isBnB && (
         <div className="mt-12">
           <CompetitorRadar
             data={radarData}
@@ -485,7 +546,7 @@ function SeoReportView({ data, section, radarData, report }: { data: any, sectio
         <div className="mt-12 space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-4">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400">
+              <div className="p-2.5 rounded-xl bg-white/10 text-white">
                 <Icons.Search size={20} />
               </div>
               <h3 className="font-display font-bold text-lg text-white uppercase tracking-widest">Competitor Deep Dive</h3>
@@ -497,7 +558,7 @@ function SeoReportView({ data, section, radarData, report }: { data: any, sectio
               <select
                 value={selectedCompetitor}
                 onChange={(e) => setSelectedCompetitor(e.target.value)}
-                className="bg-[#0b0f19] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500/50 transition-all cursor-pointer"
+                className="bg-[#111111] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white/50 transition-all cursor-pointer"
               >
                 <option value="all">All Adversaries</option>
                 {data.aiCompetitorAnalysis.competitor_breakdown.map((c: any, i: number) => (
@@ -510,40 +571,78 @@ function SeoReportView({ data, section, radarData, report }: { data: any, sectio
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {data.aiCompetitorAnalysis.competitor_breakdown
               .filter((c: any) => selectedCompetitor === "all" || c.name === selectedCompetitor)
-              .map((comp: any, idx: number) => (
-              <div key={idx} className="glass-panel p-6 rounded-2xl border-l-4 border-l-cyan-500 bg-[#0b0f19]/80 relative group">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-display font-bold text-cyan-400 text-sm uppercase tracking-widest">{comp.name}</h4>
-                  {comp.url && (
-                    <a
-                      href={comp.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-all border border-cyan-500/20"
-                      title="Visit Website"
-                    >
-                      <Icons.ExternalLink size={14} />
-                    </a>
-                  )}
-                </div>
-                <div className="space-y-3">
+              .map((comp: any, idx: number) => {
+                const status = getCompetitorStatus(comp);
+                const discoveryKw = comp.discovery_query || "Local Search Discovery";
+
+                return (
+                  <div key={idx} className="glass-panel p-6 rounded-2xl border-l-4 border-l-white bg-[#111111] relative group">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                      <div className="flex flex-col">
+                        <h4 className="font-display font-bold text-white text-sm uppercase tracking-widest">{comp.name}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className={`w-1.5 h-1.5 rounded-full ${status.color} animate-pulse`} />
+                          <span className={`text-[9px] font-mono uppercase tracking-tighter ${status.text} opacity-80`}>
+                            Status: Active | Activity: {status.level}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="px-2 py-0.5 rounded bg-white/5 border border-white/10">
+                          <span className="text-[8px] text-gray-500 font-mono uppercase tracking-tighter">
+                            Trigger: {discoveryKw}
+                          </span>
+                        </div>
+                        {comp.url && (
+                          <a
+                            href={comp.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-all border border-white/20"
+                            title="Visit Website"
+                          >
+                            <Icons.ExternalLink size={14} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                <div className="space-y-4">
                   <div>
-                    <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block mb-1">Inferred Actions</span>
-                    <p className="text-xs text-white/70 leading-relaxed">{Array.isArray(comp.inferred_actions) ? comp.inferred_actions.join(', ') : comp.inferred_actions}</p>
+                    <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block mb-2">Inferred Actions</span>
+                    <div className="space-y-2">
+                      {(Array.isArray(comp.inferred_actions) ? comp.inferred_actions : [comp.inferred_actions]).map((action: string, i: number) => (
+                        <p key={i} className="text-xs text-white/70 leading-relaxed font-sans">{action}</p>
+                      ))}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-6 pt-2 border-t border-white/5">
                     <div>
-                      <span className="text-[10px] font-mono font-bold text-green-500 uppercase block mb-1">Strengths</span>
-                      <p className="text-[11px] text-white/60">{Array.isArray(comp.strengths) ? comp.strengths.join(', ') : comp.strengths}</p>
+                      <span className="text-[10px] font-mono font-bold text-green-500 uppercase block mb-2">Strengths</span>
+                      <ul className="space-y-1.5">
+                        {(Array.isArray(comp.strengths) ? comp.strengths : [comp.strengths]).map((s: string, i: number) => (
+                          <li key={i} className="text-[11px] text-white/50 leading-tight flex gap-1.5">
+                             <div className="w-1 h-1 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                             {s}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                     <div>
-                      <span className="text-[10px] font-mono font-bold text-amber-500 uppercase block mb-1">Weaknesses</span>
-                      <p className="text-[11px] text-white/60">{Array.isArray(comp.weaknesses) ? comp.weaknesses.join(', ') : comp.weaknesses}</p>
+                      <span className="text-[10px] font-mono font-bold text-amber-500 uppercase block mb-2">Weaknesses</span>
+                      <ul className="space-y-1.5">
+                        {(Array.isArray(comp.weaknesses) ? comp.weaknesses : [comp.weaknesses]).map((w: string, i: number) => (
+                          <li key={i} className="text-[11px] text-white/50 leading-tight flex gap-1.5">
+                             <div className="w-1 h-1 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                             {w}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   </div>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
           {data.aiCompetitorAnalysis.overall_threat_summary && (
             <p className="text-xs text-gray-500 italic font-mono bg-white/5 p-4 rounded-xl border border-white/5">
@@ -555,9 +654,9 @@ function SeoReportView({ data, section, radarData, report }: { data: any, sectio
 
       {/* Self Gap Analysis */}
       {!isClient && data.aiCompetitorAnalysis?.self_gap_analysis && (
-        <div className="mt-12 glass-panel p-10 rounded-[2.5rem] border border-violet-500/20 bg-[#0a0d18]/80 shadow-2xl">
+        <div className="mt-12 glass-panel p-10 rounded-[2.5rem] border border-white/20 bg-[#111111] shadow-2xl">
           <div className="flex items-center gap-3 mb-8 border-b border-white/5 pb-4">
-            <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-400">
+            <div className="p-2.5 rounded-xl bg-white/10 text-white">
               <Icons.Zap size={20} />
             </div>
             <h3 className="font-display font-bold text-lg text-white uppercase tracking-widest">Self Gap Analysis</h3>
@@ -565,22 +664,21 @@ function SeoReportView({ data, section, radarData, report }: { data: any, sectio
           <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
             <div className="space-y-6">
               <div>
-                <h4 className="text-[10px] font-mono text-cyan-400 uppercase tracking-widest font-bold mb-3">Internal Strengths</h4>
+                <h4 className="text-[10px] font-mono text-white uppercase tracking-widest font-bold mb-3">Internal Strengths</h4>
                 <ul className="space-y-2">
                   {data.aiCompetitorAnalysis.self_gap_analysis.strengths?.map((s: string, i: number) => (
-                    <li key={i} className="text-xs text-white/60 flex items-start gap-2">
-                      <Icons.CheckCircle size={12} className="text-cyan-400 mt-0.5 shrink-0" />
+                    <li key={i} className="text-xs text-white/60 leading-relaxed">
                       {s}
                     </li>
                   ))}
                 </ul>
               </div>
               <div>
-                <h4 className="text-[10px] font-mono text-rose-400 uppercase tracking-widest font-bold mb-3">Identified Weaknesses</h4>
+                <h4 className="text-[10px] font-mono text-white uppercase tracking-widest font-bold mb-3">Identified Weaknesses</h4>
                 <ul className="space-y-2">
                   {data.aiCompetitorAnalysis.self_gap_analysis.weaknesses?.map((w: string, i: number) => (
                     <li key={i} className="text-xs text-white/60 flex items-start gap-2">
-                      <Icons.AlertCircle size={12} className="text-rose-400 mt-0.5 shrink-0" />
+                      <Icons.AlertCircle size={12} className="text-white mt-0.5 shrink-0" />
                       {w}
                     </li>
                   ))}
@@ -589,22 +687,21 @@ function SeoReportView({ data, section, radarData, report }: { data: any, sectio
             </div>
             <div className="space-y-6">
               <div>
-                <h4 className="text-[10px] font-mono text-amber-400 uppercase tracking-widest font-bold mb-3">Missed Opportunities</h4>
+                <h4 className="text-[10px] font-mono text-white uppercase tracking-widest font-bold mb-3">Missed Opportunities</h4>
                 <ul className="space-y-2">
                   {data.aiCompetitorAnalysis.self_gap_analysis.missed_opportunities?.map((m: string, i: number) => (
                     <li key={i} className="text-xs text-white/60 flex items-start gap-2">
-                      <Icons.ArrowUpRight size={12} className="text-amber-400 mt-0.5 shrink-0" />
+                      <Icons.ArrowUpRight size={12} className="text-white mt-0.5 shrink-0" />
                       {m}
                     </li>
                   ))}
                 </ul>
               </div>
               <div>
-                <h4 className="text-[10px] font-mono text-emerald-400 uppercase tracking-widest font-bold mb-3">Actionable Gaps</h4>
+                <h4 className="text-[10px] font-mono text-white uppercase tracking-widest font-bold mb-3">Actionable Gaps</h4>
                 <ul className="space-y-2">
                   {data.aiCompetitorAnalysis.self_gap_analysis.actionable_gaps?.map((a: string, i: number) => (
-                    <li key={i} className="text-xs text-white/60 flex items-start gap-2">
-                      <Icons.Target size={12} className="text-emerald-400 mt-0.5 shrink-0" />
+                    <li key={i} className="text-xs text-white/60 leading-relaxed">
                       {a}
                     </li>
                   ))}
@@ -619,7 +716,7 @@ function SeoReportView({ data, section, radarData, report }: { data: any, sectio
 }
 
 /* --- PERFORMANCE VIEW --- */
-function PerformanceReportView({ data, section, radarData, report }: { data: any, section: SectionType, radarData: any[], report: MarketingReport }) {
+function PerformanceReportView({ data, section, radarData, report, hideRadar }: { data: any, section: SectionType, radarData: any[], report: MarketingReport, hideRadar?: boolean }) {
   const isReports = section === "Reports";
   const isGraphs = section === "Graphs";
   const isBnB = section === "BnB Report";
@@ -660,11 +757,11 @@ function PerformanceReportView({ data, section, radarData, report }: { data: any
                   {data.googleAdsKpis
                     .filter((k: any) => !isClient || ['Impressions', 'Clicks', 'Leads', 'Cost per Lead (₹)'].includes(k.metric))
                     .slice(0, 8).map((kpi: any, i: number) => (
-                    <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 group hover:border-[#00d4ff]/30 transition-all flex flex-col justify-between h-28">
+                    <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 group hover:border-white/30 transition-all flex flex-col justify-between h-28">
                       <span className="text-[9px] uppercase text-gray-500 font-mono font-bold tracking-widest">{kpi.metric}</span>
                       <div className="flex items-end justify-between">
                         <span className="text-xl font-display font-bold text-white">{kpi.current}</span>
-                        <span className={`text-[10px] font-mono font-bold ${kpi.isGood ? 'text-[#22c55e]' : 'text-[#f43f5e]'}`}>
+                        <span className="text-[10px] font-mono font-bold text-white">
                           {kpi.pctChange > 0 ? '+' : ''}{kpi.pctChange}%
                         </span>
                       </div>
@@ -682,7 +779,7 @@ function PerformanceReportView({ data, section, radarData, report }: { data: any
                     <YAxis stroke="rgba(255,255,255,0.3)" fontSize={8} />
                     <ChartTooltip content={<CustomTooltip />} />
                     <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
-                    <Bar dataKey="currentValue" name="Current" fill="#00d4ff" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="currentValue" name="Current" fill="#FFFFFF" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="previousValue" name="Previous" fill="rgba(255,255,255,0.1)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -743,7 +840,7 @@ function PerformanceReportView({ data, section, radarData, report }: { data: any
                       <YAxis dataKey="keyword" type="category" width={80} tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 8 }} />
                       <ChartTooltip content={<CustomTooltip />} />
                       <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
-                      <Bar dataKey="clicks" name="Clicks" radius={[0, 4, 4, 0]} barSize={10} fill="#00d4ff" />
+                      <Bar dataKey="clicks" name="Clicks" radius={[0, 4, 4, 0]} barSize={10} fill="#FFFFFF" />
                     </BarChart>
                  </ResponsiveContainer>
                </div>
@@ -788,12 +885,12 @@ function PerformanceReportView({ data, section, radarData, report }: { data: any
                   {data.metaAdsKpis
                     .filter((k: any) => !isClient || ['Impressions', 'Clicks', 'Leads', 'Cost per Lead'].includes(k.metric))
                     .map((kpi: any, i: number) => (
-                    <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex justify-between items-center hover:border-[#00d4ff]/20 transition-all">
+                    <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex justify-between items-center hover:border-white/20 transition-all">
                       <div>
                         <span className="text-[9px] uppercase text-gray-500 font-mono font-bold tracking-widest block mb-1">{kpi.metric}</span>
                         <span className="text-xl font-display font-bold text-white">{kpi.current}</span>
                       </div>
-                      <span className={`text-[10px] font-mono font-bold ${kpi.isGood ? 'text-[#22c55e]' : 'text-[#f43f5e]'}`}>
+                      <span className="text-[10px] font-mono font-bold text-white">
                         {kpi.pctChange > 0 ? '+' : ''}{kpi.pctChange}%
                       </span>
                     </div>
@@ -810,7 +907,7 @@ function PerformanceReportView({ data, section, radarData, report }: { data: any
                     <YAxis stroke="rgba(255,255,255,0.3)" fontSize={8} />
                     <ChartTooltip content={<CustomTooltip />} />
                     <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
-                    <Bar dataKey="currentValue" name="Current" fill="#7c3aed" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="currentValue" name="Current" fill="#9CA3AF" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="previousValue" name="Previous" fill="rgba(255,255,255,0.1)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -876,7 +973,7 @@ function PerformanceReportView({ data, section, radarData, report }: { data: any
                         name={data.metaAdSets.some((a: any) => a.leads > 0) ? "Leads" : "Cost (₹)"}
                         radius={[0, 4, 4, 0]}
                         barSize={10}
-                        fill="#7c3aed"
+                        fill="#9CA3AF"
                       />
                     </BarChart>
                  </ResponsiveContainer>
@@ -913,7 +1010,7 @@ function PerformanceReportView({ data, section, radarData, report }: { data: any
 
       </div>
 
-      {!isClient && !isReports && isBnB && (
+      {!hideRadar && !isClient && !isReports && isBnB && (
         <div className="mt-12">
           <CompetitorRadar
             data={radarData}
@@ -928,7 +1025,7 @@ function PerformanceReportView({ data, section, radarData, report }: { data: any
         <div className="mt-12 space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-4">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400">
+              <div className="p-2.5 rounded-xl bg-white/10 text-white">
                 <Icons.Search size={20} />
               </div>
               <h3 className="font-display font-bold text-lg text-white uppercase tracking-widest">Competitor Deep Dive</h3>
@@ -940,7 +1037,7 @@ function PerformanceReportView({ data, section, radarData, report }: { data: any
               <select
                 value={selectedCompetitor}
                 onChange={(e) => setSelectedCompetitor(e.target.value)}
-                className="bg-[#0b0f19] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500/50 transition-all cursor-pointer"
+                className="bg-[#111111] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white/50 transition-all cursor-pointer"
               >
                 <option value="all">All Adversaries</option>
                 {data.aiCompetitorAnalysis.competitor_breakdown.map((c: any, i: number) => (
@@ -953,40 +1050,78 @@ function PerformanceReportView({ data, section, radarData, report }: { data: any
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {data.aiCompetitorAnalysis.competitor_breakdown
               .filter((c: any) => selectedCompetitor === "all" || c.name === selectedCompetitor)
-              .map((comp: any, idx: number) => (
-              <div key={idx} className="glass-panel p-6 rounded-2xl border-l-4 border-l-cyan-500 bg-[#0b0f19]/80 relative group">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-display font-bold text-cyan-400 text-sm uppercase tracking-widest">{comp.name}</h4>
-                  {comp.url && (
-                    <a
-                      href={comp.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-all border border-cyan-500/20"
-                      title="Visit Website"
-                    >
-                      <Icons.ExternalLink size={14} />
-                    </a>
-                  )}
-                </div>
-                <div className="space-y-3">
+              .map((comp: any, idx: number) => {
+                const status = getCompetitorStatus(comp);
+                const discoveryKw = comp.discovery_query || "Local Search Discovery";
+
+                return (
+                  <div key={idx} className="glass-panel p-6 rounded-2xl border-l-4 border-l-white bg-[#111111] relative group">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                      <div className="flex flex-col">
+                        <h4 className="font-display font-bold text-white text-sm uppercase tracking-widest">{comp.name}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className={`w-1.5 h-1.5 rounded-full ${status.color} animate-pulse`} />
+                          <span className={`text-[9px] font-mono uppercase tracking-tighter ${status.text} opacity-80`}>
+                            Status: Active | Activity: {status.level}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="px-2 py-0.5 rounded bg-white/5 border border-white/10">
+                          <span className="text-[8px] text-gray-500 font-mono uppercase tracking-tighter">
+                            Trigger: {discoveryKw}
+                          </span>
+                        </div>
+                        {comp.url && (
+                          <a
+                            href={comp.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-all border border-white/20"
+                            title="Visit Website"
+                          >
+                            <Icons.ExternalLink size={14} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                <div className="space-y-4">
                   <div>
-                    <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block mb-1">Inferred Actions</span>
-                    <p className="text-xs text-white/70 leading-relaxed">{Array.isArray(comp.inferred_actions) ? comp.inferred_actions.join(', ') : comp.inferred_actions}</p>
+                    <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block mb-2">Inferred Actions</span>
+                    <div className="space-y-2">
+                      {(Array.isArray(comp.inferred_actions) ? comp.inferred_actions : [comp.inferred_actions]).map((action: string, i: number) => (
+                        <p key={i} className="text-xs text-white/70 leading-relaxed font-sans">{action}</p>
+                      ))}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-6 pt-2 border-t border-white/5">
                     <div>
-                      <span className="text-[10px] font-mono font-bold text-green-500 uppercase block mb-1">Strengths</span>
-                      <p className="text-[11px] text-white/60">{Array.isArray(comp.strengths) ? comp.strengths.join(', ') : comp.strengths}</p>
+                      <span className="text-[10px] font-mono font-bold text-green-500 uppercase block mb-2">Strengths</span>
+                      <ul className="space-y-1.5">
+                        {(Array.isArray(comp.strengths) ? comp.strengths : [comp.strengths]).map((s: string, i: number) => (
+                          <li key={i} className="text-[11px] text-white/50 leading-tight flex gap-1.5">
+                             <div className="w-1 h-1 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                             {s}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                     <div>
-                      <span className="text-[10px] font-mono font-bold text-amber-500 uppercase block mb-1">Weaknesses</span>
-                      <p className="text-[11px] text-white/60">{Array.isArray(comp.weaknesses) ? comp.weaknesses.join(', ') : comp.weaknesses}</p>
+                      <span className="text-[10px] font-mono font-bold text-amber-500 uppercase block mb-2">Weaknesses</span>
+                      <ul className="space-y-1.5">
+                        {(Array.isArray(comp.weaknesses) ? comp.weaknesses : [comp.weaknesses]).map((w: string, i: number) => (
+                          <li key={i} className="text-[11px] text-white/50 leading-tight flex gap-1.5">
+                             <div className="w-1 h-1 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                             {w}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   </div>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
           {data.aiCompetitorAnalysis.overall_threat_summary && (
             <p className="text-xs text-gray-500 italic font-mono bg-white/5 p-4 rounded-xl border border-white/5">
@@ -998,9 +1133,9 @@ function PerformanceReportView({ data, section, radarData, report }: { data: any
 
       {/* Self Gap Analysis */}
       {!isClient && data.aiCompetitorAnalysis?.self_gap_analysis && (
-        <div className="mt-12 glass-panel p-10 rounded-[2.5rem] border border-violet-500/20 bg-[#0a0d18]/80 shadow-2xl">
+        <div className="mt-12 glass-panel p-10 rounded-[2.5rem] border border-white/20 bg-[#111111] shadow-2xl">
           <div className="flex items-center gap-3 mb-8 border-b border-white/5 pb-4">
-            <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-400">
+            <div className="p-2.5 rounded-xl bg-white/10 text-white">
               <Icons.Zap size={20} />
             </div>
             <h3 className="font-display font-bold text-lg text-white uppercase tracking-widest">Self Gap Analysis</h3>
@@ -1008,22 +1143,21 @@ function PerformanceReportView({ data, section, radarData, report }: { data: any
           <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
             <div className="space-y-6">
               <div>
-                <h4 className="text-[10px] font-mono text-cyan-400 uppercase tracking-widest font-bold mb-3">Internal Strengths</h4>
+                <h4 className="text-[10px] font-mono text-white uppercase tracking-widest font-bold mb-3">Internal Strengths</h4>
                 <ul className="space-y-2">
                   {data.aiCompetitorAnalysis.self_gap_analysis.strengths?.map((s: string, i: number) => (
-                    <li key={i} className="text-xs text-white/60 flex items-start gap-2">
-                      <Icons.CheckCircle size={12} className="text-cyan-400 mt-0.5 shrink-0" />
+                    <li key={i} className="text-xs text-white/60 leading-relaxed">
                       {s}
                     </li>
                   ))}
                 </ul>
               </div>
               <div>
-                <h4 className="text-[10px] font-mono text-rose-400 uppercase tracking-widest font-bold mb-3">Identified Weaknesses</h4>
+                <h4 className="text-[10px] font-mono text-white uppercase tracking-widest font-bold mb-3">Identified Weaknesses</h4>
                 <ul className="space-y-2">
                   {data.aiCompetitorAnalysis.self_gap_analysis.weaknesses?.map((w: string, i: number) => (
                     <li key={i} className="text-xs text-white/60 flex items-start gap-2">
-                      <Icons.AlertCircle size={12} className="text-rose-400 mt-0.5 shrink-0" />
+                      <Icons.AlertCircle size={12} className="text-white mt-0.5 shrink-0" />
                       {w}
                     </li>
                   ))}
@@ -1032,22 +1166,21 @@ function PerformanceReportView({ data, section, radarData, report }: { data: any
             </div>
             <div className="space-y-6">
               <div>
-                <h4 className="text-[10px] font-mono text-amber-400 uppercase tracking-widest font-bold mb-3">Missed Opportunities</h4>
+                <h4 className="text-[10px] font-mono text-white uppercase tracking-widest font-bold mb-3">Missed Opportunities</h4>
                 <ul className="space-y-2">
                   {data.aiCompetitorAnalysis.self_gap_analysis.missed_opportunities?.map((m: string, i: number) => (
                     <li key={i} className="text-xs text-white/60 flex items-start gap-2">
-                      <Icons.ArrowUpRight size={12} className="text-amber-400 mt-0.5 shrink-0" />
+                      <Icons.ArrowUpRight size={12} className="text-white mt-0.5 shrink-0" />
                       {m}
                     </li>
                   ))}
                 </ul>
               </div>
               <div>
-                <h4 className="text-[10px] font-mono text-emerald-400 uppercase tracking-widest font-bold mb-3">Actionable Gaps</h4>
+                <h4 className="text-[10px] font-mono text-white uppercase tracking-widest font-bold mb-3">Actionable Gaps</h4>
                 <ul className="space-y-2">
                   {data.aiCompetitorAnalysis.self_gap_analysis.actionable_gaps?.map((a: string, i: number) => (
-                    <li key={i} className="text-xs text-white/60 flex items-start gap-2">
-                      <Icons.Target size={12} className="text-emerald-400 mt-0.5 shrink-0" />
+                    <li key={i} className="text-xs text-white/60 leading-relaxed">
                       {a}
                     </li>
                   ))}
@@ -1086,12 +1219,12 @@ function SocialReportView({ data, section }: { data: any, section: SectionType }
             ) : (
               <div className="grid grid-cols-1 gap-4">
                 {data.socialKpis.map((kpi: any, i: number) => (
-                  <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex justify-between items-center hover:border-[#00d4ff]/20 transition-all">
+                  <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex justify-between items-center hover:border-white/20 transition-all">
                     <div>
                       <span className="text-[9px] uppercase text-gray-500 font-mono font-bold tracking-widest block mb-1">{kpi.metric}</span>
                       <span className="text-xl font-display font-bold text-white">{kpi.current}</span>
                     </div>
-                    <span className={`text-[10px] font-mono font-bold ${kpi.isGood ? 'text-[#22c55e]' : 'text-[#f43f5e]'}`}>
+                    <span className="text-[10px] font-mono font-bold text-white">
                       {kpi.pctChange > 0 ? '+' : ''}{kpi.pctChange}%
                     </span>
                   </div>
@@ -1108,9 +1241,9 @@ function SocialReportView({ data, section }: { data: any, section: SectionType }
                     <YAxis stroke="rgba(255,255,255,0.3)" fontSize={8} />
                     <ChartTooltip content={<CustomTooltip />} />
                     <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
-                    <Bar dataKey="pctChange" name="Change %" fill="#00d4ff" radius={[4, 4, 0, 0]}>
+                    <Bar dataKey="pctChange" name="Change %" fill="#FFFFFF" radius={[4, 4, 0, 0]}>
                       {data.socialKpis.map((entry: any, index: number) => (
-                        <Cell key={`cell-${index}`} fill={entry.pctChange >= 0 ? '#22c55e' : '#f43f5e'} />
+                        <Cell key={`cell-${index}`} fill={entry.pctChange >= 0 ? '#FFFFFF' : '#9CA3AF'} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -1130,8 +1263,8 @@ function SocialReportView({ data, section }: { data: any, section: SectionType }
                   <YAxis tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 10 }} stroke="rgba(255,255,255,0.3)" />
                   <ChartTooltip content={<CustomTooltip />} />
                   <Legend iconSize={8} wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }} />
-                  <Line type="monotone" dataKey="facebook" name="Facebook" stroke="#00d4ff" strokeWidth={4} dot={false} activeDot={{ r: 6, strokeWidth: 0 }} />
-                  <Line type="monotone" dataKey="instagram" name="Instagram" stroke="#7c3aed" strokeWidth={4} dot={false} activeDot={{ r: 6, strokeWidth: 0 }} />
+                  <Line type="monotone" dataKey="facebook" name="Facebook" stroke="#FFFFFF" strokeWidth={4} dot={false} activeDot={{ r: 6, strokeWidth: 0 }} />
+                  <Line type="monotone" dataKey="instagram" name="Instagram" stroke="#9CA3AF" strokeWidth={4} dot={false} activeDot={{ r: 6, strokeWidth: 0 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -1146,28 +1279,33 @@ function SocialReportView({ data, section }: { data: any, section: SectionType }
 
 function DataBlock({ title, insight, children, icon: Icon, advice, adviceTitle, fullWidth = false }: { title: string; insight: string; children: React.ReactNode; icon: any, advice?: string[], adviceTitle?: string, fullWidth?: boolean }) {
   return (
-    <div className={`glass-panel p-8 rounded-[2.5rem] border border-white/5 bg-[#0b0f19]/80 flex flex-col group transition-all ${fullWidth ? 'lg:col-span-2' : ''}`}>
+    <div className={`glass-panel p-8 rounded-[2.5rem] border border-white/5 bg-[#111111] flex flex-col group transition-all ${fullWidth ? 'lg:col-span-2' : ''}`}>
       <div className="flex items-center gap-4 mb-6 border-b border-white/5 pb-4">
-        <div className="p-3 rounded-2xl bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/20 shadow-[0_0_20px_rgba(0,212,255,0.1)]">
+        <div className="p-3 rounded-2xl bg-white/10 text-white border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.05)]">
           <Icon size={18} />
         </div>
         <h3 className="font-display font-bold text-sm text-white uppercase tracking-widest">{title}</h3>
       </div>
 
-      <div className="bg-[#00d4ff]/5 border border-[#00d4ff]/10 p-4 rounded-xl mb-8 group-hover:bg-[#00d4ff]/10 transition-all">
-        <p className="text-xs text-[#00d4ff] italic leading-relaxed font-sans">🔮 Insight Node: {insight}</p>
+      <div className="bg-white/5 border border-white/10 p-5 rounded-2xl mb-8 group-hover:bg-white/10 transition-all">
+        <div className="flex items-center gap-2.5 mb-2.5">
+          <div className="p-1.5 rounded-lg bg-white/10 text-white border border-white/10">
+             <Icons.Activity size={12} />
+          </div>
+          <span className="text-[10px] font-mono font-bold text-white uppercase tracking-widest">Insight Node</span>
+        </div>
+        <p className="text-xs text-white/50 leading-relaxed font-sans italic">{insight}</p>
       </div>
 
       <div className="flex-1 mb-8">{children}</div>
 
       {advice && Array.isArray(advice) && advice.length > 0 && (
-        <div className="mt-auto bg-[#7c3aed]/5 border border-[#7c3aed]/20 rounded-2xl p-5 shadow-lg">
-          <span className="text-[10px] font-mono font-bold text-[#7c3aed] uppercase tracking-widest block mb-3">{adviceTitle}</span>
+        <div className="mt-auto bg-white/5 border border-white/10 rounded-2xl p-5 shadow-lg">
+          <span className="text-[10px] font-mono font-bold text-white uppercase tracking-widest block mb-3">{adviceTitle}</span>
           <ul className="space-y-2">
             {advice.map((item, i) => (
-              <li key={i} className="text-xs text-white/60 flex items-start gap-3 leading-relaxed">
-                <Icons.CheckCircle size={12} className="text-[#7c3aed] mt-0.5 shrink-0" />
-                <span>{item}</span>
+              <li key={i} className="text-xs text-white/60 leading-relaxed">
+                {item}
               </li>
             ))}
           </ul>
@@ -1181,7 +1319,7 @@ function GraphBlock({ title, data, dataKey, nameKey, type, horizontal = false, s
   const hasData = data && data.length > 0;
 
   return (
-    <div className="glass-panel p-8 rounded-[2.5rem] min-h-[450px] flex flex-col bg-[#0b0f19]/80 border border-white/5 shadow-2xl hover:border-[#00d4ff]/20 transition-all group">
+    <div className="glass-panel p-8 rounded-[2.5rem] min-h-[450px] flex flex-col bg-[#111111] border border-white/5 shadow-2xl hover:border-white/20 transition-all group">
       <h4 className="font-display font-bold text-xs text-white/40 uppercase tracking-widest mb-8 border-b border-white/5 pb-4 group-hover:text-white transition-colors">{title}</h4>
       <div className="w-full h-[320px] relative">
         {hasData ? (
@@ -1201,7 +1339,7 @@ function GraphBlock({ title, data, dataKey, nameKey, type, horizontal = false, s
                 <YAxis dataKey={horizontal ? nameKey : undefined} type={horizontal ? 'category' : 'number'} width={horizontal ? 120 : 40} tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }} stroke="rgba(255,255,255,0.2)" />
                 <ChartTooltip content={<CustomTooltip />} />
                 <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
-                <Bar dataKey={dataKey} name={title} fill="#00d4ff" radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]} barSize={24} />
+                <Bar dataKey={dataKey} name={title} fill="#FFFFFF" radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]} barSize={24} />
               </BarChart>
             ) : type === 'line' ? (
               <LineChart data={data || []}>
@@ -1216,8 +1354,8 @@ function GraphBlock({ title, data, dataKey, nameKey, type, horizontal = false, s
                 <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9 }} stroke="rgba(255,255,255,0.2)" />
                 <ChartTooltip content={<CustomTooltip />} />
                 <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
-                <Line type="monotone" dataKey={dataKey} stroke="#00d4ff" strokeWidth={4} dot={false} activeDot={{ r: 6, strokeWidth: 0 }} />
-                {secondKey && <Line type="monotone" dataKey={secondKey} stroke="#7c3aed" strokeWidth={4} dot={false} activeDot={{ r: 6, strokeWidth: 0 }} />}
+                <Line type="monotone" dataKey={dataKey} stroke="#FFFFFF" strokeWidth={4} dot={false} activeDot={{ r: 6, strokeWidth: 0 }} />
+                {secondKey && <Line type="monotone" dataKey={secondKey} stroke="#9CA3AF" strokeWidth={4} dot={false} activeDot={{ r: 6, strokeWidth: 0 }} />}
               </LineChart>
             ) : (
               <PieChart>
@@ -1230,8 +1368,8 @@ function GraphBlock({ title, data, dataKey, nameKey, type, horizontal = false, s
             )}
           </ResponsiveContainer>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-[#00d4ff] gap-3 border border-[#00d4ff]/30 border-dashed rounded-2xl bg-[#00d4ff]/5 shadow-[inset_0_0_20px_rgba(0,212,255,0.1)]">
-            <Icons.Activity size={32} className="text-[#00d4ff] animate-pulse" />
+          <div className="h-full flex flex-col items-center justify-center text-white gap-3 border border-white/30 border-dashed rounded-2xl bg-white/5 shadow-[inset_0_0_20px_rgba(255,255,255,0.05)]">
+            <Icons.Activity size={32} className="text-white animate-pulse" />
             <p className="text-[10px] font-mono font-bold uppercase tracking-[0.2em]">Awaiting Intelligence Feed...</p>
             <p className="text-[8px] font-mono text-gray-500 uppercase">Input: {title} | Data Nodes: 0</p>
           </div>
@@ -1257,7 +1395,7 @@ function DataTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
           {rows.map((row, i) => (
             <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
               {row.map((cell, j) => (
-                <td key={j} className={`px-4 py-2.5 text-[11px] ${j === 0 ? 'text-white/80 font-medium' : 'text-[#00d4ff] font-mono group-hover:text-white transition-colors'} ${j > 0 ? 'text-right whitespace-nowrap' : 'whitespace-normal min-w-[120px]'}`}>
+                <td key={j} className={`px-4 py-2.5 text-[11px] ${j === 0 ? 'text-white/80 font-medium' : 'text-white font-mono group-hover:text-white transition-colors'} ${j > 0 ? 'text-right whitespace-nowrap' : 'whitespace-normal min-w-[120px]'}`}>
                   {cell}
                 </td>
               ))}

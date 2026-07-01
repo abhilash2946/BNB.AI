@@ -2,254 +2,442 @@ import { Slide } from '../../types';
 
 export const initialSlides: Slide[] = [
   {
-    id: 'slide-1',
-    type: 'cover',
-    title: 'Growth Intelligence Report',
-    subTag: 'EXECUTIVE INTELLIGENCE ENGINE v2.0',
+    id: 'slide-01',
+    type: 'digital_cover',
+    title: 'Digital Marketing Monthly Performance Report',
     metadata: {
+      client: 'RL TOURS & TRAVELS',
       reportingPeriod: 'June 2024 – June 2025',
-      preparedBy: 'AdmarTech Intelligence Engine',
-      classification: 'Executive Confidential',
-      version: 'INTELLIGENCE REPORT // 2025'
+      preparedBy: 'AdmarTech AI Engine V2.0',
+      platform: 'Rltoursandtravels.Com'
     },
-    footer: 'RL TOURS & TRAVELS',
-    descriptionText: 'AI-Powered Marketing Intelligence & Performance Analysis for RL Tours & Travels.'
+    images: {
+      logo: '',
+      img1: '',
+      img2: ''
+    },
+    footer: '01'
   },
   {
-    id: 'slide-2',
-    type: 'summary',
+    id: 'slide-02',
+    type: 'table_of_contents',
+    title: 'Contents',
+    metadata: {
+      rightDesc: 'Digital Marketing Monthly Performance Report\nJune 2024 - June 2025'
+    },
+    footer: '02'
+  },
+  {
+    id: 'slide-03',
+    type: 'exec_summary',
     title: 'Executive Performance Summary',
-    scoreTag: 'PERFORMANCE SCORE: 82/100',
+    metadata: {
+      rightDesc: 'Digital Efforts Focused On Improving Visibility, Generating Qualified Leads And Increasing Conversion Efficiency.'
+    },
     kpis: [
-      { label: 'TOTAL USERS', value: '25,875', growth: '+514% vs LY', isPositive: true },
-      { label: 'TOTAL LEADS', value: '814', growth: '+40,600% vs LY', isPositive: true },
-      { label: 'AVG. CPL', value: '₹19.81', growth: '-99.3% vs LY', isPositive: true }
+      { label: 'Leads', value: '0' },
+      { label: 'Traffic', value: '0%' },
+      { label: 'Conversions And ROAS Overview', value: '0.0X ROAS' }
     ],
-    descriptionText: 'RL Tours & Travels has transitioned from a foundational phase to a high-growth stage, achieving a significant increase in lead volume while maintaining a highly efficient CPL.',
-    insightsList: [
-      { icon: 'win', title: 'Top Win', text: 'Massive scalability in Lead Generation (+40,600% Growth) and highly efficient acquisition cost.' },
-      { icon: 'risk', title: 'Top Risk', text: 'High dependency on specific campaigns; Page 2 keyword "stagnation" for high-intent terms.' },
-      { icon: 'opportunity', title: 'Top Opportunity', text: 'Improving CTR for top-performing keywords and scaling the "Thailand Website Lead" campaign.' }
-    ],
-    footer: 'RL TOURS & TRAVELS'
+    images: {
+      img1: '',
+      img2: '',
+      img3: ''
+    },
+    footer: '03'
   },
   {
-    id: 'slide-3',
-    type: 'scorecard',
-    title: 'Business Health Scorecard',
-    scoreTag: 'OVERALL HEALTH: 82/100',
-    scorecardGauges: [
-      { id: 'sc-1', name: 'GOOGLE ADS', score: 92, color: '#10b981' },
-      { id: 'sc-2', name: 'LEAD GENERATION', score: 89, color: '#10b981' },
-      { id: 'sc-3', name: 'META ADS', score: 81, color: '#3b82f6' },
-      { id: 'sc-4', name: 'SEO PERFORMANCE', score: 74, color: '#f59e0b' },
-      { id: 'sc-5', name: 'WEBSITE CONVERSION', score: 68, color: '#f59e0b' }
+    id: 'slide-04',
+    type: 'services_delivered',
+    title: 'Services Delivered',
+    metadata: {
+      rightDesc: 'Integrated Activities Executed Across SEO, Social Media, Paid Advertising And Website Management.'
+    },
+    listItems: [
+      'SEO',
+      'Social Media Marketing',
+      'Paid Advertising',
+      'Website Management'
     ],
-    scorecardInsight: 'The business is currently "Ads-Heavy." While SEO is growing, the immediate focus should be on Website Conversion Optimization (68/100) to maximize the ROI of high-performing paid traffic.',
-    footer: 'RL TOURS & TRAVELS'
+    images: {
+      img1: '',
+      img2: ''
+    },
+    footer: '04'
   },
   {
-    id: 'slide-4',
-    type: 'growth',
-    title: 'Overall Growth Performance Dashboard',
-    subTag: 'COMPARISON: JUN 2024 vs JUN 2025',
-    growthTable: [
-      { id: 'gr-1', name: 'Total Users', prev: '4,214', current: '25,875', variance: '+514%', status: 'positive' },
-      { id: 'gr-2', name: 'Total Sessions', prev: '5,639', current: '31,947', variance: '+466%', status: 'positive' },
-      { id: 'gr-3', name: 'Lead Generation', prev: '2', current: '814', variance: '+40,600%', status: 'positive' },
-      { id: 'gr-4', name: 'Marketing Spend', prev: '₹5,932', current: '₹16,122', variance: '+171.8%', status: 'neutral' },
-      { id: 'gr-5', name: 'Cost Per Lead (CPL)', prev: '₹2,966', current: '₹19.81', variance: '-99.3%', status: 'positive' }
+    id: 'slide-05',
+    type: 'overall_performance',
+    title: 'Overall Performance Overview',
+    metadata: {
+      rightDesc: 'Month-Over-Month Performance Comparison.'
+    },
+    tableData: [
+      { kpi: 'Website Users', prev: '0', current: '0', growth: '0%' },
+      { kpi: 'Sessions', prev: '0', current: '0', growth: '0%' },
+      { kpi: 'Leads Generated', prev: '0', current: '0', growth: '0%' },
+      { kpi: 'Social Reach', prev: '0', current: '0', growth: '0%' },
+      { kpi: 'Engagement Rate', prev: '0.0%', current: '0.0%', growth: '0%' },
+      { kpi: 'Ad Spend', prev: '₹0', current: '₹0', growth: '0%' },
+      { kpi: 'Conversions', prev: '0', current: '0', growth: '0%' },
+      { kpi: 'ROAS', prev: '0.0X', current: '0.0X', growth: '0%' }
     ],
-    growthInsight: 'The strategic shift toward AI-powered targeting has resulted in a drastic reduction in CPL, making the marketing engine highly profitable. The +40,600% growth in leads demonstrates a successful transition from brand awareness to high-intent conversion.',
-    footer: 'RL TOURS & TRAVELS'
+    footer: '05'
   },
   {
-    id: 'slide-5',
-    type: 'organic',
-    title: 'Organic Search Intelligence',
-    subTag: 'GA4 & SEARCH CONSOLE ANALYSIS',
+    id: 'slide-06',
+    type: 'seo_performance',
+    title: 'SEO Performance',
+    metadata: {
+      rightDesc: 'SEO Efforts Improved Search Visibility And Organic Growth.'
+    },
+    subTag: 'Organic Traffic Overview',
     kpis: [
-      { label: 'TOTAL USERS', value: '25,875', subValue: '99.8% New Users' },
-      { label: 'AVG. ENGAGEMENT', value: '157.7s', subValue: 'High Intent Signal' },
-      { label: 'BOUNCE RATE', value: '4.53%', subValue: 'Optimal Relevance' },
-      { label: 'EVENT COUNT', value: '218,664', subValue: 'Active Interactions' }
+      { label: 'Organic Users', value: '0' },
+      { label: 'Organic Sessions', value: '0' },
+      { label: 'New Users', value: '0' },
+      { label: 'Average Session Duration', value: '0s' },
+      { label: 'Bounce Rate', value: '0.0%' }
     ],
-    growthTable: [
-      { id: 'org-1', name: 'ORGANIC CLICKS', prev: '', current: '11,405', variance: '', status: 'neutral' },
-      { id: 'org-2', name: 'AVG. POSITION', prev: '', current: '18.7', variance: '', status: 'neutral' },
-      { id: 'org-3', name: 'ORGANIC CTR', prev: '', current: '0.89%', variance: '', status: 'neutral' }
+    tableData: [
+      { keyword: 'Travel Agency', prev: '-', current: '-' },
+      { keyword: 'International Tour Packages', prev: '-', current: '-' },
+      { keyword: 'Tours and Travels', prev: '-', current: '-' },
+      { keyword: 'Visa Assistance', prev: '-', current: '-' }
     ],
-    chartData: [
-      { label: 'Direct', value: 1200, color: '#e5e7eb' },
-      { label: 'Organic Search', value: 11405, color: '#2563eb' },
-      { label: 'Paid Search', value: 800, color: '#10b981' },
-      { label: 'Social', value: 150, color: '#9ca3af' },
-      { label: 'Referral', value: 90, color: '#d1d5db' }
-    ],
-    descriptionText: 'High engagement and an exceptionally low bounce rate (4.53%) indicate that content is perfectly aligned with user intent. The low CTR is a direct result of many high-volume keywords sitting on Page 2. Moving these to Page 1 is the primary growth lever.',
-    footer: 'RL TOURS & TRAVELS'
+    footer: '06'
   },
   {
-    id: 'slide-6',
-    type: 'scatter',
-    title: 'Keyword Opportunity Analysis',
-    scoreTag: 'OPPORTUNITY SCORE: 91/100',
-    scatterPoints: [
-      { id: 'scat-1', keyword: 'RL Tours and Travels', ctr: 32.1, position: 1.86, volume: 800 },
-      { id: 'scat-2', keyword: 'Thailand Package', ctr: 16.48, position: 12.4, volume: 1500 },
-      { id: 'scat-3', keyword: 'Dubai Tour Package', ctr: 0.12, position: 5.3, volume: 600 },
-      { id: 'scat-4', keyword: 'Tours and Travels', ctr: 2.7, position: 16.5, volume: 1100 }
-    ],
-    descriptionText: "Focus on 'Quick Wins'—keywords currently in positions 11-20. Moving these to the first page through content optimization and internal linking will result in a projected 3x-5x traffic increase for high-intent travel terms.",
-    footer: 'RL TOURS & TRAVELS'
-  },
-  {
-    id: 'slide-7',
-    type: 'funnel',
-    title: 'Paid Media Intelligence',
-    scoreTag: 'GOOGLE ADS EFFICIENCY: 92%',
+    id: 'slide-07',
+    type: 'website_analytics',
+    title: 'Website Analytics',
+    metadata: {
+      rightDesc: 'Traffic Improved Through Organic And Paid Acquisition Channels.'
+    },
     kpis: [
-      { label: 'TOTAL SPEND', value: '₹12,732' },
-      { label: 'TOTAL LEADS', value: '700' },
-      { label: 'AVG. CTR', value: '3.77%' },
-      { label: 'AVG. CPL', value: '₹18.19' }
+      { label: 'Organic Search', value: '0' },
+      { label: 'Social Media', value: '0' },
+      { label: 'Paid Advertising', value: '0' },
+      { label: 'Direct Traffic', value: '0' }
     ],
-    funnelStages: [
-      { id: 'fn-1', name: 'Impressions', value: 37291, conversionText: '' },
-      { id: 'fn-2', name: 'Clicks', value: 1406, percentage: '3.77%', conversionText: '3.77% CTR' },
-      { id: 'fn-3', name: 'Leads', value: 700, percentage: '49.78%', conversionText: '49.78% Conv. Rate' }
-    ],
-    insightsList: [
-      { icon: 'neutral', title: 'Efficiency Driver', text: 'Paid search is the primary engine for immediate revenue. The conversion rate from click to lead is exceptionally high (~50%), indicating strong landing page relevance.' },
-      { icon: 'win', title: 'Strategic Outlook', text: 'The current CPL of ₹18.19 is significantly below industry benchmarks for travel, allowing for aggressive scaling of high-intent keywords.' }
-    ],
-    footer: 'RL TOURS & TRAVELS'
+    customData: {
+      insights: [
+        { label: 'Most Visited Page', value: '-' },
+        { label: 'Highest Converting Page', value: '-' },
+        { label: 'Lowest Bounce Rate Page', value: '-' },
+        { label: 'Traffic Growth Percentage', value: '0%' }
+      ],
+      pages: [
+        { url: 'Homepage', views: '0' },
+        { url: 'Packages', views: '0' },
+        { url: 'Contact Us', views: '0' },
+        { url: 'Services', views: '0' }
+      ]
+    },
+    footer: '07'
   },
   {
-    id: 'slide-8',
-    type: 'campaign',
-    title: 'Campaign Performance Analysis',
-    subTag: 'ROI OPTIMIZATION ENGINE ACTIVE',
-    campaigns: [
-      {
-        id: 'cp-1',
-        name: 'Thailand Website Lead',
-        status: 'Top Performer',
-        spend: '₹5,602',
-        leads: 700,
-        cpl: '₹8.00',
-        chartData: [
-          { label: 'Spend', current: 5602, relative: 70 },
-          { label: 'Leads', current: 700, relative: 100 }
-        ]
-      },
-      {
-        id: 'cp-2',
-        name: 'Thailand Package',
-        status: 'Needs Audit',
-        spend: '₹4,694',
-        leads: 0,
-        cpl: 'N/A',
-        chartData: [
-          { label: 'Spend', current: 4694, relative: 58 },
-          { label: 'Leads', current: 0, relative: 0 }
-        ]
-      }
-    ],
-    insightsList: [
-      { icon: 'opportunity', title: 'SCALE WINNER', text: 'Shift 40% of underperforming budget to Thailand Website Lead to accelerate volume.' },
-      { icon: 'risk', title: 'REBUILD FUNNEL', text: 'Audit Thailand Package landing page for conversion friction and CTA clarity.' }
-    ],
-    footer: 'RL TOURS & TRAVELS'
+    id: 'slide-08',
+    type: 'social_performance',
+    title: 'Social Media Performance',
+    metadata: {
+      rightDesc: 'Destination-Based Video Content Delivered The Highest Audience Engagement.'
+    },
+    customData: {
+      facebook: { reach: '0', impressions: '0', engagement: '0', followerGrowth: '0' },
+      instagram: { reach: '0', impressions: '0', engagement: '0', followerGrowth: '0' },
+      linkedin: { reach: '0', impressions: '0', engagement: '0', followerGrowth: '0' },
+      youtube: { views: '0', watchTime: '0 Hrs', subscribers: '0' }
+    },
+    footer: '08'
   },
   {
-    id: 'slide-9',
-    type: 'audience',
-    title: 'Audience & Geo Intelligence',
-    subTag: 'DOMESTIC MARKET SHARE: 96.69%',
+    id: 'slide-09',
+    type: 'content_performance',
+    title: 'Content Performance',
+    metadata: {
+      rightDesc: 'Travel Destination Reels Generated He Highest Engagement.'
+    },
+    subTag: 'Content Published',
     kpis: [
-      { label: 'Total Users (India)', value: '25,015' },
-      { label: 'New User Ratio', value: '99.8%' }
+      { label: 'Social Posts', value: '0' },
+      { label: 'Reels', value: '0' },
+      { label: 'Stories', value: '0' },
+      { label: 'Videos', value: '0' },
+      { label: 'Blogs', value: '0' }
     ],
-    cities: [
-      { id: 'ct-1', city: 'Hyderabad', users: 9669 },
-      { id: 'ct-2', city: 'Bengaluru', users: 1850 },
-      { id: 'ct-3', city: 'Mumbai', users: 1420 },
-      { id: 'ct-4', city: 'Chennai', users: 920 },
-      { id: 'ct-5', city: 'Delhi', users: 810 }
+    tableData: [
+      { name: 'Post 1', reach: '0', engagement: '0' },
+      { name: 'Post 2', reach: '0', engagement: '0' },
+      { name: 'Post 3', reach: '0', engagement: '0' }
     ],
-    descriptionText: 'High concentration in Hyderabad (9,669 Users) suggests a "Hyper-local" brand authority. Expansion into Bengaluru and Mumbai represents the next growth tier, with significant untapped potential in Tier 1 metropolitan areas.',
-    footer: 'RL TOURS & TRAVELS'
+    customData: {
+      insights: [
+        { label: 'Highest Engagement Format', value: '-' },
+        { label: 'Best Performing Content Theme', value: '-' },
+        { label: 'Audience Preference Observations', value: '-' }
+      ]
+    },
+    footer: '09'
   },
   {
     id: 'slide-10',
-    type: 'channels',
-    title: 'Channel & Lead Intelligence',
-    subTag: 'TOTAL LEADS: 814',
-    chartData: [
-      { label: 'Google Ads', value: 700, color: '#3b82f6' },
-      { label: 'Meta Ads', value: 114, color: '#10b981' }
+    type: 'meta_ads',
+    title: 'Meta Ads Performance',
+    metadata: {
+      rightDesc: 'Remarketing Campaigns Generated The Lowest Cost Per Lead.'
+    },
+    tableData: [
+      { name: 'Lead Generation', spend: '₹0', leads: '0', cpl: '₹0' },
+      { name: 'Remarketing', spend: '₹0', leads: '0', cpl: '₹0' },
+      { name: 'Awareness', spend: '₹0', leads: '0', cpl: '₹0' }
     ],
-    growthTable: [
-      { id: 'chn-1', name: 'Google Ads', prev: '700', current: '86%', variance: '₹18.19 CPL', status: 'positive' },
-      { id: 'chn-2', name: 'Meta Ads', prev: '114', current: '14%', variance: '₹29.75 CPL', status: 'positive' },
-      { id: 'chn-3', name: 'Combined Performance', prev: '814', current: '100%', variance: '₹19.81 CPL', status: 'positive' }
+    kpis: [
+      { label: 'Reach', value: '0' },
+      { label: 'Impressions', value: '0' },
+      { label: 'Link Clicks', value: '0' },
+      { label: 'CTR', value: '0.0%' },
+      { label: 'CPC', value: '₹0' },
+      { label: 'Leads Generated', value: '0' },
+      { label: 'Cost Per Lead', value: '₹0' }
     ],
-    descriptionText: 'Google Ads serves as the primary "Closer" for high-intent travel queries, contributing 86% of volume. Meta Ads acts as the "Opener," driving brand awareness and retargeting efficiency. The combined CPL of ₹19.81 is exceptionally lean for the travel sector.',
-    footer: 'RL TOURS & TRAVELS'
+    customData: {
+      findings: [
+        { label: 'Best Performing Audience', value: '25-45 Years' },
+        { label: 'Best Performing Creative', value: 'Destination Reels' },
+        { label: 'Best Placement', value: 'Instagram Feed' },
+        { label: 'Highest Converting Campaign', value: 'Remarketing' }
+      ]
+    },
+    footer: '10'
   },
   {
     id: 'slide-11',
-    type: 'roadmap',
-    title: '90-Day Strategic Growth Roadmap',
-    subTag: 'STRATEGIC EXECUTION PLAN v1.0',
-    roadmapMonths: [
-      {
-        title: 'MONTH 01: OPTIMIZATION',
-        subtitle: 'Optimization Stage',
-        color: '#2563eb', // Blue
-        items: [
-          { id: 'rm-1', category: 'SEO & TECHNICAL', title: 'CTR & Ranking Boost', desc: 'Optimize meta-titles and internal linking for Page 2 keywords to drive organic volume.' },
-          { id: 'rm-2', category: 'CONVERSION', title: 'Funnel Audit', desc: 'A/B test landing page CTAs and form fields to improve conversion rates.' }
-        ]
-      },
-      {
-        title: 'MONTH 02: SCALING',
-        subtitle: 'Scaling Stage',
-        color: '#10b981', // Green
-        items: [
-          { id: 'rm-3', category: 'PAID MEDIA', title: 'Budget Reallocation', desc: 'Shift budget to high-performing Thailand campaigns and scale winning keywords.' },
-          { id: 'rm-4', category: 'AUDIENCE', title: 'Tier 1 Expansion', desc: 'Expand geographic targeting to Bengaluru and Mumbai markets.' }
-        ]
-      },
-      {
-        title: 'MONTH 03: EXPANSION',
-        subtitle: 'Expansion Stage',
-        color: '#eab308', // Yellow
-        items: [
-          { id: 'rm-5', category: 'CONTENT', title: 'Cluster Expansion', desc: 'Launch new content clusters for international packages (Dubai, Europe).' },
-          { id: 'rm-6', category: 'ANALYTICS', title: 'Advanced Tracking', desc: 'Implement full-funnel attribution and lifetime value (LTV) tracking.' }
-        ]
-      }
+    type: 'google_ads',
+    title: 'Google Ads Performance',
+    metadata: {
+      rightDesc: 'Search Campaigns Generated High-Intent Travel Inquiries.'
+    },
+    tableData: [
+      { name: 'Lead Generation', spend: '₹0', leads: '0', cpl: '₹0' },
+      { name: 'Remarketing', spend: '₹0', leads: '0', cpl: '₹0' },
+      { name: 'Awareness', spend: '₹0', leads: '0', cpl: '₹0' }
     ],
-    insightsList: [
-      { icon: 'opportunity', title: 'Campaign Scaling', text: 'HIGH IMPACT / LOW EFFORT' },
-      { icon: 'neutral', title: 'SEO Optimization', text: 'HIGH IMPACT / MED EFFORT' },
-      { icon: 'neutral', title: 'Content Clusters', text: 'MED IMPACT / HIGH EFFORT' }
+    kpis: [
+      { label: 'Reach', value: '0' },
+      { label: 'Impressions', value: '0' },
+      { label: 'Link Clicks', value: '0' },
+      { label: 'CTR', value: '0%' },
+      { label: 'CPC', value: '₹0' },
+      { label: 'Leads Generated', value: '0' }
     ],
-    footer: 'RL TOURS & TRAVELS'
+    customData: {
+      keywords: [
+        { kw: 'Thailand Packages', clicks: '0', conv: '0' },
+        { kw: 'International Tour Packages', clicks: '0', conv: '0' },
+        { kw: 'Travel Agency Hyderabad', clicks: '0', conv: '0' }
+      ]
+    },
+    footer: '11'
   },
   {
     id: 'slide-12',
-    type: 'outro',
-    title: 'Growth Intelligence Summary',
-    kpis: [
-      { label: 'TOTAL USERS', value: '25,875' },
-      { label: 'ORGANIC CLICKS', value: '11,405' },
-      { label: 'QUALIFIED LEADS', value: '814' },
-      { label: 'AVERAGE CPL', value: '₹19.81' }
+    type: 'lead_gen',
+    title: 'Lead Generation Report',
+    metadata: {
+      rightDesc: 'Meta Campaigns Remained The Strongest Lead Source.'
+    },
+    tableData: [
+      { source: 'Meta Ads', leads: '0' },
+      { source: 'Google Ads', leads: '0' },
+      { source: 'Organic Search', leads: '0' },
+      { source: 'Referral', leads: '0' },
+      { source: 'Direct', leads: '0' }
     ],
-    descriptionText: 'RL Tours & Travels has established a dominant growth foundation through organic visibility and efficient paid acquisition. The next phase focuses on moving from "Visibility" to "Market Leadership" by optimizing conversion paths, scaling high-ROI channels, and expanding into Tier 1 city markets.',
-    footer: 'RL TOURS & TRAVELS'
+    kpis: [
+      { label: 'Hot Leads', value: '0' },
+      { label: 'Warm Leads', value: '0' },
+      { label: 'Cold Leads', value: '0' }
+    ],
+    customData: {
+      observations: [
+        { label: 'Best Lead Source', value: '-' },
+        { label: 'Lowest Cost Lead Source', value: '-' },
+        { label: 'Highest Conversion Source', value: '-' }
+      ]
+    },
+    footer: '12'
+  },
+  {
+    id: 'slide-13',
+    type: 'activities_completed',
+    title: 'Activities Completed During The Month',
+    metadata: {
+      rightDesc: 'Optimization Activities Focused On Improving Campaign Efficiency And User Experience. Keep All Your Original Checklists Exactly.'
+    },
+    listSections: [
+      {
+        title: 'SEO Activities',
+        items: [
+          'Keyword Research',
+          'On-Page Optimization',
+          'Technical SEO Improvements',
+          'Backlink Submission',
+          'Content Optimization'
+        ]
+      },
+      {
+        title: 'Social Media Activities',
+        items: [
+          'Content Planning',
+          'Creative Design',
+          'Reel Creation',
+          'Posting & Scheduling',
+          'Community Management'
+        ]
+      },
+      {
+        title: 'Paid Advertising Activities',
+        items: [
+          'Campaign Setup',
+          'Audience Testing',
+          'Creative Testing',
+          'Budget Optimization',
+          'Conversion Tracking'
+        ]
+      },
+      {
+        title: 'Website Activities',
+        items: [
+          'Website Updates',
+          'Landing Page Optimization',
+          'Performance Monitoring',
+          'Technical Fixes',
+          'Content Optimization'
+        ]
+      }
+    ],
+    footer: '13'
+  },
+  {
+    id: 'slide-14',
+    type: 'challenges_solutions',
+    title: 'Challenges & Solutions',
+    metadata: {
+      rightDesc: 'Month-Over-Month Performance Comparison.'
+    },
+    images: {
+      img1: ''
+    },
+    customData: {
+      challenges: [
+        'Rising Travel Competition',
+        'Increasing Ad Costs',
+        'Audience Fatigue'
+      ],
+      solutions: [
+        'Destination-Focused Campaigns',
+        'Budget Optimization',
+        'Creative Refresh'
+      ],
+      results: [
+        { label: 'CTR Increased By', value: '18%' },
+        { label: 'CTR Increased By', value: '18%' },
+        { label: 'CTR Increased By', value: '18%' }
+      ]
+    },
+    footer: '14'
+  },
+  {
+    id: 'slide-15',
+    type: 'competitor_insights',
+    title: 'Competitor Insights',
+    metadata: {
+      rightDesc: 'Competitor Analysis Was Conducted To Identify Market Opportunities, Content Trends And Customer Acquisition Strategies.'
+    },
+    customData: {
+      seoCompetitors: [],
+      performanceCompetitors: [],
+      selectedSeoIdx: null,
+      selectedPerfIdx: null,
+      seoObservation: 'SEO competitors are aggressively targeting high-intent keywords.',
+      performanceObservation: 'Performance competitors are scaling video ad spend.',
+      seoOpportunity: 'Focus on long-tail destination keywords.',
+      performanceOpportunity: 'Implement dynamic remarketing for abandoned carts.'
+    },
+    footer: '15'
+  },
+  {
+    id: 'slide-16',
+    type: 'recommendations',
+    title: 'Recommendations',
+    metadata: {
+      rightDesc: 'Based On Current Performance, The Following Recommendations Are Suggested'
+    },
+    listItems: [
+      'Increase Budget On High-Performing Campaigns.',
+      'Expand Remarketing Efforts.',
+      'Focus On Video-First Content Strategy.',
+      'Improve Landing Page Conversion Rates.',
+      'Enhance Local SEO Visibility.',
+      'Implement WhatsApp Lead Nurturing.',
+      'Increase Blog Publishing Frequency.'
+    ],
+    footer: '16'
+  },
+  {
+    id: 'slide-17',
+    type: 'action_plan',
+    title: 'Next Month Action Plan',
+    metadata: {
+      rightDesc: 'Focus Will Be On Scaling High-Performing Channels And Improving Conversion Efficiency.'
+    },
+    listSections: [
+      {
+        title: 'SEO Activities',
+        items: [
+          'Improve Keyword Rankings',
+          'Publish Optimized Content',
+          'Build Quality Backlinks'
+        ]
+      },
+      {
+        title: 'Social Media Activities',
+        items: [
+          'Increase Reel Production',
+          'Launch Engagement Campaigns',
+          'Improve Audience Interaction'
+        ]
+      },
+      {
+        title: 'Paid Advertising Activities',
+        items: [
+          'Scale Winning Campaigns',
+          'Launch Retargeting Campaigns',
+          'Optimize Conversion Rates'
+        ]
+      },
+      {
+        title: 'Website Activities',
+        items: [
+          'Improve User Experience',
+          'Optimize Landing Pages',
+          'Enhance Page Speed'
+        ]
+      }
+    ],
+    customData: {
+      conclusion: 'The digital marketing initiatives executed during this reporting period have contributed positively toward brand visibility, audience engagement, lead generation and business growth. Continuous optimization and strategic improvements will further strengthen performance and maximize return on investment in the coming months.'
+    },
+    footer: '17'
+  },
+  {
+    id: 'slide-18',
+    type: 'thank_you',
+    title: 'Conclusion',
+    metadata: {
+      platform: 'BLACKNBOLD.IN'
+    },
+    footer: '18'
   }
 ];

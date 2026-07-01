@@ -33,19 +33,36 @@ import { MarketingReport, CategoryType, Slide, SlideType } from '../../types';
 import { SlideRenderer } from './SlideRenderer';
 import { initialSlides } from './reportData';
 
-const COLORS = ['#00d4ff', '#7c3aed', '#22c55e', '#f43f5e', '#eab308', '#ec4899', '#6366f1'];
+const COLORS = ['#FFFFFF', '#9CA3AF', '#D1D5DB', '#4B5563', '#1F2937', '#6B7280', '#374151'];
+
+const parseNumeric = (val: any): number => {
+  if (typeof val === 'number') return val;
+  if (!val || typeof val !== 'string') return 0;
+  let clean = val.replace(/[₹$,%]/g, '').replace(/,/g, '').toUpperCase().trim();
+  let multiplier = 1;
+  if (clean.endsWith('K')) {
+    multiplier = 1000;
+    clean = clean.slice(0, -1);
+  } else if (clean.endsWith('M')) {
+    multiplier = 1000000;
+    clean = clean.slice(0, -1);
+  }
+  return (parseFloat(clean) * multiplier) || 0;
+};
 
 interface ClientReportsProps {
   report: MarketingReport | null;
+  siteId?: string;
   category: CategoryType;
   setCategory: (cat: CategoryType) => void;
   isFullscreen: boolean;
   setIsFullscreen: (val: boolean) => void;
   userAvatarUrl?: string;
   userName?: string;
+  resetTrigger?: number; // Force re-sync when generate is clicked
 }
 
-export default function ClientReports({ report, category, setCategory, isFullscreen, setIsFullscreen, userAvatarUrl, userName }: ClientReportsProps) {
+export default function ClientReports({ report, siteId, category, setCategory, isFullscreen, setIsFullscreen, userAvatarUrl, userName, resetTrigger }: ClientReportsProps) {
   const [slides, setSlides] = useState<Slide[]>(() => {
     return initialSlides;
   });
@@ -68,345 +85,905 @@ export default function ClientReports({ report, category, setCategory, isFullscr
 
   // Load and populate slides from report data
   useEffect(() => {
-    if (report?.ai_insights?.ppt_slides) {
-      setSlides(report.ai_insights.ppt_slides);
-    } else if (report) {
+    if (report) {
+       console.log('[PPT Sync] Re-mapping slides from fresh report data...');
        // Populate initial template with real report values to avoid "copy-paste" placeholder feel
        const populated = initialSlides.map(s => {
          const siteName = report.siteName || 'Client';
          const dateRangeStr = report.dateRange ? `${report.dateRange.start} – ${report.dateRange.end}` : 'Current Period';
 
          switch (s.type) {
-           case 'cover':
+           case 'digital_cover':
              return {
                ...s,
-               title: `${siteName} Growth Intelligence`,
-               footer: siteName.toUpperCase(),
-               descriptionText: report.executiveSummary.substring(0, 150) + '...',
+               title: 'Digital Marketing\nMonthly Performance\nReport',
                metadata: {
                  ...s.metadata,
+                 client: siteName.toUpperCase(),
                  reportingPeriod: dateRangeStr,
-                 preparedBy: userName || 'AdmarTech Intelligence Engine',
-                 version: `REF: ${report.id.substring(0, 8).toUpperCase()}`
+                 preparedBy: userName || 'Black and Bold',
+                 platform: report.siteName || 'RL Tours and Travels'
+               },
+               images: {
+                 ...s.images,
+                 logo: report.imageUrl || ''
                }
              };
 
-           case 'summary':
+           case 'table_of_contents':
              return {
                ...s,
-               title: 'Executive Performance Briefing',
-               footer: siteName.toUpperCase(),
-               kpis: (report.kpis || []).slice(0, 3).map(k => ({
-                 label: k.label.toUpperCase(),
-                 value: k.value,
-                 growth: `${k.isPositive ? '+' : ''}${k.change}% vs Prev`,
-                 isPositive: k.isPositive
-               })),
-               descriptionText: report.executiveSummary,
-               insightsList: (() => {
-                 const list: { icon: 'win' | 'risk' | 'opportunity' | 'neutral'; title: string; text: string }[] = [];
-
-                 // 1. Pull from adviceList
-                 (report.adviceList || []).slice(0, 3).forEach((a, i) => {
-                   list.push({
-                     icon: i === 0 ? 'win' : i === 1 ? 'opportunity' : 'risk',
-                     title: typeof a === 'string' ? 'Strategic Insight' : a.title,
-                     text: typeof a === 'string' ? a : a.description
-                   });
-                 });
-
-                 // 2. Pull from roadmap weaknesses if needed (Risk)
-                 if (list.length < 4 && report.improvement_roadmap?.weaknesses?.length) {
-                   list.push({
-                     icon: 'risk',
-                     title: 'Growth Inhibitor',
-                     text: report.improvement_roadmap.weaknesses[0]
-                   });
-                 }
-
-                 // 3. Pull from roadmap opportunities if needed (Opportunity)
-                 if (list.length < 4 && report.improvement_roadmap?.opportunities?.length) {
-                   list.push({
-                     icon: 'opportunity',
-                     title: 'Expansion Driver',
-                     text: report.improvement_roadmap.opportunities[0]
-                   });
-                 }
-
-                 // 4. Pull from competitor intelligence (Risk)
-                 if (list.length < 4 && report.competitor_intelligence?.biggest_threat) {
-                   list.push({
-                     icon: 'risk',
-                     title: 'Competitive Threat',
-                     text: report.competitor_intelligence.biggest_threat
-                   });
-                 }
-
-                 // 5. Fill with robust defaults if still empty
-                 if (list.length === 0) {
-                    list.push({ icon: 'win', title: 'Operational Efficiency', text: 'Campaign performance remains within optimal target ranges.' });
-                    list.push({ icon: 'opportunity', title: 'Market Expansion', text: 'Analyze high-performing segments for further budget allocation.' });
-                 }
-
-                 return list;
-               })()
+               metadata: {
+                 ...s.metadata,
+                 rightDesc: `Digital Marketing Monthly Performance Report\n${dateRangeStr}`
+               }
              };
 
-           case 'growth':
+           case 'exec_summary':
+             const kpisForSummary = report.kpis || [];
+             const gAdsKpis = (report as any).performance?.googleAdsKpis || [];
+             const mAdsKpis = (report as any).performance?.metaAdsKpis || [];
+
+             const gRoas = gAdsKpis.find((k: any) => k.metric === 'ROAS')?.current || '0.00X';
+             const mRoas = mAdsKpis.find((k: any) => k.metric === 'ROAS')?.current || '0.00X';
+
+             const trafficKpi = kpisForSummary.find(k => k.label.toUpperCase().includes('TRAFFIC') || k.label.toUpperCase().includes('USER'));
+             const trafficChange = trafficKpi?.change ? trafficKpi.change + '%' : '0%';
+
+             const leadsKpi = kpisForSummary.find(k => k.label.toUpperCase().includes('LEAD'));
+             const leadsValue = leadsKpi?.value || (report.category === 'Combined Intelligence' ? kpisForSummary[1]?.value : '0');
+
+             const sTotals_exec = (report as any).seo?.totals || (report as any).kpi_summary?.ga4 || {};
+             const usersCount = sTotals_exec.totalUsers?.current || '0';
+
+             // Performance detail extraction
+             const gTotals_exec = (report as any).performance?.totals?.google || (report as any).kpi_summary?.google_ads?.current || {};
+             const gSpend = gTotals_exec.cost ? `₹${Number(gTotals_exec.cost).toLocaleString('en-IN')}` : '₹0';
+             const gRev = gTotals_exec.conversions_value ? `₹${Number(gTotals_exec.conversions_value).toLocaleString('en-IN')}` : '₹0';
+             const gClicks = gTotals_exec.clicks || '0';
+             const gCpl = gTotals_exec.cost_per_lead || (report as any).google_ads_details?.cost_per_lead || '0';
+
+             // Generate 4 highly detailed bullet points
+             const bulletPoints = [
+               `• Generated ${leadsValue} leads from ${gClicks.toLocaleString()} clicks via Google Ads, achieving an efficient acquisition cost (CPL) of ₹${gCpl}.`,
+               `• Total organic reach expanded by ${trafficChange}, with site traffic scaling to ${usersCount.toLocaleString('en-IN')} active users driven by optimized search visibility.`,
+               `• Achieved a ${gRoas} Return on Ad Spend (ROAS), generating ${gRev} in conversion value from a strategic investment of ${gSpend} in Google Search.`,
+               `• Meta Ads remains a high-potential expansion vector (${mRoas} ROAS) to diversify the lead funnel and scale brand engagement beyond search intent.`
+             ].join('\n');
+
              return {
                ...s,
-               title: 'Overall Growth Performance',
-               footer: siteName.toUpperCase(),
-               growthTable: (report.tableData1 || []).slice(0, 5).map((row, i) => ({
-                 id: `gr-${i}`,
-                 name: row.metric,
+               kpis: [
+                 { label: 'Leads', value: leadsValue },
+                 { label: 'Traffic', value: trafficChange },
+                 { label: 'Google Ads ROAS', value: gRoas },
+                 { label: 'Meta Ads ROAS', value: mRoas }
+               ],
+               metadata: {
+                 ...s.metadata,
+                 rightDesc: bulletPoints
+               }
+             };
+
+           case 'services_delivered':
+             return {
+               ...s,
+               metadata: {
+                 ...s.metadata,
+                 rightDesc: 'Integrated Activities Executed Across SEO, Social Media, Paid Advertising And Website Management.'
+               }
+             };
+
+           case 'overall_performance':
+             const formatDate = (dateStr: string) => {
+               if (!dateStr) return 'N/A';
+               const date = new Date(dateStr);
+               return date.toLocaleDateString('en-IN', { month: 'short', day: '2-digit', year: 'numeric' });
+             };
+
+             const currStart = report.dateRange?.start || '';
+             const currEnd = report.dateRange?.end || '';
+
+             // Calculate Previous Period (Same as Backend Logic: 31 days back)
+             let prevStartStr = 'Previous Month';
+             let prevEndStr = 'Previous Month';
+             if (currStart) {
+                const start = new Date(currStart);
+                const pEnd = new Date(start);
+                pEnd.setDate(pEnd.getDate() - 1);
+                const pStart = new Date(pEnd);
+                pStart.setDate(pStart.getDate() - 30);
+
+                prevStartStr = formatDate(pStart.toISOString().split('T')[0]);
+                prevEndStr = formatDate(pEnd.toISOString().split('T')[0]);
+             }
+
+             const currLabel = 'Current Month';
+             const prevLabel = 'Previous Month';
+
+             return {
+               ...s,
+               tableData: (report.tableData1 || []).slice(0, 8).map((row, i) => ({
+                 kpi: row.metric,
                  prev: row.previous,
                  current: row.current,
-                 variance: row.change,
-                 status: (row.change || '').startsWith('-') ? 'negative' : (row.change === '0%' || !row.change) ? 'neutral' : 'positive'
+                 growth: row.change
                })),
-               growthInsight: (report.executiveSummary || '').substring(0, 300) + '...'
+               metadata: {
+                 ...s.metadata,
+                 currDateLabel: currLabel,
+                 prevDateLabel: prevLabel,
+                 rightDesc: currStart ? `${prevLabel} to ${currLabel} Performance Comparison.` : 'Performance Comparison.'
+               }
              };
 
-           case 'organic':
-             if (!report.seo) return { ...s, footer: siteName.toUpperCase() };
-             const topKw = report.seo.topKeywords || [];
+           case 'seo_performance':
+             // Robust Mapping: Mirror Current Logic for Previous Logic
+             const sMod = report.seo || report;
+             const sTotals = sMod?.kpi_summary?.ga4 || sMod?.totals || (report.module === 'seo' ? report.kpi_summary?.ga4 : {});
+             const sKpis = report.kpis || [];
+
+             // Direct lookup with fallbacks (Matches current code behavior)
+             const users = sTotals.totalUsers?.current || parseNumeric(sKpis[0]?.value);
+             const pUsers = sTotals.totalUsers?.previous || parseNumeric(sKpis[0]?.previous);
+
+             const sessions = sTotals.sessions?.current || parseNumeric(sKpis[1]?.value);
+             const pSessions = sTotals.sessions?.previous || parseNumeric(sKpis[1]?.previous);
+
+             const newUsers = sTotals.newUsers?.current || parseNumeric(sKpis[2]?.value);
+             const pNewUsers = sTotals.newUsers?.previous || parseNumeric(sKpis[2]?.previous);
+
+             const bounce = sTotals.bounceRate?.current !== undefined
+               ? (sTotals.bounceRate.current * 100).toFixed(1) + '%'
+               : (sKpis[4]?.value || '0.0%');
+             const pBounce = sTotals.bounceRate?.previous !== undefined
+               ? (sTotals.bounceRate.previous * 100).toFixed(1) + '%'
+               : (sKpis[4]?.previous || '0.0%');
+
+             const duration = sTotals.averageSessionDuration?.current
+               ? Math.round(sTotals.averageSessionDuration.current) + 's'
+               : (sKpis[5]?.value || 'N/A');
+             const pDuration = sTotals.averageSessionDuration?.previous
+               ? Math.round(sTotals.averageSessionDuration.previous) + 's'
+               : (sKpis[5]?.previous || 'N/A');
+
+             // Helper for change percent (Mirrors how current is handled)
+             const getGrowth = (metric: any, fallbackIdx: number) => {
+                if (metric?.change_percent !== undefined) return metric.change_percent.toString() + '%';
+                if (sKpis[fallbackIdx]?.change) return sKpis[fallbackIdx].change.toString() + '%';
+                return undefined;
+             };
+
              return {
                ...s,
-               footer: siteName.toUpperCase(),
                kpis: [
-                 { label: 'TOTAL USERS', value: (report.kpis || []).find(k => k.label.toUpperCase().includes('TRAFFIC') || k.label.toUpperCase().includes('USERS'))?.value || '0' },
-                 { label: 'TOP KEYWORD CLICKS', value: topKw[0]?.clicks?.toLocaleString() || 'N/A' },
-                 { label: 'AVG. POSITION', value: topKw[0]?.position || 'N/A' },
-                 { label: 'SEARCH CTR', value: topKw[0]?.ctr || 'N/A' }
+                 {
+                    label: 'Organic Users',
+                    value: users > 0 ? users.toLocaleString('en-IN') : (sKpis[0]?.value || '0'),
+                    prev: pUsers > 0 ? pUsers.toLocaleString('en-IN') : (sKpis[0]?.previous || '0'),
+                    growth: getGrowth(sTotals.totalUsers, 0),
+                    isPositive: (sTotals.totalUsers?.change_percent || sKpis[0]?.change || 0) >= 0
+                 },
+                 {
+                    label: 'Organic Sessions',
+                    value: sessions > 0 ? sessions.toLocaleString('en-IN') : (sKpis[1]?.value || '0'),
+                    prev: pSessions > 0 ? pSessions.toLocaleString('en-IN') : (sKpis[1]?.previous || '0'),
+                    growth: getGrowth(sTotals.sessions, 1),
+                    isPositive: (sTotals.sessions?.change_percent || sKpis[1]?.change || 0) >= 0
+                 },
+                 {
+                    label: 'New Users',
+                    value: newUsers > 0 ? newUsers.toLocaleString('en-IN') : (sKpis[2]?.value || '0'),
+                    prev: pNewUsers > 0 ? pNewUsers.toLocaleString('en-IN') : (sKpis[2]?.previous || '0'),
+                    growth: getGrowth(sTotals.newUsers, 2),
+                    isPositive: (sTotals.newUsers?.change_percent || sKpis[2]?.change || 0) >= 0
+                 },
+                 {
+                    label: 'Average Session Duration',
+                    value: duration,
+                    prev: pDuration,
+                    growth: getGrowth(sTotals.averageSessionDuration, 5),
+                    isPositive: (sTotals.averageSessionDuration?.change_percent || sKpis[5]?.change || 0) >= 0
+                 },
+                 {
+                    label: 'Bounce Rate',
+                    value: bounce,
+                    prev: pBounce,
+                    growth: getGrowth(sTotals.bounceRate, 4),
+                    isPositive: (sTotals.bounceRate?.change_percent || sKpis[4]?.change || 0) <= 0
+                 }
                ],
-               growthTable: [
-                 { id: 'org-1', name: 'ORGANIC CLICKS', prev: '', current: topKw.reduce((acc, k) => acc + (k.clicks || 0), 0).toLocaleString(), variance: '', status: 'neutral' },
-                 { id: 'org-2', name: 'AVG. POSITION', prev: '', current: report.seo.averagePosition?.toString() || 'N/A', variance: '', status: 'neutral' },
-                 { id: 'org-3', name: 'ORGANIC CTR', prev: '', current: topKw[0]?.ctr || 'N/A', variance: '', status: 'neutral' }
-               ],
-               chartData: (report.seo.sessionsByChannel || []).map(c => ({
-                 label: c.channel,
-                 value: c.sessions,
-                 color: COLORS[Math.floor(Math.random() * COLORS.length)]
-               }))
-             };
-
-           case 'scatter':
-             if (!report.seo) return { ...s, footer: siteName.toUpperCase() };
-             return {
-               ...s,
-               footer: siteName.toUpperCase(),
-               scatterPoints: (report.seo.topKeywords || []).slice(0, 5).map((k, i) => ({
-                 id: `scat-${i}`,
-                 keyword: k.keyword,
-                 ctr: parseFloat((k.ctr || '').replace('%', '')) || 0,
-                 position: parseFloat(k.position) || 0,
-                 volume: (k.clicks || 0) * 10
-               }))
-             };
-
-           case 'funnel':
-             if (!report.performance) return { ...s, footer: siteName.toUpperCase() };
-             const perfKpis = report.performance.googleAdsKpis || [];
-             const impr = perfKpis.find(k => k.metric.toLowerCase().includes('impression'))?.currentValue || 0;
-             const clks = perfKpis.find(k => k.metric.toLowerCase().includes('click'))?.currentValue || 0;
-             const lds = perfKpis.find(k => k.metric.toLowerCase().includes('lead'))?.currentValue || 0;
-
-             return {
-               ...s,
-               footer: siteName.toUpperCase(),
-               kpis: perfKpis.slice(0, 4).map(k => ({
-                 label: k.metric.toUpperCase(),
-                 value: k.current
+               tableData: (report.topKeywords || report.seo?.topKeywords || []).slice(0, 4).map((kw: any) => ({
+                 keyword: kw.keyword || kw.item || 'Unknown',
+                 prev: (typeof kw.previous_position === 'number' && kw.previous_position > 0)
+                   ? kw.previous_position.toFixed(1)
+                   : (typeof kw.previous_position === 'string' && kw.previous_position !== '-')
+                     ? kw.previous_position
+                     : (kw.prev || '-'),
+                 current: typeof kw.position === 'number' ? kw.position.toFixed(1) : (kw.trend || kw.position || 'N/A')
                })),
-               funnelStages: [
-                 { id: 'fn-1', name: 'Impressions', value: impr, conversionText: '' },
-                 { id: 'fn-2', name: 'Clicks', value: clks, percentage: `${((clks / (impr || 1)) * 100).toFixed(2)}%`, conversionText: `${((clks / (impr || 1)) * 100).toFixed(2)}% CTR` },
-                 { id: 'fn-3', name: 'Leads', value: lds, percentage: `${((lds / (clks || 1)) * 100).toFixed(2)}%`, conversionText: `${((lds / (clks || 1)) * 100).toFixed(2)}% Conv.` }
+               metadata: {
+                 ...s.metadata,
+                 rightDesc: (report.ai_insights as any)?.slides?.seoPerformanceDesc || 'SEO Efforts Improved Search Visibility And Organic Growth.'
+               }
+             };
+
+           case 'website_analytics':
+             const chanData = report.sessionsByChannel || [];
+             const getChanVal = (match: string) => {
+                const found = chanData.find((c: any) => (c.channel || '').toLowerCase().includes(match.toLowerCase()));
+                return found ? Number(found.sessions).toLocaleString('en-IN') : '0';
+             };
+
+             const formatUrl = (u: string) => {
+                if (u === '/') return 'Homepage';
+                if (!u) return 'Unknown';
+                // Remove trailing slashes and common prefixes
+                return u.replace(/\/$/, '').replace(/^\//, '').split('/').pop()?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || u;
+             };
+
+             // Determine most visited page
+             const topPageFromTitles = report.topPageTitles?.[0];
+             const topPageFromPages = report.topPages?.[0];
+             const mostVisited = topPageFromTitles?.title || (topPageFromPages ? formatUrl(topPageFromPages.page) : 'Homepage');
+
+             // Prepare top pages table data
+             let displayPages = [];
+             if (report.topPageTitles && report.topPageTitles.length > 0) {
+               displayPages = report.topPageTitles.slice(0, 4).map(p => ({
+                 url: p.title || 'Unknown',
+                 views: p.views?.toLocaleString() || '0'
+               }));
+             } else if (report.topPages && report.topPages.length > 0) {
+               displayPages = report.topPages.slice(0, 4).map(p => ({
+                 url: formatUrl(p.page),
+                 views: p.views?.toLocaleString() || '0'
+               }));
+             }
+
+             // Dynamic Insights Logic
+             const topLandingPage = report.topPages?.find(p => p.page !== '/') || report.topPages?.[0];
+
+             // 1. Lowest Bounce Rate Page Calculation
+             let lowestBouncePage = 'Homepage';
+             if (report.topPages && report.topPages.length > 0) {
+                const validPages = report.topPages.filter(p => p.bounceRate !== undefined);
+                if (validPages.length > 0) {
+                   const minBounce = Math.min(...validPages.map(p => p.bounceRate!));
+                   const bestPage = validPages.find(p => p.bounceRate === minBounce);
+                   if (bestPage) lowestBouncePage = formatUrl(bestPage.page);
+                }
+             }
+
+             // 2. Traffic Growth Percentage Mapping
+             const organicKpi = report.kpis?.find(k => k.label.toLowerCase().includes('organic'));
+             const growthVal = organicKpi ? (organicKpi.change >= 0 ? '+' : '') + organicKpi.change.toFixed(1) + '%' : '0.0%';
+
+             return {
+               ...s,
+               kpis: [
+                 { label: 'Organic Search', value: getChanVal('Organic Search') },
+                 { label: 'Social Media', value: getChanVal('Social') },
+                 { label: 'Paid Advertising', value: getChanVal('Paid') },
+                 { label: 'Direct Traffic', value: getChanVal('Direct') }
+               ],
+               customData: {
+                 ...s.customData,
+                 insights: [
+                    { label: 'Most Visited Page', value: mostVisited },
+                    {
+                      label: 'Highest Converting Page',
+                      value: topLandingPage ? formatUrl(topLandingPage.page) : 'Thailand Packages'
+                    },
+                    {
+                      label: 'Lowest Bounce Rate Page',
+                      value: lowestBouncePage
+                    },
+                    {
+                      label: 'Traffic Growth Percentage',
+                      value: growthVal
+                    }
+                 ],
+                 pages: displayPages.length > 0 ? displayPages : s.customData.pages
+               },
+               metadata: {
+                 ...s.metadata,
+                 // 3. Description Mapping
+                 rightDesc: (report as any).tableExplanations?.sessions_by_channel ||
+                            (report.ai_insights as any)?.slides?.trafficEngagementDesc ||
+                            'Traffic Improved Through Organic And Paid Acquisition Channels.'
+               }
+             };
+
+           case 'social_performance':
+             const social = report.social;
+             const fbKpi = (social?.socialKpis || []).find(k => k.metric.includes('FB'));
+             const igKpi = (social?.socialKpis || []).find(k => k.metric.includes('IG'));
+             return {
+               ...s,
+               customData: {
+                 ...s.customData,
+                 facebook: {
+                   reach: fbKpi?.current || '0',
+                   impressions: fbKpi?.current || '0',
+                   engagement: '-',
+                   followerGrowth: fbKpi?.pctChange ? (fbKpi.pctChange > 0 ? '+' : '') + fbKpi.pctChange + '%' : 'N/A'
+                 },
+                 instagram: {
+                   reach: igKpi?.current || '0',
+                   impressions: igKpi?.current || '0',
+                   engagement: '-',
+                   followerGrowth: igKpi?.pctChange ? (igKpi.pctChange > 0 ? '+' : '') + igKpi.pctChange + '%' : 'N/A'
+                 },
+                 linkedin: {
+                   reach: '0',
+                   impressions: '0',
+                   engagement: '0',
+                   followerGrowth: 'N/A'
+                 },
+                 youtube: {
+                   views: '0',
+                   watchTime: '0 Hrs',
+                   subscribers: '0'
+                 }
+               },
+               metadata: {
+                 ...s.metadata,
+                 rightDesc: (report.ai_insights as any)?.slides?.socialPerformanceDesc || 'Social Media Performance Metrics.'
+               }
+             };
+
+           case 'content_performance':
+             const cpTimeline = report.social?.impressionsTimeline || [];
+             const cpPerf = (report as any).performance;
+             const cpMeta = (report as any).metaCampaigns || cpPerf?.metaTopCampaigns || [];
+             const cpDevices = cpPerf?.metaDeviceBreakdown || [];
+
+             // Extract top device and theme with detailed stats
+             const topDevObj = cpDevices.length > 0
+               ? [...cpDevices].sort((a: any, b: any) => (b.costValue || 0) - (a.costValue || 0))[0]
+               : null;
+             const cpTopDev = topDevObj ? `${topDevObj.device}: ${topDevObj.cost}` : 'Mobile';
+
+             const topCampaignObj = cpMeta.length > 0 ? cpMeta[0] : null;
+             const cpTopTheme = topCampaignObj
+               ? `${topCampaignObj.campaign || topCampaignObj.name} (${topCampaignObj.leads} Leads)`
+               : 'International Destinations';
+
+             // Calculate mobile spend %
+             const totalSpend = cpDevices.reduce((acc: number, d: any) => acc + (d.costValue || 0), 0);
+             const mobileSpend = cpDevices
+               .filter((d: any) => d.device?.toLowerCase().includes('mobile') || d.device?.toLowerCase().includes('phone'))
+               .reduce((acc: number, d: any) => acc + (d.costValue || 0), 0);
+             const mobilePct = totalSpend > 0 ? ((mobileSpend / totalSpend) * 100).toFixed(0) : '99';
+
+             return {
+               ...s,
+               // Labels remain identical
+               kpis: [
+                 { label: 'Social Posts', value: '0' },
+                 { label: 'Reels', value: '0' },
+                 { label: 'Stories', value: '0' },
+                 { label: 'Videos', value: '0' },
+                 { label: 'Blogs', value: '0%' }
+               ],
+               tableData: cpMeta.length > 0
+                 ? cpMeta.slice(0, 3).map((c: any) => ({
+                     name: c.campaign || c.name,
+                     reach: (c.impressions || 0).toLocaleString(),
+                     engagement: (c.clicks || 0).toLocaleString()
+                   }))
+                 : (cpTimeline.length > 0 ? cpTimeline.slice(0, 3).map(t => ({
+                     name: t.date,
+                     reach: t.facebook?.toLocaleString() || '0',
+                     engagement: t.instagram?.toLocaleString() || '0'
+                   })) : []),
+               customData: {
+                 ...s.customData,
+                 insights: [
+                    { label: 'Highest Engagement Format', value: cpTopDev },
+                    { label: 'Best Performing Content Theme', value: cpTopTheme },
+                    { label: 'Audience Preference Observations', value: `Mobile Dominance: ${mobilePct}% Spend` }
+                 ]
+               },
+               metadata: {
+                 ...s.metadata,
+                 rightDesc: report.social?.impressionsTimelineInsight ||
+                            (report.ai_insights as any)?.overallPerformanceDesc ||
+                            (report.ai_insights as any)?.slides?.overallPerformanceDesc ||
+                            'Content performance metrics and engagement analysis.'
+               }
+             };
+
+           case 'meta_ads':
+             const mModule = report.performance;
+             const mK = (report as any).metaKpi || mModule?.totals?.meta || {};
+             const mDetails = (report as any).metaCampaigns || mModule?.metaTopCampaigns || (report as any).performance?.metaTopCampaigns || (report.ai_insights as any)?.slides?.metaCampaigns || [];
+             const mCur = mK.current || mK || {};
+             const metaKpis = mModule?.metaAdsKpis || (report as any).performance?.metaAdsKpis || [];
+
+             const getMetaKpi = (metricName: string) => metaKpis.find((k: any) => k.metric.toLowerCase().includes(metricName.toLowerCase()));
+
+             return {
+               ...s,
+               tableData: mDetails.slice(0, 3).map((c: any) => {
+                 const leads = Number(c.leads || c.conversions || 0);
+                 const spend = parseNumeric(c.cost || c.spend || 0);
+                 const cplVal = c.costPerLead || c.cost_per_lead || c.cpl || c.cpa;
+
+                 return {
+                   name: c.campaign || c.name,
+                   spend: c.cost || c.spend,
+                   leads: leads.toString(),
+                   cpl: cplVal || (leads > 0 ? `₹${(spend / leads).toFixed(0)}` : '₹0')
+                 };
+               }),
+               kpis: [
+                 {
+                    label: 'Reach',
+                    value: mCur.reach?.toLocaleString() || getMetaKpi('Impressions')?.current || 'N/A',
+                    growth: getMetaKpi('Impressions')?.pctChange?.toString() + '%',
+                    isPositive: true
+                 },
+                 {
+                    label: 'Impressions',
+                    value: mCur.impressions?.toLocaleString() || getMetaKpi('Impressions')?.current || 'N/A',
+                    growth: getMetaKpi('Impressions')?.pctChange?.toString() + '%',
+                    isPositive: true
+                 },
+                 {
+                    label: 'Link Clicks',
+                    value: mCur.clicks?.toLocaleString() || getMetaKpi('Clicks')?.current || 'N/A',
+                    growth: getMetaKpi('Clicks')?.pctChange?.toString() + '%',
+                    isPositive: true
+                 },
+                 {
+                    label: 'CTR',
+                    value: mCur.ctr || getMetaKpi('CTR')?.current || 'N/A',
+                    growth: getMetaKpi('CTR')?.pctChange?.toString() + '%',
+                    isPositive: true
+                 },
+                 {
+                    label: 'Leads Generated',
+                    value: (mCur.leads || mCur.conversions)?.toString() || getMetaKpi('Leads')?.current || 'N/A',
+                    growth: getMetaKpi('Leads')?.pctChange?.toString() + '%',
+                    isPositive: true
+                 },
+                 {
+                    label: 'Cost Per Lead',
+                    value: (mCur.cost_per_lead || mCur.cpl)?.toString() || getMetaKpi('CPL')?.current || 'N/A',
+                    growth: getMetaKpi('CPL')?.pctChange?.toString() + '%',
+                    isPositive: (getMetaKpi('CPL')?.pctChange || 0) <= 0
+                 }
                ]
              };
 
-           case 'campaign':
-             if (!report.performance?.topCampaigns) return { ...s, footer: siteName.toUpperCase() };
+           case 'google_ads':
+             const gModule = report.performance;
+             const gTotals = gModule?.totals?.google || (report as any).kpi_summary?.google_ads?.current || {};
+             const gDetails = report.google_ads_details || (report as any).performance?.google_ads_details || {};
+             const gCampaigns = gDetails.top_campaigns || gModule?.topCampaigns || (report as any).performance?.topCampaigns || (report.ai_insights as any)?.slides?.googleCampaigns || [];
+             const gKpis = gModule?.googleAdsKpis || (report as any).performance?.googleAdsKpis || [];
+
+             const getGoogleKpi = (metricName: string) => gKpis.find((k: any) => k.metric.toLowerCase().includes(metricName.toLowerCase()));
+
+             // Priority 1: Real top keywords from current module
+             // Priority 2: Real search terms from current module
+             // Priority 3: Fallback from previous manual edits (if not mock)
+             const kwData = Array.isArray(gModule?.topKeywords) ? gModule.topKeywords : [];
+             const searchTerms = Array.isArray((report as any).google_ads_details?.search_terms) ? (report as any).google_ads_details.search_terms : [];
+
+             // Final list: prioritize keywords, then search terms, then existing slide data
+             let finalKeywords: any[] = [];
+
+             if (kwData.length > 0) {
+               finalKeywords = kwData;
+             } else if (searchTerms.length > 0) {
+               finalKeywords = searchTerms;
+             }
+
+             // --- SMART GROUPING LOGIC ---
+             // Google Ads can return the same keyword multiple times (e.g. for broad vs exact match).
+             // We will group them by name and sum their metrics.
+             const groupedMap: Record<string, any> = {};
+             finalKeywords.forEach((k: any) => {
+               const rawName = k.keyword || k.query || k.kw || k.item || '';
+               const name = rawName.trim().toLowerCase();
+               if (!name) return;
+
+               if (!groupedMap[name]) {
+                 groupedMap[name] = {
+                   name: rawName, // Keep original casing from first occurrence
+                   clicks: 0,
+                   conversions: 0,
+                   impressions: 0
+                 };
+               }
+               groupedMap[name].clicks += Number(k.clicks || 0);
+               groupedMap[name].conversions += Number(k.conversions || k.leads || k.clicks || 0);
+               groupedMap[name].impressions += Number(k.impressions || 0);
+             });
+
+             const groupedKeywords = Object.values(groupedMap)
+               .sort((a: any, b: any) => b.clicks - a.clicks) // Sort by most clicks
+               .slice(0, 5);
+
+             const cleanKeywords = groupedKeywords.length > 0 ? groupedKeywords.map((k: any) => {
+               return {
+                 kw: k.name,
+                 clicks: k.clicks.toLocaleString(),
+                 conv: k.conversions.toString()
+               };
+             }) : [];
+
              return {
                ...s,
-               footer: siteName.toUpperCase(),
-               campaigns: report.performance.topCampaigns.slice(0, 2).map((c, i) => ({
-                 id: `cp-${i}`,
-                 name: c.campaign,
-                 status: i === 0 ? 'Top Performer' : 'Core Campaign',
-                 spend: c.cost,
-                 leads: c.leads,
-                 cpl: c.cpa,
-                 chartData: [
-                   { label: 'Spend', current: c.costValue, relative: 70 },
-                   { label: 'Leads', current: c.leads, relative: 100 }
-                 ]
-               }))
+               tableData: gCampaigns.slice(0, 3).map((c: any) => {
+                 const leads = Number(c.conversions || c.leads || 0);
+                 const spend = parseNumeric(c.cost || c.spend || 0);
+                 const cplVal = c.costPerLead || c.cost_per_lead || c.cost_per_conversion || c.cpl || c.cpa;
+
+                 let finalCpl = '₹0';
+                 if (cplVal && cplVal !== '0' && cplVal !== '₹0') {
+                   finalCpl = cplVal.toString().startsWith('₹') ? cplVal.toString() : `₹${cplVal}`;
+                 } else if (leads > 0 && spend > 0) {
+                   finalCpl = `₹${(spend / leads).toFixed(0)}`;
+                 }
+
+                 return {
+                   name: c.campaign || c.name,
+                   spend: c.cost || c.spend,
+                   leads: leads.toString(),
+                   cpl: finalCpl
+                 };
+               }),
+               kpis: [
+                 {
+                    label: 'Impressions',
+                    value: gTotals.impressions?.toLocaleString() || getGoogleKpi('Impressions')?.current || '0',
+                    growth: getGoogleKpi('Impressions')?.pctChange?.toString() + '%',
+                    isPositive: (getGoogleKpi('Impressions')?.pctChange || 0) >= 0
+                 },
+                 {
+                    label: 'Link Clicks',
+                    value: gTotals.clicks?.toLocaleString() || getGoogleKpi('Clicks')?.current || '0',
+                    growth: getGoogleKpi('Clicks')?.pctChange?.toString() + '%',
+                    isPositive: (getGoogleKpi('Clicks')?.pctChange || 0) >= 0
+                 },
+                 {
+                    label: 'CTR',
+                    value: gTotals.ctr ? (typeof gTotals.ctr === 'number' ? `${gTotals.ctr.toFixed(2)}%` : gTotals.ctr) : getGoogleKpi('CTR')?.current || '0.00%',
+                    growth: getGoogleKpi('CTR')?.pctChange?.toString() + '%',
+                    isPositive: (getGoogleKpi('CTR')?.pctChange || 0) >= 0
+                 },
+                 {
+                    label: 'CPC',
+                    value: gTotals.cpc ? `₹${Number(gTotals.cpc).toFixed(2)}` : getGoogleKpi('CPC')?.current || '₹0',
+                    growth: getGoogleKpi('CPC')?.pctChange?.toString() + '%',
+                    isPositive: (getGoogleKpi('CPC')?.pctChange || 0) <= 0
+                 },
+                 {
+                    label: 'Leads Generated',
+                    value: (gTotals.conversions || gTotals.leads)?.toString() || getGoogleKpi('Leads')?.current || '0',
+                    growth: getGoogleKpi('Leads')?.pctChange?.toString() + '%',
+                    isPositive: (getGoogleKpi('Leads')?.pctChange || 0) >= 0
+                 },
+                 {
+                    label: 'Cost Per Lead',
+                    value: (gTotals.cpa || gTotals.cost_per_lead)
+                      ? `₹${Number(gTotals.cpa || gTotals.cost_per_lead).toFixed(2)}`
+                      : getGoogleKpi('CPL')?.current || '₹0',
+                    growth: getGoogleKpi('CPL')?.pctChange?.toString() + '%',
+                    isPositive: (getGoogleKpi('CPL')?.pctChange || 0) <= 0
+                 }
+               ],
+               customData: {
+                 ...(s as any).customData,
+                 keywords: cleanKeywords.length > 0 ? cleanKeywords : (s as any).customData?.keywords
+               }
              };
 
-           case 'audience':
-             const countries = report.seo?.activeUsersByCountry || report.performance?.websiteTrafficByCountry || [];
-             return {
-               ...s,
-               footer: siteName.toUpperCase(),
-               subTag: `PRIMARY MARKET: ${countries[0]?.country || 'GLOBAL'}`,
-               cities: countries.slice(0, 5).map((c, i) => ({
-                 id: `country-${i}`,
-                 city: c.country,
-                 users: c.users
-               }))
-             };
+           case 'lead_gen':
+             const mLeads = (report as any).metaKpi?.current?.leads || (report as any).performance?.totals?.meta?.leads || 0;
+             const gLeads = (report as any).google_ads_details?.leads || (report as any).google_ads_details?.conversions || (report as any).performance?.totals?.google?.conversions || 0;
+             const oLeads = (report as any).seo?.totals?.totalUsers?.current || (report.kpis || [])[0]?.value || '0';
 
-           case 'channels':
-             const channelData = report.seo?.sessionsByChannel || report.performance?.sessionsByChannel || [];
-             const totalSessions = channelData.reduce((acc, c) => acc + c.sessions, 0);
-             return {
-               ...s,
-               footer: siteName.toUpperCase(),
-               chartData: channelData.slice(0, 4).map(c => ({
-                 label: c.channel,
-                 value: c.sessions,
-                 color: COLORS[Math.floor(Math.random() * COLORS.length)]
-               })),
-               growthTable: channelData.slice(0, 3).map((c, i) => ({
-                 id: `chn-${i}`,
-                 name: c.channel,
-                 prev: c.sessions.toLocaleString(),
-                 current: `${((c.sessions / (totalSessions || 1)) * 100).toFixed(1)}%`,
-                 variance: 'Share',
-                 status: 'neutral'
-               }))
-             };
+             const directSessions = report.sessionsByChannel?.find((c: any) => c.channel?.toLowerCase().includes('direct'))?.sessions || 0;
+             const referralSessions = report.sessionsByChannel?.find((c: any) => c.channel?.toLowerCase().includes('referral'))?.sessions || 0;
 
-           case 'roadmap':
-             const advice = report.summarizedAdviceList || [];
-             return {
-               ...s,
-               footer: siteName.toUpperCase(),
-               roadmapMonths: (s.roadmapMonths || []).map((m, mi) => ({
-                 ...m,
-                 items: (m.items || []).map((item, ii) => {
-                   const advIndex = mi * 2 + ii;
-                   return {
-                     ...item,
-                     desc: advice[advIndex] || item.desc
-                   };
-                 })
-               }))
-             };
+             // --- DYNAMIC OBSERVATIONS CALCULATION ---
+             // 1. Best Lead Source (By Traffic/Sessions)
+             const chanData_gen = report.sessionsByChannel || [];
+             const bestChan = [...chanData_gen].sort((a, b) => (b.sessions || 0) - (a.sessions || 0))[0];
+             const bestLeadSource = bestChan ? bestChan.channel : 'Organic Search';
 
-           case 'scorecard':
-             const radarSelf = report.radar_self || {};
+             // 2. Lowest Cost Lead Source (Campaign Level)
+             const gDetails_gen = report.google_ads_details || (report as any).performance?.google_ads_details || {};
+             const gCamps = gDetails_gen.top_campaigns || (report as any).performance?.topCampaigns || [];
+             const mCamps = (report as any).metaCampaigns || (report as any).performance?.metaTopCampaigns || [];
 
-             // 1. Google Ads Efficiency (CPL based)
-             // Formula: 100 - (cpl / 50)
-             let gAdsScore = 0;
-             if (report.performance?.googleAdsKpis) {
-               const cplKpi = report.performance.googleAdsKpis.find(k => k.metric.toLowerCase().includes('cost per lead') || k.metric.toLowerCase().includes('cpl'));
-               if (cplKpi && cplKpi.currentValue > 0) {
-                 gAdsScore = Math.max(0, Math.min(100, Math.round(100 - (cplKpi.currentValue / 50))));
-               }
-             }
-
-             // 2. Website Conversion (Form Submits)
-             // Formula: min(100, (form_submit count / 50) * 100)
-             let convScore = 0;
-             let formSubmits = 0;
-             if (report.seo?.eventCountByEventName) {
-               const convEvents = report.seo.eventCountByEventName.filter(e =>
-                 e.event.toLowerCase().includes('submit') ||
-                 e.event.toLowerCase().includes('lead') ||
-                 e.event.toLowerCase().includes('conversion')
-               );
-               formSubmits = convEvents.reduce((acc, e) => acc + e.count, 0);
-               if (formSubmits > 0) {
-                 convScore = Math.min(100, Math.round((formSubmits / 50) * 100));
-               }
-             }
-
-             // 3. Meta Ads Leads
-             // Formula: min(100, (meta_leads / 50) * 100)
-             let metaAdsScore = 0;
-             let metaLeads = 0;
-             if (report.performance?.metaAdsKpis) {
-               const metaLeadsKpi = report.performance.metaAdsKpis.find(k => k.metric.includes('Leads'));
-               if (metaLeadsKpi && metaLeadsKpi.currentValue > 0) {
-                 metaLeads = metaLeadsKpi.currentValue;
-                 metaAdsScore = Math.min(100, Math.round((metaLeads / 50) * 100));
-               }
-             }
-
-             // 4. Lead Gen Volume (Total = Google Leads + Meta Leads + Form Submits)
-             // Formula: min(100, (total_leads / 100) * 100)
-             let gAdsLeads = 0;
-             if (report.performance?.googleAdsKpis) {
-                // googleAdsKpis leads metric in PerformanceReportData actually holds combined G+M leads
-                const adsLeadsKpi = report.performance.googleAdsKpis.find(k => k.metric.toLowerCase() === 'leads');
-                if (adsLeadsKpi) gAdsLeads = adsLeadsKpi.currentValue;
-             }
-             const totalLeads = gAdsLeads + formSubmits;
-             let leadGenScore = Math.min(100, Math.round((totalLeads / 100) * 100));
-
-             // 5. SEO Performance (Average position of top 5 keywords)
-             // Formula: max(0, min(100, 100 - (avg_pos - 1) * 5))
-             let seoScore = 0;
-             if (report.seo?.topKeywords && report.seo.topKeywords.length > 0) {
-               const validPositions = report.seo.topKeywords
-                 .slice(0, 5) // Use only top 5 as requested
-                 .map(k => parseFloat(k.position))
-                 .filter(p => !isNaN(p) && p > 0);
-
-               if (validPositions.length > 0) {
-                 const avgPos = validPositions.reduce((a, b) => a + b, 0) / validPositions.length;
-                 seoScore = Math.max(0, Math.min(100, Math.round(100 - (avgPos - 1) * 5)));
-               }
-             } else if (report.seo?.averagePosition !== undefined && report.seo.averagePosition > 0) {
-               seoScore = Math.max(0, Math.min(100, Math.round(100 - (report.seo.averagePosition - 1) * 5)));
-             }
-
-             // Prioritize radar_self if values exist there
-             gAdsScore = radarSelf['Google Ads'] || gAdsScore;
-             leadGenScore = radarSelf['Lead Gen'] || leadGenScore;
-             metaAdsScore = radarSelf['Meta Ads'] || metaAdsScore;
-             seoScore = radarSelf['SEO'] || seoScore;
-             convScore = radarSelf['Conversion'] || convScore;
-
-             const scorecardGauges = [
-               { id: 'sc-1', name: 'GOOGLE ADS', score: gAdsScore, color: '#10b981' },
-               { id: 'sc-2', name: 'LEAD GENERATION', score: leadGenScore, color: '#10b981' },
-               { id: 'sc-3', name: 'META ADS', score: metaAdsScore, color: '#3b82f6' },
-               { id: 'sc-4', name: 'SEO PERFORMANCE', score: seoScore, color: '#f59e0b' },
-               { id: 'sc-5', name: 'WEBSITE CONVERSION', score: convScore, color: '#f59e0b' }
+             const allCamps = [
+               ...gCamps.map((c: any) => ({ name: c.campaign || c.name, cost: parseNumeric(c.cost || c.spend), leads: Number(c.conversions || c.leads || 0) })),
+               ...mCamps.map((c: any) => ({ name: c.campaign || c.name, cost: parseNumeric(c.cost || c.spend), leads: Number(c.conversions || c.leads || 0) }))
              ];
 
-             const avgScore = Math.round(scorecardGauges.reduce((acc, g) => acc + g.score, 0) / 5);
+             const campsWithLeads = allCamps.filter(c => c.leads > 0);
+             const lowestCplCamp = [...campsWithLeads].sort((a, b) => (a.cost / a.leads) - (b.cost / b.leads))[0];
+             const lowestCostSource = lowestCplCamp ? lowestCplCamp.name : (allCamps.length > 0 ? allCamps[0].name : '-');
+
+             // 3. Highest Conversion Source (By Lead Volume)
+             const highestConvCamp = [...allCamps].sort((a, b) => b.leads - a.leads)[0];
+             const highestConvSource = highestConvCamp && highestConvCamp.leads > 0 ? highestConvCamp.name : bestLeadSource;
+
+             // 4. Lead Quality Proxies
+             const totalLeads = Number(mLeads) + Number(gLeads);
+             const formStarts = (report as any).events_by_event_name?.find((e: any) => e.eventName === 'form_start')?.count || 0;
+             const hotLeads = Math.max(totalLeads, formStarts);
+             const warmLeads = Math.round(Number(oLeads) * 0.1); // 10% of Organic Users as high-intent proxy
+             const coldLeads = Math.max(0, Number(oLeads) - warmLeads);
 
              return {
                ...s,
-               footer: siteName.toUpperCase(),
-               scoreTag: `OVERALL HEALTH: ${avgScore}/100`,
-               scorecardGauges,
-               scorecardInsight: report.ai_summary || s.scorecardInsight
+               tableData: [
+                 { source: 'Meta Ads', leads: mLeads.toString() },
+                 { source: 'Google Ads', leads: Math.round(Number(gLeads)).toString() },
+                 { source: 'Organic Search', leads: String(oLeads) },
+                 { source: 'Referral', leads: String(referralSessions) },
+                 { source: 'Direct', leads: String(directSessions) }
+               ],
+               kpis: [
+                 { label: 'Hot Leads', value: hotLeads.toLocaleString('en-IN') },
+                 { label: 'Warm Leads', value: warmLeads.toLocaleString('en-IN') },
+                 { label: 'Cold Leads', value: coldLeads.toLocaleString('en-IN') }
+               ],
+               customData: {
+                 ...s.customData,
+                 observations: [
+                   { label: 'Best Lead Source', value: bestLeadSource },
+                   { label: 'Lowest Cost Lead Source', value: lowestCostSource },
+                   { label: 'Highest Conversion Source', value: highestConvSource }
+                 ]
+               },
+               metadata: {
+                 ...s.metadata,
+                 rightDesc: (report as any).tableExplanations?.key_events_by_platform || `${bestLeadSource} Remained The Strongest Lead Source.`
+               }
              };
 
-           case 'outro':
+           case 'activities_completed':
              return {
                ...s,
-               footer: siteName.toUpperCase(),
-               title: `${siteName} Strategic Wrap-up`,
-               kpis: (report.kpis || []).slice(0, 4).map(k => ({ label: k.label.toUpperCase(), value: k.value })),
-               descriptionText: report.ai_summary || s.descriptionText
+               metadata: {
+                 ...s.metadata,
+                 rightDesc: (report.ai_insights as any)?.slides?.activitiesDesc || 'Optimization Activities Focused On Improving Campaign Efficiency And User Experience.'
+               }
+             };
+
+           case 'challenges_solutions':
+             const selfGap = (report as any).aiCompetitorAnalysis?.self_gap_analysis || report.ai_competitor_analysis?.self_gap_analysis || {};
+
+             // SMART RESULTS LOGIC: Pick the top 3 metrics with highest growth
+             const allMetricsForSorting: {label: string, value: string, prev: string, growth: string, growthNum: number}[] = [];
+
+             // Extract from tableData1 (Overall KPIs)
+             (report.tableData1 || []).forEach(m => {
+                const growthStr = m.change.replace('%', '').replace('+', '');
+                const growthVal = parseFloat(growthStr);
+                if (!isNaN(growthVal) && growthVal > 0) {
+                   allMetricsForSorting.push({
+                      label: m.metric,
+                      value: m.current,
+                      prev: m.previous,
+                      growth: m.change,
+                      growthNum: growthVal
+                   });
+                }
+             });
+
+             // Extract from googleAdsKpis (Performance Marketing)
+             const gKpis_cs = (report as any).performance?.googleAdsKpis || [];
+             gKpis_cs.forEach((k: any) => {
+                if (k.pctChange > 0) {
+                   allMetricsForSorting.push({
+                      label: `Ad ${k.metric}`,
+                      value: k.current,
+                      prev: k.previous,
+                      growth: (k.pctChange > 0 ? '+' : '') + k.pctChange + '%',
+                      growthNum: k.pctChange
+                   });
+                }
+             });
+
+             // Sort by growthNum DESC and pick top 3
+             let resultsToShow = allMetricsForSorting
+                .sort((a, b) => b.growthNum - a.growthNum)
+                .slice(0, 3)
+                .map(({label, value, prev, growth}) => ({label, value, prev, growth}));
+
+             // Fallback to defaults if not enough data
+             if (resultsToShow.length < 3) {
+                const defaults = s.customData.results;
+                while (resultsToShow.length < 3) {
+                   resultsToShow.push(defaults[resultsToShow.length] || { label: 'Performance Gain', value: 'Dynamic' });
+                }
+             }
+
+             return {
+               ...s,
+               customData: {
+                 ...s.customData,
+                 challenges: selfGap.weaknesses?.slice(0, 3) || s.customData.challenges,
+                 solutions: selfGap.actionable_gaps?.slice(0, 3).map((g: any) => typeof g === 'string' ? g : g.title) || s.customData.solutions,
+                 results: resultsToShow
+               }
+             };
+
+           case 'competitor_insights':
+             const sMod_comp = report.seo || report;
+             const pMod_comp = report.performance || report;
+
+             const seoComp = sMod_comp?.aiCompetitorAnalysis?.competitor_breakdown ||
+                           sMod_comp?.aiCompetitorAnalysis?.competitors ||
+                           (report as any).aiCompetitorAnalysis?.competitor_breakdown ||
+                           [];
+
+             const perfComp = pMod_comp?.aiCompetitorAnalysis?.competitor_breakdown ||
+                            pMod_comp?.aiCompetitorAnalysis?.competitors ||
+                            (report as any).aiCompetitorAnalysis?.competitors ||
+                            [];
+
+             // Extract a summary observation if specific summary is missing
+             const getObservation = (compList: any[], fallback: string) => {
+               if (compList.length && typeof compList[0] === 'object') {
+                 const first = compList[0];
+                 return (first.inferred_actions || []).join(' ') || (first.strengths || []).join(' ') || fallback;
+               }
+               return fallback;
+             };
+
+             const getOpportunity = (moduleData: any, fallback: string) => {
+               const analysis = moduleData?.aiCompetitorAnalysis;
+               return analysis?.self_gap_analysis?.missed_opportunities?.[0] ||
+                      analysis?.self_gap_analysis?.actionable_gaps?.[0] ||
+                      moduleData?.competitor_intelligence?.biggest_threat ||
+                      fallback;
+             };
+
+             return {
+               ...s,
+               customData: {
+                 ...s.customData,
+                 seoCompetitors: seoComp,
+                 performanceCompetitors: perfComp,
+                 selectedSeoIdx: s.customData?.selectedSeoIdx !== undefined ? s.customData.selectedSeoIdx : (seoComp.length > 0 ? 0 : undefined),
+                 selectedPerfIdx: s.customData?.selectedPerfIdx !== undefined ? s.customData.selectedPerfIdx : (perfComp.length > 0 ? 0 : undefined),
+                 seoObservation: sMod_comp?.aiCompetitorAnalysis?.overall_threat_summary || getObservation(seoComp, 'SEO competitors are aggressively targeting high-intent keywords.'),
+                 performanceObservation: pMod_comp?.aiCompetitorAnalysis?.overall_threat_summary || getObservation(perfComp, 'Performance competitors are scaling video ad spend.'),
+                 seoOpportunity: getOpportunity(sMod_comp, 'Focus on long-tail destination keywords.'),
+                 performanceOpportunity: getOpportunity(pMod_comp, 'Implement dynamic remarketing for abandoned carts.')
+               }
+             };
+
+           case 'recommendations':
+             return {
+               ...s,
+               listItems: (report.adviceList || []).map(a => typeof a === 'string' ? a : a.title).slice(0, 7)
+             };
+
+           case 'action_plan':
+             const roadmap = report.improvement_roadmap || (report as any).performance?.improvement_roadmap || {};
+             const actions = roadmap.actions || [];
+
+             // Map actions to the 4 categories
+             const seoActions = actions.filter((a: any) => a.title.toUpperCase().includes('SEO')).map((a: any) => a.title);
+             const socialActions = actions.filter((a: any) => a.title.toUpperCase().includes('SOCIAL')).map((a: any) => a.title);
+             const paidActions = actions.filter((a: any) => a.title.toUpperCase().includes('AD') || a.title.toUpperCase().includes('META') || a.title.toUpperCase().includes('GOOGLE')).map((a: any) => a.title);
+             const webActions = actions.filter((a: any) => a.title.toUpperCase().includes('WEB') || a.title.toUpperCase().includes('PAGE')).map((a: any) => a.title);
+
+             return {
+               ...s,
+               listSections: [
+                 { title: 'SEO Activities', items: seoActions.length > 0 ? seoActions : ['Improve Keyword Rankings', 'Publish Optimized Content'] },
+                 { title: 'Social Media Activities', items: socialActions.length > 0 ? socialActions : ['Increase Reel Production', 'Launch Engagement Campaigns'] },
+                 { title: 'Paid Advertising Activities', items: paidActions.length > 0 ? paidActions : ['Scale Winning Campaigns', 'Optimize Conversion Rates'] },
+                 { title: 'Website Activities', items: webActions.length > 0 ? webActions : ['Improve User Experience', 'Optimize Landing Pages'] }
+               ],
+               metadata: {
+                 ...s.metadata,
+                 rightDesc: roadmap.summary || 'Focus Will Be On Scaling High-Performing Channels And Improving Conversion Efficiency.'
+               },
+               customData: {
+                 ...s.customData,
+                 conclusion: (report.ai_insights as any)?.conclusion || report.executiveSummary || s.customData.conclusion
+               }
+             };
+
+           case 'thank_you':
+             return {
+               ...s,
+               title: 'Conclusion',
+               metadata: {
+                 ...s.metadata,
+                 platform: report.siteName?.toUpperCase() || 'BLACKNBOLD.IN'
+               },
+               images: {
+                 ...s.images,
+                 logo: userAvatarUrl || ''
+               }
              };
 
            default:
-             return { ...s, footer: siteName.toUpperCase() };
+             return s;
          }
        });
+
+       // ENHANCED FETCHING: If competitor data is missing, try to fetch it directly from Supabase
+       const populateCompetitors = async () => {
+          const targetSiteId = siteId || report.site_id || report.report_id?.split('_')[0];
+          if (!targetSiteId) return;
+
+          try {
+            // Helper to process fetched analysis
+            const processCompData = (analysis: any) => {
+               if (!analysis) return null;
+               const data = typeof analysis === 'string' ? JSON.parse(analysis) : analysis;
+               return {
+                  breakdown: data.competitor_breakdown || data.competitors || [],
+                  summary: data.overall_threat_summary || data.biggest_threat || ""
+               };
+            };
+
+            // Fetch SEO Competitors
+            const { data: seoRow } = await supabase
+              .from('processed_reports')
+              .select('ai_competitor_analysis')
+              .eq('site_id', targetSiteId)
+              .eq('module', 'seo')
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            const seoData = processCompData(seoRow?.ai_competitor_analysis);
+
+            // Fetch Performance Competitors
+            const { data: perfRow } = await supabase
+              .from('processed_reports')
+              .select('ai_competitor_analysis')
+              .eq('site_id', targetSiteId)
+              .eq('module', 'performance')
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            const perfData = processCompData(perfRow?.ai_competitor_analysis);
+
+            if (seoData || perfData) {
+               setSlides(prev => prev.map(s => {
+                 if (s.type === 'competitor_insights') {
+                    return {
+                      ...s,
+                      customData: {
+                        ...s.customData,
+                        seoCompetitors: seoData?.breakdown?.length ? seoData.breakdown : s.customData.seoCompetitors,
+                        performanceCompetitors: perfData?.breakdown?.length ? perfData.breakdown : s.customData.performanceCompetitors,
+                        seoObservation: seoData?.summary || s.customData.seoObservation,
+                        performanceObservation: perfData?.summary || s.customData.performanceObservation
+                      }
+                    };
+                 }
+                 return s;
+               }));
+            }
+          } catch (err) {
+            console.error("Error direct fetching competitors:", err);
+          }
+       };
+
        setSlides(populated);
+       populateCompetitors();
     }
-  }, [report?.id]);
+  }, [report, userName, resetTrigger]); // Re-sync when resetTrigger changes
+
 
   // Handle Autoplay Loop
   useEffect(() => {
@@ -543,18 +1120,35 @@ export default function ClientReports({ report, category, setCategory, isFullscr
 
   const addSlide = (type: SlideType) => {
     const defaultTitles: Record<SlideType, string> = {
-      cover: 'New Cover Slide',
-      summary: 'New Executive Summary',
-      scorecard: 'New Scorecard Report',
-      growth: 'New Growth Metrics',
-      organic: 'New Web Intelligence',
-      scatter: 'New Opportunity Index',
-      funnel: 'New Conversion Funnel',
-      campaign: 'New Campaign Review',
-      audience: 'New Regional Reach',
-      channels: 'New Lead Attribution',
-      roadmap: 'New Execution Roadmap',
-      outro: 'New Wrap-Up Outlook'
+      digital_cover: 'Digital Marketing Monthly Performance Report',
+      exec_summary: 'Executive Performance Summary',
+      services_delivered: 'Services Delivered',
+      overall_performance: 'Overall Performance Overview',
+      seo_performance: 'SEO Performance',
+      website_analytics: 'Website Analytics',
+      social_performance: 'Social Media Performance',
+      content_performance: 'Content Performance',
+      meta_ads: 'Meta Ads Performance',
+      google_ads: 'Google Ads Performance',
+      lead_gen: 'Lead Generation Report',
+      activities_completed: 'Activities Completed During The Month',
+      challenges_solutions: 'Challenges & Solutions',
+      competitor_insights: 'Competitor Insights',
+      recommendations: 'Recommendations',
+      action_plan: 'Next Month Action Plan',
+      thank_you: 'Thank You',
+      cover: 'Cover Slide',
+      summary: 'Executive Summary',
+      scorecard: 'Scorecard Report',
+      growth: 'Growth Metrics',
+      organic: 'Web Intelligence',
+      scatter: 'Opportunity Index',
+      funnel: 'Conversion Funnel',
+      campaign: 'Campaign Review',
+      audience: 'Regional Reach',
+      channels: 'Lead Attribution',
+      roadmap: 'Execution Roadmap',
+      outro: 'Wrap-Up Outlook'
     };
 
     const newSlide: Slide = {
@@ -706,16 +1300,16 @@ export default function ClientReports({ report, category, setCategory, isFullscr
 
   const getSlideIcon = (type: SlideType) => {
     switch (type) {
-      case 'cover': return <Layers className="w-4 h-4 text-slate-500" />;
-      case 'summary': return <Layout className="w-4 h-4 text-emerald-500" />;
-      case 'scorecard': return <Award className="w-4 h-4 text-blue-500" />;
-      case 'organic': return <Globe className="w-4 h-4 text-purple-500" />;
-      case 'scatter': return <Grid className="w-4 h-4 text-orange-500" />;
-      case 'funnel': return <Layers className="w-4 h-4 text-pink-500" />;
-      case 'campaign': return <Tv className="w-4 h-4 text-cyan-500" />;
-      case 'audience': return <Users className="w-4 h-4 text-violet-500" />;
-      case 'roadmap': return <Layout className="w-4 h-4 text-yellow-500" />;
-      default: return <Eye className="w-4 h-4 text-slate-400" />;
+      case 'cover': return <Layers className="w-4 h-4 text-white" />;
+      case 'summary': return <Layout className="w-4 h-4 text-white" />;
+      case 'scorecard': return <Award className="w-4 h-4 text-white" />;
+      case 'organic': return <Globe className="w-4 h-4 text-white" />;
+      case 'scatter': return <Grid className="w-4 h-4 text-white" />;
+      case 'funnel': return <Layers className="w-4 h-4 text-white" />;
+      case 'campaign': return <Tv className="w-4 h-4 text-white" />;
+      case 'audience': return <Users className="w-4 h-4 text-white" />;
+      case 'roadmap': return <Layout className="w-4 h-4 text-white" />;
+      default: return <Eye className="w-4 h-4 text-white" />;
     }
   };
 
@@ -733,7 +1327,7 @@ export default function ClientReports({ report, category, setCategory, isFullscr
     return (
       <div className="h-[70vh] flex flex-col items-center justify-center text-center space-y-6">
         <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center border border-white/10 animate-pulse">
-          <Activity size={40} className="text-[#2563EB]" />
+          <Activity size={40} className="text-white" />
         </div>
         <div className="space-y-2">
           <h2 className="text-2xl font-display font-bold text-[#111827]">Awaiting Intelligence Feed</h2>
@@ -746,32 +1340,32 @@ export default function ClientReports({ report, category, setCategory, isFullscr
   return (
     <div
       id="ppt-viewer-workspace-root"
-      className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans"
+      className="flex-1 flex flex-col font-sans bg-[#000000]"
     >
       {/* HEADER CONTROLS BAR */}
-      <header className="bg-slate-950 border-b border-slate-800 px-4 py-3 flex flex-wrap justify-between items-center gap-4 z-40 select-none shadow-md">
+      <header className="bg-[#000000] border-b border-[#1F1F1F] px-4 py-3 flex flex-wrap justify-between items-center gap-4 z-40 select-none shadow-md">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <Sparkles className="w-5 h-5 text-white animate-pulse" />
+          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-lg">
+            <Sparkles className="w-5 h-5 text-black animate-pulse" />
           </div>
           <div>
-            <span className="text-sm font-semibold tracking-wide block uppercase font-mono text-blue-400">{report.siteName || 'Client Ecosystem'}</span>
-            <span className="text-xs text-slate-400 block -mt-1">Interactive PPT Shower & 3D Editor</span>
+            <span className="text-sm font-semibold tracking-wide block uppercase font-mono text-white">{report.siteName || 'Client Ecosystem'}</span>
+            <span className="text-xs text-gray-500 block -mt-1">Interactive PPT Shower & 3D Editor</span>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Slide Transition Selector */}
-          <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs">
-            <span className="text-[10px] uppercase font-bold text-slate-400 px-2 font-mono">3D TRANSITION:</span>
+          <div className="flex items-center bg-[#111111] border border-[#1F1F1F] rounded-lg p-0.5 text-xs">
+            <span className="text-[10px] uppercase font-bold text-gray-500 px-2 font-mono">3D TRANSITION:</span>
             {['slide', 'cube', 'flip', 'zoom'].map((style) => (
               <button
                 key={style}
                 onClick={() => setTransitionStyle(style as any)}
                 className={`py-1 px-2.5 rounded font-medium capitalize transition-all ${
                   transitionStyle === style
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-white text-black shadow-sm'
+                    : 'text-gray-400 hover:text-white hover:bg-[#1A1A1A]'
                 }`}
               >
                 {style}
@@ -781,7 +1375,7 @@ export default function ClientReports({ report, category, setCategory, isFullscr
 
           <button
             onClick={() => setIsPresenting(!isPresenting)}
-            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold py-1.5 px-4 rounded-lg shadow-md transition-all shrink-0 hover:scale-[1.03]"
+            className="flex items-center gap-2 bg-white text-black hover:bg-gray-200 text-xs font-bold py-1.5 px-4 rounded-lg shadow-md transition-all shrink-0 hover:scale-[1.03]"
           >
             {isPresenting ? (
               <>
@@ -796,25 +1390,25 @@ export default function ClientReports({ report, category, setCategory, isFullscr
             )}
           </button>
 
-          <div className="flex items-center gap-1 border-l border-slate-800 pl-2">
+          <div className="flex items-center gap-1 border-l border-[#1F1F1F] pl-2">
             <button
               onClick={handleSaveEdits}
               title="Save Changes to Database"
-              className="p-1.5 bg-green-900/40 hover:bg-green-600 text-green-300 rounded hover:text-white transition-colors border border-green-800"
+              className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-colors border border-white/10"
             >
               <Save className="w-4 h-4" />
             </button>
             <button
               onClick={exportDeck}
               title="Download backup (JSON)"
-              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded hover:text-white transition-colors"
+              className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-colors border border-white/10"
             >
               <Download className="w-4 h-4" />
             </button>
             <button
               onClick={() => fileInputRef.current?.click()}
               title="Upload backup"
-              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded hover:text-white transition-colors"
+              className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-colors border border-white/10"
             >
               <Upload className="w-4 h-4" />
             </button>
@@ -828,7 +1422,7 @@ export default function ClientReports({ report, category, setCategory, isFullscr
             <button
               onClick={handleReset}
               title="Reset PPT parameters"
-              className="p-1.5 bg-rose-950/40 hover:bg-rose-900 border border-rose-900/40 text-rose-300 rounded hover:text-white transition-all ml-1"
+              className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-all ml-1 border border-white/10"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
@@ -838,39 +1432,47 @@ export default function ClientReports({ report, category, setCategory, isFullscr
 
       {/* DYNAMIC VIEWPORTS CONTAINER */}
       {!isPresenting ? (
-        <div id="ppt-editor-workspace" className="flex-1 flex flex-col lg:flex-row overflow-y-auto custom-scrollbar relative">
+        <div id="ppt-editor-workspace" className="flex-1 flex flex-col lg:flex-row overflow-y-auto custom-scrollbar relative bg-[#000000]">
           {/* CENTRAL WORKSPACE: Slide Preview Canvas */}
-          <main className="flex-1 bg-slate-950 p-4 sm:p-6 flex flex-col justify-start items-center relative gap-4 max-w-[1000px] mx-auto w-full min-h-max">
-            <div className="flex justify-between w-full max-w-[1000px] text-xs text-slate-400 px-1 select-none">
+          <main className="flex-1 bg-[#000000] p-4 sm:p-6 flex flex-col justify-start items-center relative gap-4 max-w-[1000px] mx-auto w-full min-h-max">
+            <div className="flex justify-between w-full max-w-[1000px] text-xs text-gray-500 px-1 select-none">
               <span className="flex items-center gap-1 font-mono">
-                <Sparkles className="w-3.5 h-3.5 text-blue-500" /> DOUBLE CLICK OR USE INPUT BOXES TO DIRECTLY EDIT PREVIEW
+                <Sparkles className="w-3.5 h-3.5 text-white" /> DOUBLE CLICK OR USE INPUT BOXES TO DIRECTLY EDIT PREVIEW
               </span>
-              <span className="font-mono bg-slate-900 px-2.5 py-0.5 rounded border border-slate-800 self-end">
+              <span className="font-mono bg-[#111111] px-2.5 py-0.5 rounded border border-[#1F1F1F] self-end text-white">
                 Slide {(currentIdx + 1)} / {slides.length}
               </span>
             </div>
 
-            <div className="w-full max-w-[1000px] aspect-video bg-white text-slate-900 rounded-2xl shadow-2xl border border-slate-800/20 overflow-hidden relative group/canvas flex flex-col">
-              <SlideRenderer
-                slide={slides[currentIdx]}
-                isEditMode={true}
-                onUpdateSlide={updateCurrentSlide}
-                siteImageUrl={report?.imageUrl}
-                userAvatarUrl={userAvatarUrl}
-              />
+            <div className="w-full max-w-6xl aspect-[16/9.2] overflow-y-auto custom-scrollbar pr-12 group/scroll">
+              <div className="w-full max-w-5xl mx-auto min-h-full bg-[#070708] text-white rounded-2xl shadow-2xl border border-white/5 relative group/canvas flex flex-col overflow-hidden">
+                <SlideRenderer
+                  slide={slides[currentIdx]}
+                  isEditMode={true}
+                  onUpdateSlide={updateCurrentSlide}
+                  siteImageUrl={report?.imageUrl}
+                  userAvatarUrl={userAvatarUrl}
+                  onNavigate={(idx) => {
+                    setDirection(idx > currentIdx ? 1 : -1);
+                    setCurrentIdx(idx);
+                  }}
+                  onUpdateAllSlides={(newSlides) => setSlides(newSlides)}
+                  slides={slides}
+                />
+              </div>
             </div>
 
-            <div className="w-full max-w-[1000px] flex justify-between items-center select-none pt-2">
+            <div className="w-full max-w-5xl flex justify-between items-center select-none pt-2">
               <div className="flex gap-2">
                 <button
                   onClick={prevSlide}
-                  className="bg-slate-900 hover:bg-slate-800 text-white border border-slate-800 hover:border-slate-700 p-2 rounded-lg transition-all"
+                  className="bg-[#111111] hover:bg-[#1A1A1A] text-white border border-[#1F1F1F] p-2 rounded-lg transition-all"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
                   onClick={nextSlide}
-                  className="bg-slate-900 hover:bg-slate-800 text-white border border-slate-800 hover:border-slate-700 p-2 rounded-lg transition-all"
+                  className="bg-[#111111] hover:bg-[#1A1A1A] text-white border border-[#1F1F1F] p-2 rounded-lg transition-all"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -885,13 +1487,13 @@ export default function ClientReports({ report, category, setCategory, isFullscr
                       setCurrentIdx(i);
                     }}
                     className={`h-2 rounded-full transition-all ${
-                      i === currentIdx ? 'w-6 bg-blue-500' : 'w-2 bg-slate-800 hover:bg-slate-600'
+                      i === currentIdx ? 'w-6 bg-white' : 'w-2 bg-[#1F1F1F] hover:bg-gray-600'
                     }`}
                   />
                 ))}
               </div>
 
-              <span className="text-[10px] font-mono font-semibold tracking-wide bg-slate-900 px-2 py-1 rounded text-slate-400 select-none">
+              <span className="text-[10px] font-mono font-semibold tracking-wide bg-[#111111] px-2 py-1 rounded text-gray-500 select-none">
                 Aspect standard format 16:9 responsive layout
               </span>
             </div>
@@ -902,36 +1504,36 @@ export default function ClientReports({ report, category, setCategory, isFullscr
         <div
           id="ppt-presentation-theatre"
           ref={presentationRef}
-          className="flex-1 bg-slate-950 flex flex-col justify-between p-4 sm:p-8 relative select-none h-full w-full"
+          className="flex-1 bg-[#000000] flex flex-col justify-between p-4 sm:p-8 relative select-none h-full w-full"
         >
-          <div className="absolute top-0 inset-x-0 h-1 bg-slate-800 z-50">
+          <div className="absolute top-0 inset-x-0 h-1 bg-[#1F1F1F] z-50">
             {isPlaying && (
               <div
-                className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-100"
+                className="h-full bg-white transition-all duration-100"
                 style={{ width: `${timeLeft}%` }}
               />
             )}
           </div>
 
-          <div className="flex justify-between items-center z-30 select-none bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-full px-6 py-2.5 max-w-[1000px] w-full mx-auto shadow-xl">
+          <div className="flex justify-between items-center z-30 select-none bg-[#111111]/80 backdrop-blur-md border border-[#1F1F1F] rounded-full px-6 py-2.5 max-w-5xl w-full mx-auto shadow-xl">
             <div className="flex items-center gap-3">
-              <span className="text-xs font-mono font-bold tracking-widest text-blue-400 uppercase">
+              <span className="text-xs font-mono font-bold tracking-widest text-white uppercase">
                 {slides[currentIdx].type === 'cover' ? 'CLIENT ECOSYSTEM DECK' : slides[currentIdx].title}
               </span>
-              <span className="text-[10px] font-mono text-slate-500 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+              <span className="text-[10px] font-mono text-gray-400 bg-[#000000] px-2 py-0.5 rounded border border-[#1F1F1F]">
                 Slide {(currentIdx + 1)} of {slides.length}
               </span>
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-850 px-2 py-1 rounded-md text-[10px]">
-                <span className="text-slate-500 font-bold uppercase font-mono">INTERVAL:</span>
+              <div className="flex items-center gap-1.5 bg-[#000000] border border-[#1F1F1F] px-2 py-1 rounded-md text-[10px]">
+                <span className="text-gray-500 font-bold uppercase font-mono">INTERVAL:</span>
                 {[3, 5, 8].map(s => (
                   <button
                     key={s}
                     onClick={() => setPlaySpeed(s * 1000)}
                     className={`px-1.5 py-0.5 rounded font-bold font-mono transition-colors ${
-                      playSpeed === s * 1000 ? 'text-blue-400' : 'text-slate-500 hover:text-slate-300'
+                      playSpeed === s * 1000 ? 'text-white' : 'text-gray-500 hover:text-white'
                     }`}
                   >
                     {s}s
@@ -942,7 +1544,7 @@ export default function ClientReports({ report, category, setCategory, isFullscr
               <button
                 onClick={() => setIsPlaying(!isPlaying)}
                 className={`p-2 rounded-full cursor-pointer flex items-center justify-center transition-colors shadow-md ${
-                  isPlaying ? 'bg-amber-600 text-white' : 'bg-emerald-600 text-white'
+                  isPlaying ? 'bg-white text-black' : 'bg-white text-black'
                 }`}
               >
                 {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -953,40 +1555,48 @@ export default function ClientReports({ report, category, setCategory, isFullscr
                   setIsPresenting(false);
                   setIsPlaying(false);
                 }}
-                className="text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 rounded-full py-1.5 px-4 cursor-pointer transition-colors"
+                className="text-xs font-semibold bg-[#1A1A1A] hover:bg-[#2A2A2A] text-white border border-[#2A2A2A] rounded-full py-1.5 px-4 cursor-pointer transition-colors"
               >
                 Exit Presentation Mode
               </button>
             </div>
           </div>
 
-          <div className="flex-1 flex justify-center items-center py-4 perspective-container h-full w-full">
-            <div className="w-full max-w-[1000px] aspect-video bg-white text-slate-900 rounded-3xl shadow-2xl overflow-hidden relative border border-slate-850/10 h-auto max-h-[90vh]">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={currentIdx}
-                  variants={getVariants(direction)}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  transition={{ duration: 0.45, ease: 'easeInOut' }}
-                  className="w-full h-full text-slate-900 font-sans"
-                >
-                  <SlideRenderer
-                    slide={slides[currentIdx]}
-                    isEditMode={false}
-                    onUpdateSlide={updateCurrentSlide}
-                    siteImageUrl={report?.imageUrl}
-                    userAvatarUrl={userAvatarUrl}
-                  />
-                </motion.div>
-              </AnimatePresence>
+          <div className="flex-1 flex justify-center items-center py-4 perspective-container h-full">
+            <div className="w-full max-w-6xl h-[calc(min(90vw,64rem)*9.2/16)] overflow-y-auto custom-scrollbar pr-12 group/scroll">
+              <div className="w-full max-w-5xl mx-auto min-h-full bg-[#070708] text-white rounded-3xl shadow-2xl relative border border-slate-850/10 overflow-hidden">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentIdx}
+                    variants={getVariants(direction)}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={{ duration: 0.45, ease: 'easeInOut' }}
+                    className="w-full min-h-full text-slate-900 font-sans"
+                  >
+                    <SlideRenderer
+                      slide={slides[currentIdx]}
+                      isEditMode={false}
+                      onUpdateSlide={updateCurrentSlide}
+                      siteImageUrl={report?.imageUrl}
+                      userAvatarUrl={userAvatarUrl}
+                      onNavigate={(idx) => {
+                        setDirection(idx > currentIdx ? 1 : -1);
+                        setCurrentIdx(idx);
+                      }}
+                      onUpdateAllSlides={(newSlides) => setSlides(newSlides)}
+                      slides={slides}
+                    />
+                  </motion.div>
+                </AnimatePresence>
 
-              <div className="absolute inset-y-0 left-0 w-20 flex items-center justify-center bg-gradient-to-r from-black/0 to-transparent hover:from-black/10 transition-colors cursor-pointer group" onClick={prevSlide}>
-                <ChevronLeft className="w-8 h-8 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <div className="absolute inset-y-0 right-0 w-20 flex items-center justify-center bg-gradient-to-l from-black/0 to-transparent hover:from-black/10 transition-colors cursor-pointer group" onClick={nextSlide}>
-                <ChevronRight className="w-8 h-8 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute inset-y-0 left-0 w-20 flex items-center justify-center bg-gradient-to-r from-black/0 to-transparent hover:from-black/10 transition-colors cursor-pointer group" onClick={prevSlide}>
+                  <ChevronLeft className="w-8 h-8 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+                <div className="absolute inset-y-0 right-0 w-20 flex items-center justify-center bg-gradient-to-l from-black/0 to-transparent hover:from-black/10 transition-colors cursor-pointer group" onClick={nextSlide}>
+                  <ChevronRight className="w-8 h-8 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
               </div>
             </div>
           </div>
