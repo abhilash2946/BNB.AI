@@ -139,35 +139,43 @@ async def call_gemini(prompt: str, normalize: bool = True) -> dict:
                     url = f"https://generativelanguage.googleapis.com/{version}/models/{model}:generateContent"
                     gen_config = {"temperature": 0.1, "maxOutputTokens": 8192}
                     if version == "v1beta": gen_config["responseMimeType"] = "application/json"
-                    for attempt in range(1, 3):
-                        print(f"[Gemini Attempt] {model} ({version}) - Attempt {attempt}...")
-                        try:
-                            resp = await client.post(url, params={"key": key}, json={"contents": [{"parts": [{"text": full_prompt}]}], "generationConfig": gen_config}, timeout=90.0)
-                            if resp.status_code == 200:
-                                data = resp.json()
-                                text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                                if not text:
-                                    print(f"!!! {model} returned empty response.")
-                                    continue
-                                print(f"--- RAW OUTPUT ({model}) ---\n{text[:500]}...\n-------------------")
-                                parsed = extract_json_object(text)
-                                if parsed: return normalize_ai_payload(parsed) if normalize else parsed
-                                # Try repair
-                                parsed_rep = extract_json_object(repair_json(text))
-                                if parsed_rep: return normalize_ai_payload(parsed_rep) if normalize else parsed_rep
-                            elif resp.status_code == 429:
-                                print(f"!!! {model} 429 Rate Limit. Skipping.")
-                                break
-                            elif resp.status_code == 404:
-                                print(f"!!! {model} ({version}) 404 Not Found. Skipping.")
-                                break
-                            else:
-                                err_body = resp.text[:200]
-                                print(f"!!! {model} ({version}) failed with status {resp.status_code}: {err_body}")
-                                break
-                        except Exception as e:
-                            print(f"!!! Exception for {model}: {str(e)}")
-                            await asyncio.sleep(1)
+
+                    print(f"[Gemini Attempt] {model} ({version})...")
+                    try:
+                        resp = await client.post(url, params={"key": key}, json={"contents": [{"parts": [{"text": full_prompt}]}], "generationConfig": gen_config}, timeout=90.0)
+
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                            if not text:
+                                print(f"!!! {model} returned empty response. Skipping to next model type/version.")
+                                continue # Move to next version or next model
+
+                            print(f"--- RAW OUTPUT ({model}) ---\n{text[:500]}...\n-------------------")
+                            parsed = extract_json_object(text)
+                            if parsed: return normalize_ai_payload(parsed) if normalize else parsed
+
+                            # Try repair
+                            parsed_rep = extract_json_object(repair_json(text))
+                            if parsed_rep: return normalize_ai_payload(parsed_rep) if normalize else parsed_rep
+
+                            print(f"!!! Could not parse JSON from {model}. Skipping.")
+                            continue
+
+                        elif resp.status_code == 429:
+                            print(f"!!! {model} 429 Rate Limit. Skipping to next model.")
+                            break # Break the version loop to try a different model entirely
+                        elif resp.status_code == 404:
+                            print(f"!!! {model} ({version}) 404 Not Found. Skipping.")
+                            continue # Try next version
+                        else:
+                            err_body = resp.text[:200]
+                            print(f"!!! {model} ({version}) failed with status {resp.status_code}: {err_body}. Skipping.")
+                            continue # Try next version or model
+
+                    except Exception as e:
+                        print(f"!!! Exception for {model} ({version}): {str(e)}. Skipping.")
+                        continue # Immediately skip to next version/model
     return normalize_ai_payload({}) if normalize else {}
 
 async def summarize_advice(advice_list: list[str]) -> list[str]:

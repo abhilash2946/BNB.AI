@@ -60,6 +60,23 @@ export default function SiteManagement({
   const [fbPageId, setFbPageId] = useState(() => getSavedState('fbPageId', ""));
   const [igBusId, setIgBusId] = useState(() => getSavedState('igBusId', ""));
 
+  // Agency Protocol Credentials
+  const [googleClientId, setGoogleClientId] = useState(() => getSavedState('googleClientId', ""));
+  const [googleClientSecret, setGoogleClientSecret] = useState(() => getSavedState('googleClientSecret', ""));
+  const [metaAppId, setMetaAppId] = useState(() => getSavedState('metaAppId', ""));
+  const [metaAppSecret, setMetaAppSecret] = useState(() => getSavedState('metaAppSecret', ""));
+
+  useEffect(() => {
+    if (sharedCreds.googleOAuth) {
+      if (!googleClientId) setGoogleClientId(sharedCreds.googleOAuth.client_id || "");
+      if (!googleClientSecret) setGoogleClientSecret(sharedCreds.googleOAuth.client_secret || "");
+    }
+    if (sharedCreds.metaAppCreds) {
+      if (!metaAppId) setMetaAppId(sharedCreds.metaAppCreds.app_id || "");
+      if (!metaAppSecret) setMetaAppSecret(sharedCreds.metaAppCreds.app_secret || "");
+    }
+  }, [sharedCreds]);
+
   // Profile editing state
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileName, setProfileName] = useState(user.name);
@@ -68,9 +85,14 @@ export default function SiteManagement({
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
-    const state = { isAddingNew, editingSiteId, activeSettingsModal, name, url, industry, city, googleAdsDevToken, metaToken, metaTokenExpiry, ga4Id, gscUrl, googleAdsId, metaAdsId, fbPageId, igBusId };
+    const state = {
+      isAddingNew, editingSiteId, activeSettingsModal, name, url, industry, city,
+      googleAdsDevToken, metaToken, metaTokenExpiry, ga4Id, gscUrl, googleAdsId,
+      metaAdsId, fbPageId, igBusId,
+      googleClientId, googleClientSecret, metaAppId, metaAppSecret
+    };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [isAddingNew, editingSiteId, activeSettingsModal, name, url, industry, city, googleAdsDevToken, metaToken, metaTokenExpiry, ga4Id, gscUrl, googleAdsId, metaAdsId, fbPageId, igBusId, STORAGE_KEY]);
+  }, [isAddingNew, editingSiteId, activeSettingsModal, name, url, industry, city, googleAdsDevToken, metaToken, metaTokenExpiry, ga4Id, gscUrl, googleAdsId, metaAdsId, fbPageId, igBusId, googleClientId, googleClientSecret, metaAppId, metaAppSecret, STORAGE_KEY]);
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -84,6 +106,34 @@ export default function SiteManagement({
     setActiveSettingsModal(null);
     try {
       const tasks: Promise<any>[] = [];
+
+      // Save Google Protocol
+      if (googleClientId || googleClientSecret) {
+        tasks.push(supabase.from("user_credentials").upsert({
+          user_id: user.id,
+          platform: "google_oauth",
+          credentials: {
+            ...(sharedCreds.googleOAuth || {}),
+            client_id: googleClientId.trim(),
+            client_secret: googleClientSecret.trim(),
+            redirect_uri: `${API_URL}/auth/google/callback`
+          }
+        }));
+      }
+
+      // Save Meta Protocol
+      if (metaAppId || metaAppSecret) {
+        tasks.push(supabase.from("user_credentials").upsert({
+          user_id: user.id,
+          platform: "meta_app_creds",
+          credentials: {
+            ...(sharedCreds.metaAppCreds || {}),
+            app_id: metaAppId.trim(),
+            app_secret: metaAppSecret.trim()
+          }
+        }));
+      }
+
       if (googleAdsDevToken) tasks.push(supabase.from("user_credentials").upsert({ user_id: user.id, platform: "google_developer_token", credentials: { developer_token: googleAdsDevToken } }));
       if (metaToken) {
         if (metaToken !== sharedCreds.metaLongLivedToken) {
@@ -483,12 +533,36 @@ export default function SiteManagement({
                 </div>
                 <form onSubmit={handleSaveAgencySettings} className="space-y-6">
                   {(activeSettingsModal === 'all' || activeSettingsModal === 'google') && (
-                    <button type="button" onClick={async () => { const res = await fetch(`${API_URL}/auth/google/url?user_id=${user.id}`); const { url } = await res.json(); window.location.href = url; }} className="w-full py-4 bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/40 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all"><Globe size={20} /> Sync Google Cloud</button>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Google Client ID</label>
+                        <input type="text" value={googleClientId} onChange={e => setGoogleClientId(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-white outline-none" placeholder="Enter Client ID" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Google Client Secret</label>
+                        <input type="password" value={googleClientSecret} onChange={e => setGoogleClientSecret(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-white outline-none" placeholder="Enter Client Secret" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Google Ads Developer Token</label>
+                        <input type="text" value={googleAdsDevToken} onChange={e => setGoogleAdsDevToken(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-white outline-none" placeholder="Enter Developer Token" />
+                      </div>
+                      <button type="button" onClick={async () => { const res = await fetch(`${API_URL}/auth/google/url?user_id=${user.id}`); const { url } = await res.json(); window.location.href = url; }} className="w-full py-4 bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/40 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all"><Globe size={20} /> Sync Google Cloud</button>
+                    </div>
                   )}
                   {(activeSettingsModal === 'all' || activeSettingsModal === 'meta') && (
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Meta Long-Lived Token</label>
-                      <input type="password" value={metaToken} onChange={e => setMetaToken(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-white outline-none" />
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Meta App ID</label>
+                        <input type="text" value={metaAppId} onChange={e => setMetaAppId(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-white outline-none" placeholder="Enter App ID" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Meta App Secret</label>
+                        <input type="password" value={metaAppSecret} onChange={e => setMetaAppSecret(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-white outline-none" placeholder="Enter App Secret" />
+                      </div>
+                      <div className="space-y-2 pt-2 border-t border-white/5">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Meta Long-Lived Token</label>
+                        <input type="password" value={metaToken} onChange={e => setMetaToken(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-white outline-none" />
+                      </div>
                     </div>
                   )}
                   {(activeSettingsModal === 'all' || activeSettingsModal === 'dev_token') && (

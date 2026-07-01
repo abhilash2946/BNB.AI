@@ -5,11 +5,13 @@ from fastapi.responses import RedirectResponse
 from google_auth_oauthlib.flow import Flow
 from app.config import settings
 from app.supabase_client import supabase
+from app.services.credential_service import get_user_google_creds, get_user_meta_creds
 
 router = APIRouter(prefix="/auth", tags=["oauth"])
 
 def get_pkce_verifier(user_id: str) -> str:
-    raw = f"{user_id}:{settings.google_client_secret}"
+    google_creds = get_user_google_creds(user_id)
+    raw = f"{user_id}:{google_creds['client_secret']}"
     return base64.urlsafe_b64encode(hashlib.sha256(raw.encode()).digest()).decode('utf-8').rstrip('=')
 
 def get_pkce_challenge(verifier: str) -> str:
@@ -17,14 +19,15 @@ def get_pkce_challenge(verifier: str) -> str:
 
 @router.get("/google/url")
 async def get_google_auth_url(user_id: str, site_id: str = None):
+    google_creds = get_user_google_creds(user_id)
     flow = Flow.from_client_config(
         {
             "web": {
-                "client_id": settings.google_client_id,
-                "client_secret": settings.google_client_secret,
+                "client_id": google_creds["client_id"],
+                "client_secret": google_creds["client_secret"],
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [settings.google_redirect_uri],
+                "redirect_uris": [google_creds["redirect_uri"]],
             }
         },
         scopes=[
@@ -33,7 +36,7 @@ async def get_google_auth_url(user_id: str, site_id: str = None):
             "https://www.googleapis.com/auth/adwords",
         ],
     )
-    flow.redirect_uri = settings.google_redirect_uri
+    flow.redirect_uri = google_creds["redirect_uri"]
     state = f"{user_id}:{site_id or ''}"
     
     verifier = get_pkce_verifier(user_id)
@@ -56,14 +59,17 @@ async def google_callback(request: Request, code: str = None, state: str = None)
     user_id = parts[0]
     site_id = parts[1] if len(parts) > 1 else None
 
+    # Get User specific Google creds
+    google_creds = get_user_google_creds(user_id)
+
     flow = Flow.from_client_config(
         {
             "web": {
-                "client_id": settings.google_client_id,
-                "client_secret": settings.google_client_secret,
+                "client_id": google_creds["client_id"],
+                "client_secret": google_creds["client_secret"],
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [settings.google_redirect_uri],
+                "redirect_uris": [google_creds["redirect_uri"]],
             }
         },
         scopes=[
@@ -72,17 +78,18 @@ async def google_callback(request: Request, code: str = None, state: str = None)
             "https://www.googleapis.com/auth/adwords",
         ],
     )
-    flow.redirect_uri = settings.google_redirect_uri
+    flow.redirect_uri = google_creds["redirect_uri"]
     
     verifier = get_pkce_verifier(user_id)
     flow.fetch_token(code=code, code_verifier=verifier)
     credentials = flow.credentials
 
-    # Store refresh token in Supabase
+    # Store refresh token in Supabase (Merging with existing IDs)
     supabase.table("user_credentials").upsert({
         "user_id": user_id,
         "platform": "google_oauth",
         "credentials": {
+            **google_creds,
             "refresh_token": credentials.refresh_token,
         }
     }).execute()
@@ -104,12 +111,15 @@ class MetaTokenRequest(BaseModel):
 async def exchange_meta_token(req: MetaTokenRequest):
     # Trim the token and ensure we have credentials
     token = req.short_token.strip()
-    app_id = settings.meta_app_id.strip()
-    app_secret = settings.meta_app_secret.strip()
+
+    # Get User specific Meta App Creds
+    meta_creds = get_user_meta_creds(req.user_id)
+    app_id = meta_creds["app_id"].strip()
+    app_secret = meta_creds["app_secret"].strip()
 
     # Masked log for debugging
     masked_id = f"{app_id[:4]}...{app_id[-4:]}" if len(app_id) > 8 else app_id
-    print(f"---> Debug: Meta exchange attempt. App ID: {masked_id}")
+    print(f"---> Debug: Meta exchange attempt for user {req.user_id}. App ID: {masked_id}")
 
     if not app_id or not app_secret:
         raise HTTPException(status_code=400, detail="Meta App ID or Secret not configured in backend .env")

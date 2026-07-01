@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 from google.ads.googleads.client import GoogleAdsClient
 from app.supabase_client import supabase
 from app.config import settings
+from app.services.credential_service import get_user_google_creds
 
 async def get_google_ads_client(user_id: str) -> GoogleAdsClient:
     """Initialize the Google Ads Client using credentials from Supabase with retries."""
@@ -15,18 +16,22 @@ async def get_google_ads_client(user_id: str) -> GoogleAdsClient:
             resp = supabase.table("user_credentials").select("credentials").eq("user_id", user_id).eq("platform", "google_oauth").single().execute()
             if not resp.data:
                 raise Exception(f"No Google OAuth credentials found for user {user_id}")
-            refresh_token = resp.data["credentials"]["refresh_token"]
+            refresh_token = resp.data["credentials"].get("refresh_token")
+            if not refresh_token:
+                raise Exception(f"No refresh token found for user {user_id}")
 
             dev_resp = supabase.table("user_credentials").select("credentials").eq("user_id", user_id).eq("platform", "google_developer_token").single().execute()
             if not dev_resp.data:
                 raise Exception("Google Ads Developer Token missing. Please set it in Agency Settings.")
             developer_token = dev_resp.data["credentials"]["developer_token"]
 
+            google_creds = get_user_google_creds(user_id)
+
             credentials = {
                 "developer_token": developer_token,
                 "refresh_token": refresh_token,
-                "client_id": settings.google_client_id,
-                "client_secret": settings.google_client_secret,
+                "client_id": google_creds["client_id"],
+                "client_secret": google_creds["client_secret"],
                 "use_proto_plus": True
             }
 

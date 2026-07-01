@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
     pagespeed_api_key: str = os.getenv("PAGESPEED_API_KEY", "")
+
+    # These are defaults from Env, but often overridden by User Credentials from DB
     google_client_id: str = os.getenv("GOOGLE_CLIENT_ID", "")
     google_client_secret: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
     google_redirect_uri: str = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback")
