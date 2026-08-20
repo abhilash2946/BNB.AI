@@ -672,6 +672,12 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
         supabase.table("report_status").update({"status": "generating_ai"}).eq("report_id", report_id).execute()
 
         # Build the 4 consolidated prompts (Split Competitors into 2 batches to avoid truncation)
+        site_data = {
+            "gsc_clicks": gsc_agg.get("clicks", 0),
+            "gsc_ctr": gsc_agg.get("ctr", 0),
+            "ga4_users": ga4_totals.get("totalUsers", {}).get("current", 0),
+            "ga4_sessions": ga4_totals.get("sessions", {}).get("current", 0)
+        }
         exec_prompt = build_seo_exec_prompt(
             site_info, ga4_totals, gsc_agg, seo_work_details, gsc_agg_prev=gsc_agg_prev,
             top_landing=top_landing, prev_top_landing=prev_top_landing,
@@ -690,7 +696,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
         comp_batch1 = competitor_insights[:3]
         comp_batch2 = competitor_insights[3:6]
 
-        comp_prompt1 = build_competitor_batch_prompt(site_info, comp_batch1) if comp_batch1 else None
+        comp_prompt1 = build_competitor_batch_prompt(site_info, comp_batch1, site_data=site_data) if comp_batch1 else None
         comp_prompt2 = build_competitor_batch_prompt(site_info, comp_batch2) if comp_batch2 else None
 
         # Execute the 5 calls in parallel (sequenced by semaphore)
@@ -769,6 +775,9 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
         competitor_breakdown = ai_result.get("competitor_breakdown", [])
         overall_threat_summary = ai_result.get("overall_threat_summary", "")
         self_gap_analysis = ai_result.get("self_gap_analysis", {})
+
+        if not self_gap_analysis and batch_res1 and isinstance(batch_res1, dict):
+            self_gap_analysis = batch_res1.get("self_gap_analysis", {})
 
         comp_analysis = {
             "competitor_breakdown": competitor_breakdown,

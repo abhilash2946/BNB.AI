@@ -103,7 +103,14 @@ def normalize_ai_payload(payload: dict) -> dict:
     defaults = {
         "summary": "Report generated successfully.", "insights": ["Data processing complete."],
         "recommendations": [], "top_keywords_overview": "",
-        "competitor_analysis": {"inferred_actions": ["No actions detected."], "confidence": "low", "actionable_steps": ["Monitor market."]},
+        "competitor_analysis": {
+            "inferred_actions": ["No actions detected."],
+            "confidence": "low",
+            "actionable_steps": ["Monitor market."],
+            "self_gap_analysis": {
+                "strengths": [], "weaknesses": [], "missed_opportunities": [], "actionable_gaps": []
+            }
+        },
         "table_explanations": {}, "section_specific_advice": {}, "slide_descriptions": {},
     }
     for key, val in defaults.items():

@@ -859,10 +859,15 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
         )
 
         # Split competitors into 2 batches
+        site_data = {
+            "google_spend": google_cur.get('cost', 0),
+            "meta_spend": meta_current.get('spend', 0),
+            "ga4_users": ga4_totals.get('totalUsers', {}).get('current', 0)
+        }
         comp_batch1 = competitor_insights[:3]
         comp_batch2 = competitor_insights[3:6]
 
-        comp_prompt1 = build_competitor_batch_prompt(site_info, comp_batch1) if comp_batch1 else None
+        comp_prompt1 = build_competitor_batch_prompt(site_info, comp_batch1, site_data=site_data) if comp_batch1 else None
         comp_prompt2 = build_competitor_batch_prompt(site_info, comp_batch2) if comp_batch2 else None
 
         # Execute the 5 calls in parallel (sequenced by semaphore)
@@ -945,6 +950,9 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
         competitor_breakdown = ai_result.get("competitor_breakdown", [])
         overall_threat_summary = ai_result.get("overall_threat_summary", "")
         self_gap_analysis = ai_result.get("self_gap_analysis", {})
+
+        if not self_gap_analysis and batch_res1 and isinstance(batch_res1, dict):
+            self_gap_analysis = batch_res1.get("self_gap_analysis", {})
 
         competitor_analysis = {
             "competitor_breakdown": competitor_breakdown,

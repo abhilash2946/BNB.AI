@@ -54,12 +54,6 @@ Return JSON with EXACT keys:
 5. "recommendations_summarized": ["6 headlines."]
 6. "slide_descriptions": {{ "meta_titles": "...", "heading_structure": "...", "internal_linking": "...", "content_formatting": "...", "gmb_authority": "...", "gmb_support": "..." }}
 7. "improvement_roadmap": {{ "summary": "Data-dense. 15-18 words.", "strengths": ["3 items. 15-18 words each."], "weaknesses": ["3 items. 15-18 words each."], "opportunities": ["3 items. 15-18 words each."], "actions": [{{ "title": "Headline", "target": "Specific metric", "effort": "High|Medium|Low" }}] (Exactly 3 Tactical Actions) }}
-8. "self_gap_analysis": {{
-    "strengths": ["List 3 items. Exactly 2 sentences. Each sentence 15-18 words."],
-    "weaknesses": ["List 3 items. Exactly 2 sentences with numbers. Each sentence 15-18 words."],
-    "missed_opportunities": ["List 2 items. Exactly 2 sentences with metrics. Each sentence 15-18 words."],
-    "actionable_gaps": ["List 2 items. Exactly 2 sentences with metrics. Each sentence 15-18 words. DO NOT LEAVE EMPTY."]
-}}
 """
 
 def build_performance_roadmap_prompt(
@@ -152,12 +146,6 @@ Return JSON with EXACT keys:
 5. "recommendations_summarized": ["6 headlines."]
 6. "slide_descriptions": {{ "meta_titles": "...", "heading_structure": "...", "internal_linking": "...", "content_formatting": "...", "gmb_authority": "...", "gmb_support": "..." }}
 7. "improvement_roadmap": {{ "summary": "Data-dense. 15-18 words.", "strengths": ["3 items. 15-18 words each."], "weaknesses": ["3 items. 15-18 words each."], "opportunities": ["3 items. 15-18 words each."], "actions": [{{ "title": "Headline", "target": "Specific metric", "effort": "High|Medium|Low" }}] (Exactly 3 Tactical Actions) }}
-8. "self_gap_analysis": {{
-    "strengths": ["List 3 items. Exactly 2 sentences. Each sentence 15-18 words."],
-    "weaknesses": ["List 3 items. Exactly 2 sentences with numbers. Each sentence 15-18 words."],
-    "missed_opportunities": ["List 2 items. Exactly 2 sentences with metrics. Each sentence 15-18 words."],
-    "actionable_gaps": ["List 2 items. Exactly 2 sentences with metrics. Each sentence 15-18 words. DO NOT LEAVE EMPTY."]
-}}
 """
 
 def build_seo_roadmap_prompt(
@@ -212,12 +200,28 @@ Return JSON with EXACT key:
 }}
 """
 
-def build_competitor_batch_prompt(site_info: dict, competitor_insights: list) -> str:
+def build_competitor_batch_prompt(site_info: dict, competitor_insights: list, site_data: dict = None) -> str:
     c_data = [{"n": c["competitor_name"], "u": c.get("url", ""), "t": c.get("full_text", "")[:1200], "dq": c.get("discovery_query", "Local Search")} for c in competitor_insights]
+
+    site_context = ""
+    if site_data:
+        site_context = f"OUR SITE DATA: {json.dumps(site_data, separators=(',', ':'))}\n"
+
+    gap_analysis_instruction = ""
+    if site_data:
+        gap_analysis_instruction = """
+3. "self_gap_analysis": {
+    "strengths": ["List 3 internal strengths vs these competitors. 1 sentence each, 15-18 words."],
+    "weaknesses": ["List 3 technical gaps vs these competitors. 1 sentence each, 15-18 words."],
+    "missed_opportunities": ["List 2 high-value niches competitors are winning. 1 sentence each, 15-18 words."],
+    "actionable_gaps": ["List 2 immediate tactical moves to close the gap. 1 sentence each, 15-18 words."]
+}
+"""
+
     return f"""
 {ANALYST_TONE}
 GENERATE COMPETITOR INTELLIGENCE (JSON)
-COMPETITORS: {json.dumps(c_data, separators=(',', ':'))}
+{site_context}COMPETITORS: {json.dumps(c_data, separators=(',', ':'))}
 
 STRICT RULES:
 1. For this section, be extremely concise to avoid truncation.
@@ -237,6 +241,7 @@ Return JSON with:
     }}
 ]
 2. "overall_threat_summary": "Exactly 2 technical sentences naming the biggest threat. Each sentence 15-18 words."
+{gap_analysis_instruction}
 
 Return ONLY valid JSON.
 """

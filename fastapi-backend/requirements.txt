@@ -17,3 +17,5 @@ spacy
 beautifulsoup4
 lxml
 httpx
+pandas
+numpy
