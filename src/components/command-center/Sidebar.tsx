@@ -76,7 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           />
           <SidebarItem
             icon={Users}
-            label="Social Intelligence"
+            label="Social Intel"
             active={activeView === "social"}
             collapsed={shouldHideLabels}
             onClick={() => { setCategory("Social Media Marketing"); setActiveView("social"); fetchReportData(activeSite, dates, "Social Media Marketing"); }}

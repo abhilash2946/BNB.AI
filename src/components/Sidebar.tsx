@@ -60,7 +60,7 @@ export default function Sidebar({
     },
     {
       id: 'social-intel',
-      label: 'Social Intelligence',
+      label: 'Social Intel',
       category: 'Social Media Marketing' as CategoryType,
       icon: Users,
       action: () => onNavigate('social-intel', 'Social Media Marketing', 'Reports')
