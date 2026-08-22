@@ -33,6 +33,7 @@ export default function ShareDialog({ isOpen, onClose, siteId, reportId, dateRan
       }
 
       // Check for existing identical share configuration to avoid redundancy
+      // Note: Supabase array equality uses '{val1,val2}' format
       const { data: existing } = await supabase
         .from('shared_reports')
         .select('id')
@@ -40,6 +41,7 @@ export default function ShareDialog({ isOpen, onClose, siteId, reportId, dateRan
         .eq('access_type', accessType)
         .contains('date_range', dateRange)
         .eq('report_id', reportId || null)
+        .filter('shared_pages', 'eq', `{${sharedPages.join(',')}}`)
         .limit(1)
         .maybeSingle();
 

@@ -1055,13 +1055,13 @@ export default function ClientReports({ report, siteId, category, setCategory, i
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
 
-    if (isPresenting) {
+    if (isPresenting && !isSharedMode) { // Do not auto-fullscreen in shared mode
       if (presentationRef.current && !document.fullscreenElement) {
         presentationRef.current.requestFullscreen().catch((err) => {
           console.error(`Error attempting to enable fullscreen: ${err.message}`);
         });
       }
-    } else {
+    } else if (!isPresenting) {
       if (document.fullscreenElement) {
         document.exitFullscreen().catch((err) => {
           // Ignore exit errors
@@ -1072,7 +1072,7 @@ export default function ClientReports({ report, siteId, category, setCategory, i
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
-  }, [isPresenting]);
+  }, [isPresenting, isSharedMode]);
 
   const updateCurrentSlide = (updated: Slide) => {
     const newSlides = [...slides];
@@ -1571,15 +1571,31 @@ export default function ClientReports({ report, siteId, category, setCategory, i
                 {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
               </button>
 
-              <button
-                onClick={() => {
-                  setIsPresenting(false);
-                  setIsPlaying(false);
-                }}
-                className="text-xs font-semibold bg-[#1A1A1A] hover:bg-[#2A2A2A] text-white border border-[#2A2A2A] rounded-full py-1.5 px-4 cursor-pointer transition-colors"
-              >
-                Exit Presentation Mode
-              </button>
+              {isSharedMode ? (
+                <button
+                  onClick={() => {
+                    if (document.fullscreenElement) {
+                      document.exitFullscreen();
+                    } else {
+                      presentationRef.current?.requestFullscreen();
+                    }
+                  }}
+                  className="text-xs font-semibold bg-white text-black hover:bg-gray-200 rounded-full py-1.5 px-4 cursor-pointer transition-all flex items-center gap-2"
+                >
+                  <Maximize2 size={14} />
+                  <span>{document.fullscreenElement ? 'Exit Fullscreen' : 'View Fullscreen'}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setIsPresenting(false);
+                    setIsPlaying(false);
+                  }}
+                  className="text-xs font-semibold bg-[#1A1A1A] hover:bg-[#2A2A2A] text-white border border-[#2A2A2A] rounded-full py-1.5 px-4 cursor-pointer transition-colors"
+                >
+                  Exit Presentation Mode
+                </button>
+              )}
             </div>
           </div>
 
