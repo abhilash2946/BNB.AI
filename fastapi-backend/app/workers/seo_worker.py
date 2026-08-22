@@ -268,41 +268,65 @@ async def scrape_duckduckgo_fallback(query: str) -> list:
     """Last resort scraper for DDG if OpenSERP is failing."""
     url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
         "Referer": "https://duckduckgo.com/"
     }
     try:
-        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=25, follow_redirects=True) as client:
             resp = await client.get(url, headers=headers)
             if resp.status_code == 200:
                 soup = BeautifulSoup(resp.text, "lxml")
                 results = []
-                # DDG HTML often uses 'result__a' or 'result__url'
-                for link in soup.find_all("a", class_=re.compile(r"result__(url|a)")):
-                    href = link.get("href")
-                    if href:
-                        # DDG sometimes wraps the real URL
+                # Targeted selectors for DDG HTML version
+                for entry in soup.select(".result"):
+                    link = entry.select_one(".result__a")
+                    if link and link.get("href"):
+                        href = link.get("href")
                         if "uddg=" in href:
                             match = re.search(r"uddg=([^&]+)", href)
                             if match:
                                 from urllib.parse import unquote
                                 href = unquote(match.group(1))
 
-                        if href.startswith("http"):
+                        if href and href.startswith("http") and "duckduckgo.com" not in href:
                             results.append({"url": href.strip()})
 
-                # Broad fallback if specific classes fail
+                # Broad fallback
                 if not results:
-                    for link in soup.select(".links_main a.result__a"):
-                         href = link.get("href")
-                         if href and href.startswith("http"):
-                             results.append({"url": href.strip()})
+                    for link in soup.find_all("a", class_=re.compile(r"result__(url|a)")):
+                        href = link.get("href")
+                        if href and href.startswith("http") and "duckduckgo.com" not in href:
+                            results.append({"url": href.strip()})
 
                 return results
     except Exception as e:
-        print(f"!!! DDG Fallback failed: {e}")
+        print(f"!!! DDG Fallback failed for '{query}': {e}")
+    return []
+
+async def scrape_bing_fallback(query: str) -> list:
+    """Last resort scraper for Bing if OpenSERP is failing."""
+    url = f"https://www.bing.com/search?q={requests.utils.quote(query)}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.bing.com/"
+    }
+    try:
+        async with httpx.AsyncClient(timeout=25, follow_redirects=True) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                soup = BeautifulSoup(resp.text, "lxml")
+                results = []
+                for item in soup.select(".b_algo h2 a"):
+                    href = item.get("href")
+                    if href and href.startswith("http") and "microsoft.com" not in href and "bing.com" not in href:
+                        results.append({"url": href.strip()})
+                return results
+    except Exception as e:
+        print(f"!!! Bing Fallback failed for '{query}': {e}")
     return []
 
 async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: str, report_id: str, bnb_mode: bool = False):
@@ -403,7 +427,8 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
             print("---> Fetching Core Web Vitals...")
             cwv_data = await fetch_core_web_vitals(gsc_site_url)
         except Exception as e:
-            print(f"!!! CWV Fetch Exception: {e}")
+            print(f"!!! CWV Fetch Exception: {type(e).__name__} - {str(e)}")
+            traceback.print_exc()
 
         # 5. SEO Work Detection
         print("---> Detecting SEO Work...")
@@ -462,8 +487,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
 
             print(f"DEBUG: Keywords for live discovery: {discovery_kws}")
 
-            current_engine = "google"
-            engines_to_try = ["google", "duckduckgo", "bing"]
+            engines_to_try = ["bing", "duckduckgo", "google"]
 
             for kw in discovery_kws:
                 if len(competitor_discovery_map) >= 20: break
@@ -495,12 +519,17 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                         print(f"!!! Error searching OpenSERP {engine}: {e}")
                         continue
 
-                # LAST RESORT: Direct DDG Scrape if all OpenSERP engines failed
+                # LAST RESORT: Direct Fallbacks if all OpenSERP engines failed
                 if not results_list:
-                    print(f"DEBUG: All OpenSERP engines failed. Trying direct DDG fallback for '{query}'...")
-                    results_list = await scrape_duckduckgo_fallback(query)
+                    print(f"DEBUG: All OpenSERP engines failed. Trying direct fallbacks for '{query}'...")
+                    # Try Bing first, then DDG
+                    results_list = await scrape_bing_fallback(query)
                     if results_list:
-                        found_engine = "ddg_fallback"
+                        found_engine = "bing_fallback"
+                    else:
+                        results_list = await scrape_duckduckgo_fallback(query)
+                        if results_list:
+                            found_engine = "ddg_fallback"
 
                 # Process results if any were found
                 if results_list:
