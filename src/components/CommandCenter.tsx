@@ -64,20 +64,44 @@ export default function CommandCenter({
   const [isFullscreenReport, setIsFullscreenReport] = useState(false);
   const [resetTrigger, setResetTrigger] = useState(0);
 
-  // Lock shared mode configuration
+  // Shared Mode Configuration & Auto-Fetch
   useEffect(() => {
     if (isSharedMode && sharedConfig) {
+      console.log("[CommandCenter] Shared Mode detected, configuring workspace...");
+
+      // 1. Lock dates
       if (sharedConfig.date_range) {
         setDateRange(sharedConfig.date_range);
       }
+
+      // 2. Determine initial view/category
+      let targetCat = category;
+      let targetView = activeView;
+
       if (sharedConfig.access_type === 'private') {
-        const allowedViews = ['client-doc', 'client-ppt'];
-        if (!allowedViews.includes(activeView)) {
-          setActiveView(sharedConfig.shared_pages.includes('ppt') ? 'client-ppt' : 'client-doc');
+        const hasPPT = sharedConfig.shared_pages.includes('ppt');
+        const hasDoc = sharedConfig.shared_pages.includes('doc');
+
+        if (hasPPT && activeView !== 'client-ppt' && activeView !== 'client-doc') {
+          targetView = 'client-ppt';
+          targetCat = 'Combined Intelligence';
+        } else if (hasDoc && activeView !== 'client-doc' && activeView !== 'client-ppt') {
+          targetView = 'client-doc';
         }
       }
+
+      if (targetView === 'client-ppt') {
+        targetCat = 'Combined Intelligence';
+      }
+
+      setActiveView(targetView);
+      setCategory(targetCat);
+
+      // 3. Auto-trigger fetch for Shared Mode
+      // We use the exact report_id if available to bypass complex date/module searching
+      fetchReportData(activeSite, sharedConfig.date_range, targetCat, sharedConfig.report_id);
     }
-  }, [isSharedMode, sharedConfig, activeView]);
+  }, [isSharedMode, !!sharedConfig]);
 
   // Radar switching states
   const [isSelfRadar, setIsSelfRadar] = useState(false);

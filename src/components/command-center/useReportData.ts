@@ -822,6 +822,50 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
 
   const fetchStoredReport = async (siteId: string, startDate: string, endDate: string, cat: string) => {
     const moduleKey = cat === "SEO" ? "seo" : cat === "Performance Marketing" ? "performance" : cat === "Social Media Marketing" ? "social" : "combined";
+
+    if (moduleKey === "combined") {
+      // Combined reports are stored as separate SEO and Performance records
+      const [seo, perf] = await Promise.all([
+        supabase.from("processed_reports").select("*").eq("site_id", siteId).eq("module", "seo").eq("start_date", startDate).eq("end_date", endDate).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        supabase.from("processed_reports").select("*").eq("site_id", siteId).eq("module", "performance").eq("start_date", startDate).eq("end_date", endDate).order("created_at", { ascending: false }).limit(1).maybeSingle()
+      ]);
+
+      if (seo.data && perf.data) {
+        // Merge them into a single "RawReport" structure that buildCombinedReport expects
+        const mergedRaw: RawReport = {
+          ...seo.data,
+          report_id: `${seo.data.report_id}_${perf.data.report_id}`,
+          kpi_summary: { ...(safeJsonParse(seo.data.kpi_summary) || {}), ...(safeJsonParse(perf.data.kpi_summary) || {}) },
+          google_ads_details: perf.data.google_ads_details,
+          meta_ads_kpi: perf.data.meta_ads_kpi,
+          meta_ads_details: perf.data.meta_ads_details,
+          meta_ads_charts: perf.data.meta_ads_charts,
+          ai_recommendations: [...(normalizeList(seo.data.ai_recommendations)), ...(normalizeList(perf.data.ai_recommendations))],
+          ai_summary: {
+            seo_overview: safeJsonParse(seo.data.ai_summary)?.seo_overview || seo.data.ai_summary || "",
+            performance_overview: safeJsonParse(perf.data.ai_summary)?.performance_overview || perf.data.ai_summary || ""
+          },
+          // Merge lists
+          top_page_titles: [...(normalizeList(seo.data.top_page_titles)), ...(normalizeList(perf.data.top_page_titles))],
+          top_landing_pages: [...(normalizeList(seo.data.top_landing_pages)), ...(normalizeList(perf.data.top_landing_pages))],
+          sessions_by_channel: [...(normalizeList(seo.data.sessions_by_channel)), ...(normalizeList(perf.data.sessions_by_channel))],
+
+          ai_insights: {
+            branding: { ...(safeJsonParse(seo.data.ai_insights)?.branding || {}), ...(safeJsonParse(perf.data.ai_insights)?.branding || {}) },
+            cover: { ...(safeJsonParse(seo.data.ai_insights)?.cover || {}), ...(safeJsonParse(perf.data.ai_insights)?.cover || {}) },
+            conclusion: (safeJsonParse(seo.data.ai_insights)?.conclusion || "") + " " + (safeJsonParse(perf.data.ai_insights)?.conclusion || ""),
+            slides: {
+              ...(safeJsonParse(seo.data.ai_insights)?.slides || {}),
+              ...(safeJsonParse(perf.data.ai_insights)?.slides || {})
+            }
+          },
+          radar_self: { ...(safeJsonParse(seo.data.radar_self) || {}), ...(safeJsonParse(perf.data.radar_self) || {}) }
+        };
+        return buildCombinedReport(mergedRaw, startDate, endDate);
+      }
+      return null;
+    }
+
     const { data: report, error } = await supabase.from("processed_reports").select("*").eq("site_id", siteId).eq("module", moduleKey).eq("start_date", startDate).eq("end_date", endDate).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (error || !report) {
       return null;
@@ -859,13 +903,64 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
     return false;
   };
 
-  const fetchReportData = async (siteToQuery = activeSite, dateRangeToQuery = dates, cat = category) => {
+  const fetchReportData = async (siteToQuery = activeSite, dateRangeToQuery = dates, cat = category, reportIdToQuery?: string) => {
     if (!siteToQuery) return;
     const nd = normalizeDateRange(dateRangeToQuery);
     setIsLoading(true);
     setPollingStatus(cat === "Combined Intelligence" ? "Synchronizing Client PPT..." : "Initializing AI sync...");
     setErrorMsg(null);
 
+    // 1. Try to fetch by exact report_id if provided (highest priority, best for Shared Mode)
+    if (reportIdToQuery) {
+      if (reportIdToQuery.includes('_')) {
+        // Handle combined ID format: seoID_perfID
+        const [seo_id, perf_id] = reportIdToQuery.split('_');
+        const [seo, perf] = await Promise.all([
+          supabase.from("processed_reports").select("*").eq("report_id", seo_id).maybeSingle(),
+          supabase.from("processed_reports").select("*").eq("report_id", perf_id).maybeSingle()
+        ]);
+
+        if (seo.data && perf.data) {
+          // Use the combined builder
+          const mergedRaw: RawReport = {
+            ...seo.data,
+            report_id: reportIdToQuery,
+            kpi_summary: { ...(safeJsonParse(seo.data.kpi_summary) || {}), ...(safeJsonParse(perf.data.kpi_summary) || {}) },
+            google_ads_details: perf.data.google_ads_details,
+            meta_ads_kpi: perf.data.meta_ads_kpi,
+            meta_ads_details: perf.data.meta_ads_details,
+            meta_ads_charts: perf.data.meta_ads_charts,
+            ai_recommendations: [...(normalizeList(seo.data.ai_recommendations)), ...(normalizeList(perf.data.ai_recommendations))],
+            ai_summary: {
+              seo_overview: safeJsonParse(seo.data.ai_summary)?.seo_overview || seo.data.ai_summary || "",
+              performance_overview: safeJsonParse(perf.data.ai_summary)?.performance_overview || perf.data.ai_summary || ""
+            },
+            top_page_titles: [...(normalizeList(seo.data.top_page_titles)), ...(normalizeList(perf.data.top_page_titles))],
+            top_landing_pages: [...(normalizeList(seo.data.top_landing_pages)), ...(normalizeList(perf.data.top_landing_pages))],
+            sessions_by_channel: [...(normalizeList(seo.data.sessions_by_channel)), ...(normalizeList(perf.data.sessions_by_channel))],
+            ai_insights: {
+              branding: { ...(safeJsonParse(seo.data.ai_insights)?.branding || {}), ...(safeJsonParse(perf.data.ai_insights)?.branding || {}) },
+              cover: { ...(safeJsonParse(seo.data.ai_insights)?.cover || {}), ...(safeJsonParse(perf.data.ai_insights)?.cover || {}) },
+              conclusion: (safeJsonParse(seo.data.ai_insights)?.conclusion || "") + " " + (safeJsonParse(perf.data.ai_insights)?.conclusion || ""),
+              slides: { ...(safeJsonParse(seo.data.ai_insights)?.slides || {}), ...(safeJsonParse(perf.data.ai_insights)?.slides || {}) }
+            },
+            radar_self: { ...(safeJsonParse(seo.data.radar_self) || {}), ...(safeJsonParse(perf.data.radar_self) || {}) }
+          };
+          setReportData(buildCombinedReport(mergedRaw, nd.startDate, nd.endDate));
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        const { data: report } = await supabase.from("processed_reports").select("*").eq("report_id", reportIdToQuery).maybeSingle();
+        if (report) {
+          setReportData(buildReportFromRow(report, cat, nd.startDate, nd.endDate));
+          setIsLoading(false);
+          return;
+        }
+      }
+    }
+
+    // 2. Fallback to searching by site/date/module
     const cached = await fetchStoredReport(siteToQuery.id, nd.startDate, nd.endDate, cat);
     if (cached) {
       setReportData(cached);
@@ -873,6 +968,14 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
       toast.success('Report loaded from intelligence cache');
       return;
     }
+
+    // Shared Mode Enforcement: Guest users cannot trigger new reports or check credentials
+    if (user.role === 'Guest' || user.id.startsWith('guest_')) {
+      setIsLoading(false);
+      setErrorMsg("This shared report link is no longer valid or the data has not been generated yet.");
+      return;
+    }
+
     const hasCredentials = await checkSiteCredentials();
     if (!hasCredentials) { setIsLoading(false); return; }
 

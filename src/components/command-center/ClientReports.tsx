@@ -1632,6 +1632,7 @@ export default function ClientReports({ report, siteId, category, setCategory, i
         isOpen={isShareDialogOpen}
         onClose={() => setIsShareDialogOpen(false)}
         siteId={siteId || ''}
+        reportId={report.report_id}
         dateRange={{ start: report.dateRange.start, end: report.dateRange.end }}
       />
     </div>

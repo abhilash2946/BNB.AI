@@ -343,6 +343,7 @@ export default function ReportViews({ report, activeSection, isSharedMode }: Rep
         isOpen={isShareDialogOpen}
         onClose={() => setIsShareDialogOpen(false)}
         siteId={report.site_id || ''}
+        reportId={report.report_id}
         dateRange={{ start: report.dateRange.start, end: report.dateRange.end }}
       />
     </div>

@@ -9,10 +9,11 @@ interface ShareDialogProps {
   isOpen: boolean;
   onClose: () => void;
   siteId: string;
+  reportId?: string;
   dateRange: { start: string; end: string };
 }
 
-export default function ShareDialog({ isOpen, onClose, siteId, dateRange }: ShareDialogProps) {
+export default function ShareDialog({ isOpen, onClose, siteId, reportId, dateRange }: ShareDialogProps) {
   const [accessType, setAccessType] = useState<'public' | 'private'>('private');
   const [includePPT, setIncludePPT] = useState(true);
   const [includeDoc, setIncludeDoc] = useState(true);
@@ -31,21 +32,38 @@ export default function ShareDialog({ isOpen, onClose, siteId, dateRange }: Shar
         return;
       }
 
-      const { data, error } = await supabase
+      // Check for existing identical share configuration to avoid redundancy
+      const { data: existing } = await supabase
         .from('shared_reports')
-        .insert({
-          site_id: siteId,
-          date_range: dateRange,
-          access_type: accessType,
-          shared_pages: sharedPages
-        })
-        .select()
-        .single();
+        .select('id')
+        .eq('site_id', siteId)
+        .eq('access_type', accessType)
+        .contains('date_range', dateRange)
+        .eq('report_id', reportId || null)
+        .limit(1)
+        .maybeSingle();
 
-      if (error) throw error;
+      let shareId = existing?.id;
+
+      if (!shareId) {
+        const { data, error } = await supabase
+          .from('shared_reports')
+          .insert({
+            site_id: siteId,
+            report_id: reportId,
+            date_range: dateRange,
+            access_type: accessType,
+            shared_pages: sharedPages
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        shareId = data.id;
+      }
 
       const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-      const shareUrl = `${baseUrl.replace(/\/$/, '')}/shared/${data.id}`;
+      const shareUrl = `${baseUrl.replace(/\/$/, '')}/shared/${shareId}`;
 
       // Fallback for non-secure contexts (http)
       if (navigator.clipboard && window.isSecureContext) {

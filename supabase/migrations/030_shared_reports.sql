@@ -2,6 +2,7 @@
 create table shared_reports (
   id uuid default gen_random_uuid() primary key,
   site_id uuid references sites(id) on delete cascade not null,
+  report_id text, -- Optional: link to specific report
   date_range jsonb not null,
   access_type text check (access_type in ('public', 'private')) not null,
   shared_pages text[] not null,
