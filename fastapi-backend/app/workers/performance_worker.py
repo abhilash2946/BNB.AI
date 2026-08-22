@@ -47,6 +47,7 @@ import re
 import shutil
 from bs4 import BeautifulSoup
 import httpx
+from urllib.parse import quote, unquote
 
 # Lazy load NLP models to speed up server startup
 _kw_model = None
