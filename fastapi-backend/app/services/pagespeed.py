@@ -19,28 +19,35 @@ async def fetch_core_web_vitals(url: str) -> dict:
     psi_url = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 
     async with httpx.AsyncClient() as client:
-        # Try mobile strategy first (default)
-        resp = await client.get(
-            psi_url,
-            params={"url": target_url, "key": api_key, "category": "PERFORMANCE"},
-            timeout=45.0,
-        )
-
-        # If we get a 500 error (common for Lighthouse "puppeteer" errors), try desktop strategy
-        if resp.status_code == 500:
-            print(f"!!! PageSpeed Mobile Error 500: {resp.text}")
-            print("---> Retrying with DESKTOP strategy...")
+        try:
+            # Try mobile strategy first (default)
             resp = await client.get(
                 psi_url,
-                params={"url": target_url, "key": api_key, "category": "PERFORMANCE", "strategy": "DESKTOP"},
-                timeout=45.0,
+                params={"url": target_url, "key": api_key, "category": "PERFORMANCE"},
+                timeout=90.0,
             )
 
-        if resp.status_code != 200:
-            print(f"!!! PageSpeed Error {resp.status_code}: {resp.text}")
-            return {}
+            # If we get a 500 error (common for Lighthouse "puppeteer" errors), try desktop strategy
+            if resp.status_code == 500:
+                print(f"!!! PageSpeed Mobile Error 500: {resp.text}")
+                print("---> Retrying with DESKTOP strategy...")
+                resp = await client.get(
+                    psi_url,
+                    params={"url": target_url, "key": api_key, "category": "PERFORMANCE", "strategy": "DESKTOP"},
+                    timeout=90.0,
+                )
 
-        resp.raise_for_status()
+            if resp.status_code != 200:
+                print(f"!!! PageSpeed Error {resp.status_code}: {resp.text}")
+                return {}
+
+            resp.raise_for_status()
+        except httpx.ReadTimeout:
+            print(f"!!! PageSpeed API Timeout for {target_url} after 90s.")
+            return {}
+        except Exception as e:
+            print(f"!!! PageSpeed API Exception for {target_url}: {str(e)}")
+            return {}
         data = resp.json()
         lighthouse = data.get("lighthouseResult", {})
         audits = lighthouse.get("audits", {})

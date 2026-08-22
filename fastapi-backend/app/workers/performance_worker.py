@@ -296,7 +296,8 @@ def cap_meta_date(date_str: str) -> str:
 
 async def scrape_duckduckgo_fallback(query: str) -> list:
     """Last resort scraper for DDG if OpenSERP is failing."""
-    url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
+    # Use the non-HTML version as it often has less bot detection for simple requests
+    url = f"https://duckduckgo.com/html/?q={quote(query)}"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -309,7 +310,7 @@ async def scrape_duckduckgo_fallback(query: str) -> list:
             if resp.status_code == 200:
                 soup = BeautifulSoup(resp.text, "lxml")
                 results = []
-                # Targeted selectors for DDG HTML version
+                # DDG Lite / HTML version selectors
                 for entry in soup.select(".result"):
                     link = entry.select_one(".result__a")
                     if link and link.get("href"):
@@ -317,13 +318,12 @@ async def scrape_duckduckgo_fallback(query: str) -> list:
                         if "uddg=" in href:
                             match = re.search(r"uddg=([^&]+)", href)
                             if match:
-                                from urllib.parse import unquote
                                 href = unquote(match.group(1))
 
                         if href and href.startswith("http") and "duckduckgo.com" not in href:
                             results.append({"url": href.strip()})
 
-                # Broad fallback
+                # Broad fallback for older HTML versions
                 if not results:
                     for link in soup.find_all("a", class_=re.compile(r"result__(url|a)")):
                         href = link.get("href")
@@ -337,12 +337,12 @@ async def scrape_duckduckgo_fallback(query: str) -> list:
 
 async def scrape_bing_fallback(query: str) -> list:
     """Last resort scraper for Bing if OpenSERP is failing."""
-    url = f"https://www.bing.com/search?q={requests.utils.quote(query)}"
+    url = f"https://www.bing.com/search?q={quote(query)}&setlang=en&cc=US"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://www.bing.com/"
+        "Referer": "https://www.google.com/"
     }
     try:
         async with httpx.AsyncClient(timeout=25, follow_redirects=True) as client:
@@ -350,10 +350,19 @@ async def scrape_bing_fallback(query: str) -> list:
             if resp.status_code == 200:
                 soup = BeautifulSoup(resp.text, "lxml")
                 results = []
-                for item in soup.select(".b_algo h2 a"):
+                # Try broad H2 selector which is more stable across regions
+                for item in soup.select("h2 a"):
                     href = item.get("href")
-                    if href and href.startswith("http") and "microsoft.com" not in href and "bing.com" not in href:
+                    if href and href.startswith("http") and not any(x in href for x in ["microsoft.com", "bing.com"]):
                         results.append({"url": href.strip()})
+
+                # Fallback to specific algo class if broad fails
+                if not results:
+                    for item in soup.select("li.b_algo h2 a"):
+                        href = item.get("href")
+                        if href and href.startswith("http") and not any(x in href for x in ["microsoft.com", "bing.com"]):
+                            results.append({"url": href.strip()})
+
                 return results
     except Exception as e:
         print(f"!!! Bing Fallback failed for '{query}': {e}")

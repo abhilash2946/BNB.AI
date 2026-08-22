@@ -136,7 +136,8 @@ export default function CommandCenter({
     if (targetSection) setSection(targetSection);
 
     if (targetCategory && view !== 'cmd-center') {
-      fetchReportData(activeSite, { startDate: dateRange.start, endDate: dateRange.end }, targetCategory);
+      // Use skipSync=true to avoid automatic report generation on navigation
+      fetchReportData(activeSite, { startDate: dateRange.start, endDate: dateRange.end }, targetCategory, true);
     }
   };
 
@@ -144,7 +145,8 @@ export default function CommandCenter({
     setCategory(targetCategory);
     setActiveView(viewId);
     setSection('Reports');
-    fetchReportData(activeSite, { startDate: dateRange.start, endDate: dateRange.end }, targetCategory);
+    // Use skipSync=true to avoid automatic report generation
+    fetchReportData(activeSite, { startDate: dateRange.start, endDate: dateRange.end }, targetCategory, true);
   };
 
   const handleSelectSite = (site: SiteProfile) => {
