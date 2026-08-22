@@ -27,6 +27,8 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState("Synchronizing secure session...");
   const [authError, setAuthError] = useState<string | null>(null);
+  const [sharedMode, setSharedMode] = useState(false);
+  const [sharedConfig, setSharedConfig] = useState<any>(null);
 
   const [user, setUser] = useState<UserProfile | null>(() => {
     const saved = sessionStorage.getItem('bnb_user_profile');
@@ -103,8 +105,64 @@ export default function App() {
   useEffect(() => {
     let mounted = true;
 
+    const checkSharedLink = async () => {
+      const path = window.location.pathname;
+      if (path.startsWith('/shared/')) {
+        const shareId = path.split('/')[2];
+        if (shareId) {
+          try {
+            const { data, error } = await supabase
+              .from('shared_reports')
+              .select('*')
+              .eq('id', shareId)
+              .maybeSingle();
+
+            if (data && !error && mounted) {
+              // 1. Fetch site info
+              const { data: site } = await supabase.from('sites').select('*').eq('id', data.site_id).maybeSingle();
+              if (site) {
+                const mappedSite = {
+                  id: site.id,
+                  name: site.name,
+                  url: site.url,
+                  industry: site.industry,
+                  city: site.city || undefined,
+                  imageUrl: site.image_url || undefined,
+                  seoSettings: site.seo_settings || undefined,
+                };
+
+                setActiveSite(mappedSite);
+                setSites([mappedSite]);
+                setSharedMode(true);
+                setSharedConfig(data);
+
+                setUser({
+                  id: 'guest_' + data.id,
+                  name: 'Client Guest',
+                  agencyName: 'Black and Bold',
+                  email: '',
+                  role: 'Guest',
+                  tier: 'Standard'
+                });
+
+                setView("dashboard");
+                setIsLoading(false);
+                return true;
+              }
+            }
+          } catch (err) {
+            console.error("Shared link check failed:", err);
+          }
+        }
+      }
+      return false;
+    };
+
     const checkInitialSession = async () => {
       try {
+        const isShared = await checkSharedLink();
+        if (isShared) return;
+
         const { data: { session } } = await supabase.auth.getSession();
         if (mounted && session) {
           setSessionUserId(session.user.id);
@@ -435,6 +493,8 @@ export default function App() {
                 startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 endDate: new Date().toISOString().split('T')[0]
               }}
+              isSharedMode={sharedMode}
+              sharedConfig={sharedConfig}
             />
           </motion.div>
         )}

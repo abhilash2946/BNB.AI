@@ -25,13 +25,15 @@ import {
   Edit3,
   Save,
   Pencil,
-  Activity
+  Activity,
+  Share2
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { toast } from 'react-hot-toast';
 import { MarketingReport, CategoryType, Slide, SlideType } from '../../types';
 import { SlideRenderer } from './SlideRenderer';
 import { initialSlides } from './reportData';
+import ShareDialog from '../ShareDialog';
 
 const COLORS = ['#FFFFFF', '#9CA3AF', '#D1D5DB', '#4B5563', '#1F2937', '#6B7280', '#374151'];
 
@@ -60,19 +62,21 @@ interface ClientReportsProps {
   userAvatarUrl?: string;
   userName?: string;
   resetTrigger?: number; // Force re-sync when generate is clicked
+  isSharedMode?: boolean;
 }
 
-export default function ClientReports({ report, siteId, category, setCategory, isFullscreen, setIsFullscreen, userAvatarUrl, userName, resetTrigger }: ClientReportsProps) {
+export default function ClientReports({ report, siteId, category, setCategory, isFullscreen, setIsFullscreen, userAvatarUrl, userName, resetTrigger, isSharedMode }: ClientReportsProps) {
   const [slides, setSlides] = useState<Slide[]>(() => {
     return initialSlides;
   });
 
   const [currentIdx, setCurrentIdx] = useState<number>(0);
   const [direction, setDirection] = useState<number>(1);
-  const [isPresenting, setIsPresenting] = useState<boolean>(false);
+  const [isPresenting, setIsPresenting] = useState<boolean>(isSharedMode || false);
   const [transitionStyle, setTransitionStyle] = useState<'cube' | 'flip' | 'zoom' | 'slide'>('slide');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
 
   // Presentation Controls
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -1373,31 +1377,44 @@ export default function ClientReports({ report, siteId, category, setCategory, i
             ))}
           </div>
 
-          <button
-            onClick={() => setIsPresenting(!isPresenting)}
-            className="flex items-center gap-2 bg-white text-black hover:bg-gray-200 text-xs font-bold py-1.5 px-4 rounded-lg shadow-md transition-all shrink-0 hover:scale-[1.03]"
-          >
-            {isPresenting ? (
-              <>
-                <Edit3 className="w-4 h-4 shrink-0" />
-                <span>Edit Workspace</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4 shrink-0" />
-                <span>Present Slides Show</span>
-              </>
-            )}
-          </button>
+          {!isSharedMode && (
+            <button
+              onClick={() => setIsPresenting(!isPresenting)}
+              className="flex items-center gap-2 bg-white text-black hover:bg-gray-200 text-xs font-bold py-1.5 px-4 rounded-lg shadow-md transition-all shrink-0 hover:scale-[1.03]"
+            >
+              {isPresenting ? (
+                <>
+                  <Edit3 className="w-4 h-4 shrink-0" />
+                  <span>Edit Workspace</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 shrink-0" />
+                  <span>Present Slides Show</span>
+                </>
+              )}
+            </button>
+          )}
 
           <div className="flex items-center gap-1 border-l border-[#1F1F1F] pl-2">
-            <button
-              onClick={handleSaveEdits}
-              title="Save Changes to Database"
-              className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-colors border border-white/10"
-            >
-              <Save className="w-4 h-4" />
-            </button>
+            {!isSharedMode && (
+              <>
+                <button
+                  onClick={handleSaveEdits}
+                  title="Save Changes to Database"
+                  className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-colors border border-white/10"
+                >
+                  <Save className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setIsShareDialogOpen(true)}
+                  title="Share Report"
+                  className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-colors border border-white/10"
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
+              </>
+            )}
             <button
               onClick={exportDeck}
               title="Download backup (JSON)"
@@ -1405,27 +1422,31 @@ export default function ClientReports({ report, siteId, category, setCategory, i
             >
               <Download className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              title="Upload backup"
-              className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-colors border border-white/10"
-            >
-              <Upload className="w-4 h-4" />
-            </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={importDeck}
-              accept=".json"
-              className="hidden"
-            />
-            <button
-              onClick={handleReset}
-              title="Reset PPT parameters"
-              className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-all ml-1 border border-white/10"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
+            {!isSharedMode && (
+              <>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Upload backup"
+                  className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-colors border border-white/10"
+                >
+                  <Upload className="w-4 h-4" />
+                </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={importDeck}
+                  accept=".json"
+                  className="hidden"
+                />
+                <button
+                  onClick={handleReset}
+                  title="Reset PPT parameters"
+                  className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-all ml-1 border border-white/10"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -1448,7 +1469,7 @@ export default function ClientReports({ report, siteId, category, setCategory, i
               <div className="w-full max-w-5xl mx-auto min-h-full bg-[#070708] text-white rounded-2xl shadow-2xl border border-white/5 relative group/canvas flex flex-col overflow-hidden">
                 <SlideRenderer
                   slide={slides[currentIdx]}
-                  isEditMode={true}
+                  isEditMode={!isSharedMode}
                   onUpdateSlide={updateCurrentSlide}
                   siteImageUrl={report?.imageUrl}
                   userAvatarUrl={userAvatarUrl}
@@ -1606,6 +1627,13 @@ export default function ClientReports({ report, siteId, category, setCategory, i
           </div>
         </div>
       )}
+
+      <ShareDialog
+        isOpen={isShareDialogOpen}
+        onClose={() => setIsShareDialogOpen(false)}
+        siteId={siteId || ''}
+        dateRange={{ start: report.dateRange.start, end: report.dateRange.end }}
+      />
     </div>
   );
 }

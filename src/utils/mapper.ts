@@ -14,7 +14,8 @@ export const mapReportResponseToMarketingReport = (
   siteName: string,
   category: any,
   dateRange: { start: string; end: string },
-  siteImageUrl?: string
+  siteImageUrl?: string,
+  siteId?: string
 ): MarketingReport => {
 
   // Map KPIs
@@ -82,6 +83,7 @@ export const mapReportResponseToMarketingReport = (
 
   const result: MarketingReport = {
     id: id || `report_${Date.now()}`,
+    site_id: siteId,
     report_id: report.report_id,
     siteName: siteName,
     category: category,

@@ -23,6 +23,8 @@ interface SidebarProps {
   onOpenSiteManagement: () => void;
   mobileOpen: boolean;
   onMobileClose: () => void;
+  isSharedMode?: boolean;
+  sharedConfig?: any;
 }
 
 export default function Sidebar({
@@ -34,6 +36,8 @@ export default function Sidebar({
   onOpenSiteManagement,
   mobileOpen,
   onMobileClose,
+  isSharedMode = false,
+  sharedConfig = null,
 }: SidebarProps) {
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
 
@@ -113,6 +117,16 @@ export default function Sidebar({
 
   const isActive = (id: string) => activeView === id;
 
+  const filteredNavItems = navItems.filter(item => {
+    if (isSharedMode && sharedConfig?.access_type === 'private') {
+      const allowedIds: string[] = [];
+      if (sharedConfig.shared_pages?.includes('ppt')) allowedIds.push('client-ppt');
+      if (sharedConfig.shared_pages?.includes('doc')) allowedIds.push('client-doc');
+      return allowedIds.includes(item.id);
+    }
+    return true;
+  });
+
   const sidebarWidthClass = expanded ? 'w-[240px]' : 'w-[72px]';
 
   return (
@@ -145,7 +159,7 @@ export default function Sidebar({
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
-          {navItems.map((item) => {
+          {filteredNavItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.id);
             const showSubMenu = (expanded || mobileOpen) && (active || hoveredCategory === item.id) && (item.category || (item as any).subItems);
@@ -241,43 +255,47 @@ export default function Sidebar({
             );
           })}
 
-          <div className="my-4 border-t border-white/10" />
+          {!isSharedMode && (
+            <>
+              <div className="my-4 border-t border-white/10" />
 
-          {adminItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.id);
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  item.action();
-                  onMobileClose();
-                }}
-                className={`
-                  w-full flex items-center ${expanded ? 'gap-3 px-3' : 'justify-center px-0'} py-2.5 rounded-2xl text-sm transition-all duration-200 group relative
-                  ${active
-                    ? 'text-white bg-white/[0.08] border border-white/15 font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_8px_20px_rgba(0,0,0,0.4)]'
-                    : 'text-white/55 hover:text-white hover:bg-white/5'
-                  }
-                `}
-                title={!expanded && !mobileOpen ? item.label : undefined}
-              >
-                <div className={`${active ? 'text-white' : 'text-white/50 group-hover:text-white'} transition-colors shrink-0`}>
-                  <Icon size={18} />
-                </div>
+              {adminItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.id);
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      item.action();
+                      onMobileClose();
+                    }}
+                    className={`
+                      w-full flex items-center ${expanded ? 'gap-3 px-3' : 'justify-center px-0'} py-2.5 rounded-2xl text-sm transition-all duration-200 group relative
+                      ${active
+                        ? 'text-white bg-white/[0.08] border border-white/15 font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_8px_20px_rgba(0,0,0,0.4)]'
+                        : 'text-white/55 hover:text-white hover:bg-white/5'
+                      }
+                    `}
+                    title={!expanded && !mobileOpen ? item.label : undefined}
+                  >
+                    <div className={`${active ? 'text-white' : 'text-white/50 group-hover:text-white'} transition-colors shrink-0`}>
+                      <Icon size={18} />
+                    </div>
 
-                {(expanded || mobileOpen) && (
-                  <span className="font-sans truncate text-left animate-in fade-in duration-300">{item.label}</span>
-                )}
+                    {(expanded || mobileOpen) && (
+                      <span className="font-sans truncate text-left animate-in fade-in duration-300">{item.label}</span>
+                    )}
 
-                {!expanded && !mobileOpen && (
-                  <div className="absolute left-[70px] bg-[#111111] border border-white/10 text-white text-xs px-2 py-1 rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap shadow-lg">
-                    {item.label}
-                  </div>
-                )}
-              </button>
-            );
-          })}
+                    {!expanded && !mobileOpen && (
+                      <div className="absolute left-[70px] bg-[#111111] border border-white/10 text-white text-xs px-2 py-1 rounded opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap shadow-lg">
+                        {item.label}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </>
+          )}
         </nav>
 
         {(expanded || mobileOpen) && (

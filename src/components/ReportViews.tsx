@@ -15,10 +15,12 @@ import { MarketingReport, SectionType } from '../types';
 
 import { CompetitorRadar } from './CompetitorRadar';
 import { WorldMap } from './WorldMap';
+import ShareDialog from './ShareDialog';
 
 interface ReportViewsProps {
   report: MarketingReport;
   activeSection: SectionType;
+  isSharedMode?: boolean;
 }
 
 const COLORS = ['#FFFFFF', '#9CA3AF', '#D1D5DB', '#4B5563', '#1F2937', '#6B7280', '#374151'];
@@ -62,11 +64,13 @@ const getCompetitorStatus = (comp: any) => {
   return { level: 'Low', color: 'bg-gray-600', icon: '⚪', text: 'text-gray-600' };
 };
 
-export default function ReportViews({ report, activeSection }: ReportViewsProps) {
+export default function ReportViews({ report, activeSection, isSharedMode }: ReportViewsProps) {
   const isReports = activeSection === "Reports";
   const isGraphs = activeSection === "Graphs";
   const isBnBReport = activeSection === "BnB Report";
   const isClientReport = activeSection === "Client Report";
+
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
 
   if (!report) {
     return (
@@ -106,8 +110,19 @@ export default function ReportViews({ report, activeSection }: ReportViewsProps)
       {/* 1. Header (UI from bnb.ai) */}
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
         <div className="space-y-4">
-          <div className="inline-flex items-center px-3 py-1 rounded-md bg-white/10 border border-white/20">
-            <span className="text-[9px] font-mono font-bold text-white uppercase tracking-[0.2em]">Active Division: {report.category}</span>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center px-3 py-1 rounded-md bg-white/10 border border-white/20">
+              <span className="text-[9px] font-mono font-bold text-white uppercase tracking-[0.2em]">Active Division: {report.category}</span>
+            </div>
+            {isClientReport && !isSharedMode && (
+              <button
+                onClick={() => setIsShareDialogOpen(true)}
+                className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-colors border border-white/10"
+                title="Share Report"
+              >
+                <Icons.Share2 size={14} />
+              </button>
+            )}
           </div>
           <h1 className="text-4xl font-display font-bold text-white tracking-tight">
             {report.siteName} {activeSection}
@@ -314,16 +329,23 @@ export default function ReportViews({ report, activeSection }: ReportViewsProps)
         {/* REMOVED STANDALONE STATISTICAL VECTOR */}
 
         {/* Client Auth Badge */}
-        {isClientReport && (
-          <div className="p-8 glass-panel rounded-[2rem] flex items-center justify-between border-white/20 bg-white/5">
-            <div>
-              <h4 className="font-display font-bold text-white uppercase tracking-widest">Authenticated Client Briefing</h4>
-              <p className="text-xs text-white/40 mt-1 font-mono uppercase">Verified Analytical Vector: {report.id.substring(0, 16)}</p>
-            </div>
-            <Icons.CheckCircle className="text-white" size={48} />
+      {isClientReport && (
+        <div className="p-8 glass-panel rounded-[2rem] flex items-center justify-between border-white/20 bg-white/5">
+          <div>
+            <h4 className="font-display font-bold text-white uppercase tracking-widest">Authenticated Client Briefing</h4>
+            <p className="text-xs text-white/40 mt-1 font-mono uppercase">Verified Analytical Vector: {report.id.substring(0, 16)}</p>
           </div>
-        )}
-      </div>
+          <Icons.CheckCircle className="text-white" size={48} />
+        </div>
+      )}
+
+      <ShareDialog
+        isOpen={isShareDialogOpen}
+        onClose={() => setIsShareDialogOpen(false)}
+        siteId={report.site_id || ''}
+        dateRange={{ start: report.dateRange.start, end: report.dateRange.end }}
+      />
+    </div>
     </div>
   );
 }

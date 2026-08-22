@@ -33,10 +33,12 @@ interface CommandCenterProps {
   onOpenSiteManagement: () => void;
   onLogout: () => void;
   initialDates: DateRange;
+  isSharedMode?: boolean;
+  sharedConfig?: any;
 }
 
 export default function CommandCenter({
-  user, sites, activeSite, setActiveSite, onOpenSiteManagement, onLogout, initialDates
+  user, sites, activeSite, setActiveSite, onOpenSiteManagement, onLogout, initialDates, isSharedMode, sharedConfig
 }: CommandCenterProps) {
   const { theme, toggleTheme } = useTheme();
   const STORAGE_KEY = `bnb_dashboard_state_v3_${user.id}_${activeSite.id}`;
@@ -61,6 +63,21 @@ export default function CommandCenter({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isFullscreenReport, setIsFullscreenReport] = useState(false);
   const [resetTrigger, setResetTrigger] = useState(0);
+
+  // Lock shared mode configuration
+  useEffect(() => {
+    if (isSharedMode && sharedConfig) {
+      if (sharedConfig.date_range) {
+        setDateRange(sharedConfig.date_range);
+      }
+      if (sharedConfig.access_type === 'private') {
+        const allowedViews = ['client-doc', 'client-ppt'];
+        if (!allowedViews.includes(activeView)) {
+          setActiveView(sharedConfig.shared_pages.includes('ppt') ? 'client-ppt' : 'client-doc');
+        }
+      }
+    }
+  }, [isSharedMode, sharedConfig, activeView]);
 
   // Radar switching states
   const [isSelfRadar, setIsSelfRadar] = useState(false);
@@ -98,7 +115,8 @@ export default function CommandCenter({
         activeSite.name,
         category,
         dateRange,
-        activeSite.imageUrl
+        activeSite.imageUrl,
+        activeSite.id
       );
       setMarketingReport(mapped);
     } else {
@@ -136,8 +154,7 @@ export default function CommandCenter({
     if (targetSection) setSection(targetSection);
 
     if (targetCategory && view !== 'cmd-center') {
-      // Use skipSync=true to avoid automatic report generation on navigation
-      fetchReportData(activeSite, { startDate: dateRange.start, endDate: dateRange.end }, targetCategory, true);
+      fetchReportData(activeSite, { startDate: dateRange.start, endDate: dateRange.end }, targetCategory);
     }
   };
 
@@ -145,8 +162,7 @@ export default function CommandCenter({
     setCategory(targetCategory);
     setActiveView(viewId);
     setSection('Reports');
-    // Use skipSync=true to avoid automatic report generation
-    fetchReportData(activeSite, { startDate: dateRange.start, endDate: dateRange.end }, targetCategory, true);
+    fetchReportData(activeSite, { startDate: dateRange.start, endDate: dateRange.end }, targetCategory);
   };
 
   const handleSelectSite = (site: SiteProfile) => {
@@ -217,6 +233,7 @@ export default function CommandCenter({
         userAvatarUrl={user.avatarUrl}
         onLogout={onLogout}
         isFullscreen={isFullscreenReport}
+        isSharedMode={isSharedMode}
       />
 
       <div className={`flex-1 flex relative z-10 overflow-hidden ${isFullscreenReport ? 'p-0' : ''}`}>
@@ -230,6 +247,8 @@ export default function CommandCenter({
             onOpenSiteManagement={onOpenSiteManagement}
             mobileOpen={mobileSidebarOpen}
             onMobileClose={() => setMobileSidebarOpen(false)}
+            isSharedMode={isSharedMode}
+            sharedConfig={sharedConfig}
           />
         )}
 
@@ -522,10 +541,11 @@ export default function CommandCenter({
               userAvatarUrl={user.avatarUrl}
               userName={user.name}
               resetTrigger={resetTrigger}
+              isSharedMode={isSharedMode}
             />
           ) : activeView === 'client-doc' ? (
             marketingReport ? (
-              <ReportViews report={marketingReport} activeSection="Client Report" />
+              <ReportViews report={marketingReport} activeSection="Client Report" isSharedMode={isSharedMode} />
             ) : (
               <div className="glass-panel p-12 text-center rounded-2xl max-w-xl mx-auto my-12">
                 <div className="p-3 bg-white/5 text-[#00d4ff] rounded-full inline-block mb-4 hover:scale-105 transition-transform">
@@ -537,7 +557,7 @@ export default function CommandCenter({
               </div>
             )
           ) : marketingReport ? (
-            <ReportViews report={marketingReport} activeSection={section} />
+            <ReportViews report={marketingReport} activeSection={section} isSharedMode={isSharedMode} />
           ) : (
             <div className="glass-panel p-12 text-center rounded-2xl max-w-xl mx-auto my-12">
               <div className="p-3 bg-white/5 text-[#00d4ff] rounded-full inline-block mb-4 hover:scale-105 transition-transform">
@@ -552,7 +572,7 @@ export default function CommandCenter({
         </main>
       </div>
 
-      <AIAssistant report={marketingReport} />
+      {!isSharedMode && <AIAssistant report={marketingReport} />}
     </div>
   );
 }

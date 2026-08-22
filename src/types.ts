@@ -456,6 +456,7 @@ export interface SocialReportData {
 // Full intelligence report model
 export interface MarketingReport {
   id: string;
+  site_id?: string;
   report_id?: string;
   siteName: string;
   category: CategoryType;

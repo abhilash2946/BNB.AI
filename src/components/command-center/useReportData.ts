@@ -859,7 +859,7 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
     return false;
   };
 
-  const fetchReportData = async (siteToQuery = activeSite, dateRangeToQuery = dates, cat = category, skipSync = false) => {
+  const fetchReportData = async (siteToQuery = activeSite, dateRangeToQuery = dates, cat = category) => {
     if (!siteToQuery) return;
     const nd = normalizeDateRange(dateRangeToQuery);
     setIsLoading(true);
@@ -873,13 +873,6 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
       toast.success('Report loaded from intelligence cache');
       return;
     }
-
-    if (skipSync) {
-      setIsLoading(false);
-      setReportData(null);
-      return;
-    }
-
     const hasCredentials = await checkSiteCredentials();
     if (!hasCredentials) { setIsLoading(false); return; }
 
