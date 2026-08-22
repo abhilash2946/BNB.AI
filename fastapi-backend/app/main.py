@@ -6,7 +6,7 @@ from app.supabase_client import supabase
 import uuid
 print("---> Starting BNB.AI API Server...")
 
-app = FastAPI(title="BNB.AI Neural Engine API")
+app = FastAPI(title="BNB.AI Marketing Intelligences API")
 
 app.add_middleware(
     CORSMiddleware,
