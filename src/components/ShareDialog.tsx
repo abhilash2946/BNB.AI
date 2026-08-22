@@ -44,8 +44,30 @@ export default function ShareDialog({ isOpen, onClose, siteId, dateRange }: Shar
 
       if (error) throw error;
 
-      const shareUrl = `${window.location.origin}/shared/${data.id}`;
-      await navigator.clipboard.writeText(shareUrl);
+      const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+      const shareUrl = `${baseUrl.replace(/\/$/, '')}/shared/${data.id}`;
+
+      // Fallback for non-secure contexts (http)
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        // Old school fallback
+        const textArea = document.createElement("textarea");
+        textArea.value = shareUrl;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+        } catch (err) {
+          console.error('Fallback copy failed', err);
+        }
+        document.body.removeChild(textArea);
+      }
+
       setCopied(true);
       toast.success("Share link copied to clipboard!");
       setTimeout(() => setCopied(false), 2000);
