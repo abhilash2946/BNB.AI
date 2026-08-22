@@ -21,7 +21,7 @@ from app.analytics.self_radar import compute_self_radar_scores
 from app.analytics.radar_builder import build_dynamic_radar
 from app.config import settings
 import requests
-from app.utils.date_utils import compute_previous_period
+from app.utils.date_utils import compute_previous_period, safe_parse_iso
 from datetime import datetime, timezone, timedelta
 import asyncio
 import json
@@ -541,8 +541,8 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
 
                 is_fresh = False
                 if cached and cached.data and cached.data.get("extracted_at"):
-                    last = datetime.fromisoformat(cached.data["extracted_at"].replace('Z', '+00:00'))
-                    if last > datetime.now(timezone.utc) - timedelta(days=FRESHNESS_THRESHOLD_DAYS):
+                    last = safe_parse_iso(cached.data["extracted_at"])
+                    if last and last > datetime.now(timezone.utc) - timedelta(days=FRESHNESS_THRESHOLD_DAYS):
                         # Filter out cached 404s or down sites if they were previously marked
                         status = cached.data.get("full_text")
                         if status in ["ERROR_404", "ERROR_SITE_DOWN"]:

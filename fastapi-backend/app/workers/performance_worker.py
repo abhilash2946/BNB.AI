@@ -38,7 +38,7 @@ from app.config import settings
 import requests
 from app.services.gemini import call_gemini
 from app.services.prompt_builders import build_performance_exec_prompt, build_competitor_batch_prompt, build_performance_advice_prompt, build_performance_explanations_prompt
-from app.utils.date_utils import compute_previous_period
+from app.utils.date_utils import compute_previous_period, safe_parse_iso
 from datetime import datetime, timezone, timedelta
 import asyncio
 import json
@@ -709,8 +709,8 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
 
                 is_fresh = False
                 if cached and cached.data and cached.data.get("extracted_at"):
-                    last = datetime.fromisoformat(cached.data["extracted_at"].replace('Z', '+00:00'))
-                    if last > datetime.now(timezone.utc) - timedelta(days=FRESHNESS_THRESHOLD_DAYS):
+                    last = safe_parse_iso(cached.data["extracted_at"])
+                    if last and last > datetime.now(timezone.utc) - timedelta(days=FRESHNESS_THRESHOLD_DAYS):
                         # Filter out cached 404s or down sites if they were previously marked
                         status = cached.data.get("full_text")
                         if status in ["ERROR_404", "ERROR_SITE_DOWN"]:
