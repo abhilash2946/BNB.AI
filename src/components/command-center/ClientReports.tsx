@@ -34,6 +34,7 @@ import { MarketingReport, CategoryType, Slide, SlideType } from '../../types';
 import { SlideRenderer } from './SlideRenderer';
 import { initialSlides } from './reportData';
 import ShareDialog from '../ShareDialog';
+import { exportSlidesToPPT } from '../../utils/exportPPT';
 
 const COLORS = ['#FFFFFF', '#9CA3AF', '#D1D5DB', '#4B5563', '#1F2937', '#6B7280', '#374151'];
 
@@ -1184,12 +1185,21 @@ export default function ClientReports({ report, siteId, category, setCategory, i
     }
   };
 
-  const exportDeck = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(slides, null, 2));
-    const dlAnchorElem = document.createElement('a');
-    dlAnchorElem.setAttribute('href', dataStr);
-    dlAnchorElem.setAttribute('download', `Client_PPT_${new Date().toISOString().split('T')[0]}.ppt`);
-    dlAnchorElem.click();
+  const exportDeck = async () => {
+    const slideIds = slides.map((_, i) => `slide-export-${i}`);
+    const filename = `Client_PPT_${new Date().toISOString().split('T')[0]}`;
+
+    toast.loading('Preparing PPT slides...', { id: 'ppt-export' });
+
+    try {
+      await exportSlidesToPPT(slideIds, filename, (current, total) => {
+        toast.loading(`Capturing slide ${current} of ${total}...`, { id: 'ppt-export' });
+      });
+      toast.success('PPT Downloaded successfully!', { id: 'ppt-export' });
+    } catch (err) {
+      console.error('PPT Export Error:', err);
+      toast.error('Failed to generate PPT', { id: 'ppt-export' });
+    }
   };
 
   const applyAISmartMutation = (actionType: string) => {
@@ -1396,6 +1406,25 @@ export default function ClientReports({ report, siteId, category, setCategory, i
           </div>
         </div>
       </header>
+
+      {/* HIDDEN EXPORT CONTAINER */}
+      <div className="fixed -left-[9999px] -top-[9999px] opacity-0 pointer-events-none">
+        {slides.map((s, i) => (
+          <div
+            key={`export-${s.id}`}
+            id={`slide-export-${i}`}
+            className="w-[1280px] h-[720px] bg-[#070708] relative overflow-hidden flex flex-col"
+          >
+            <SlideRenderer
+              slide={s}
+              isEditMode={false}
+              onUpdateSlide={() => {}}
+              siteImageUrl={report?.imageUrl}
+              userAvatarUrl={userAvatarUrl}
+            />
+          </div>
+        ))}
+      </div>
 
       {/* DYNAMIC VIEWPORTS CONTAINER */}
       {!isPresenting ? (
