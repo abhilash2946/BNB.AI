@@ -13,6 +13,7 @@ export interface UserCredentials {
   googleAdsDeveloperToken?: string;
   metaLongLivedToken?: string;
   metaTokenExpiry?: string;  // ISO string
+  metaAppCreds?: any;
 }
 
 export interface SiteProfile {

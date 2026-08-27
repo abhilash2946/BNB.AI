@@ -75,6 +75,13 @@ export default function SiteManagement({
       if (!metaAppId) setMetaAppId(sharedCreds.metaAppCreds.app_id || "");
       if (!metaAppSecret) setMetaAppSecret(sharedCreds.metaAppCreds.app_secret || "");
     }
+    if (sharedCreds.googleAdsDeveloperToken && !googleAdsDevToken) {
+      setGoogleAdsDevToken(sharedCreds.googleAdsDeveloperToken);
+    }
+    if (sharedCreds.metaLongLivedToken && !metaToken) {
+      setMetaToken(sharedCreds.metaLongLivedToken);
+      setMetaTokenExpiry(sharedCreds.metaTokenExpiry || null);
+    }
   }, [sharedCreds]);
 
   // Profile editing state
@@ -563,6 +570,15 @@ export default function SiteManagement({
                         <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Meta Long-Lived Token</label>
                         <input type="password" value={metaToken} onChange={e => setMetaToken(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl focus:ring-1 focus:ring-white outline-none" />
                       </div>
+                      <button type="button" onClick={async () => {
+                        const res = await fetch(`${API_URL}/auth/meta/url?user_id=${user.id}`);
+                        if (!res.ok) {
+                          alert(await res.text());
+                          return;
+                        }
+                        const { url } = await res.json();
+                        window.location.href = url;
+                      }} className="w-full py-4 bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/40 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all"><Facebook size={20} /> Sync Meta Cloud</button>
                     </div>
                   )}
                   {(activeSettingsModal === 'all' || activeSettingsModal === 'dev_token') && (

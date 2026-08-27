@@ -343,6 +343,9 @@ export default function App() {
                 creds.metaLongLivedToken = c.credentials.token;
                 creds.metaTokenExpiry = c.credentials.expires_at;
               }
+              if (c.platform === 'meta_app_creds') {
+                creds.metaAppCreds = c.credentials;
+              }
             });
             setSharedCreds(creds);
             sessionStorage.setItem('bnb_shared_creds', JSON.stringify(creds));
