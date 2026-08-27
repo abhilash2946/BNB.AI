@@ -9,7 +9,7 @@ import {
   REPORT_RETRY_DELAY_MS
 } from "../../constants/report";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://backend.test";
+const API_URL = import.meta.env.VITE_API_URL || "http://103.155.85.64:8000";
 
 const formatPads = (v: any) => (typeof v === "number" ? v.toLocaleString('en-IN') : v || "0");
 
