@@ -1224,7 +1224,7 @@ export default function ClientReports({ report, siteId, category, setCategory, i
                 // Common color properties to sanitize
                 ['color', 'background-color', 'border-color', 'fill', 'stroke'].forEach(prop => {
                   const val = el.style.getPropertyValue(prop) || style.getPropertyValue(prop);
-                  if (val && val.includes('oklch')) {
+                  if (val && (val.includes('oklch') || val.includes('oklab'))) {
                     // Force a standard RGB/Hex fallback for the capture engine
                     // Most BNB elements are blue, gray, or white
                     let fallback = '#3b82f6'; // Default blue
