@@ -1193,17 +1193,17 @@ export default function ClientReports({ report, siteId, category, setCategory, i
     setIsExporting(true);
     setExportProgress(0);
 
-    toast.loading('Initializing PowerPoint Engine...', { id: 'ppt-export' });
+    toast.loading('Initializing Professional Export Engine...', { id: 'ppt-export' });
 
     try {
       // Import libraries dynamically
-      const [pptxModule, html2canvasModule] = await Promise.all([
+      const [pptxModule, htmlToImageModule] = await Promise.all([
         import("pptxgenjs"),
-        import("html2canvas")
+        import("html-to-image")
       ]);
 
       const PptxGen = pptxModule.default || pptxModule;
-      const html2canvas = html2canvasModule.default || html2canvasModule;
+      const { toPng } = htmlToImageModule;
 
       const pptx = new PptxGen();
       pptx.layout = "LAYOUT_16x9";
@@ -1213,49 +1213,19 @@ export default function ClientReports({ report, siteId, category, setCategory, i
         toast.loading(`Capturing slide ${i + 1} of ${slides.length}...`, { id: 'ppt-export' });
 
         // Wait for slide to fully render in the export overlay
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
         const element = document.getElementById(`slide-capture-viewport`);
         if (element) {
-          const canvas = await html2canvas(element, {
-            scale: 2,
-            useCORS: true,
+          // html-to-image is much more robust with modern CSS (oklch/oklab)
+          // than html2canvas because it uses the browser's own SVG renderer.
+          const imgData = await toPng(element, {
+            quality: 0.95,
+            pixelRatio: 2,
             backgroundColor: "#070708",
-            logging: false,
-            onclone: (clonedDoc) => {
-              // Modern CSS Fix: html2canvas v1.4.1 (and below) crashes on Tailwind v4's oklch/oklab colors.
-              // We must sanitize the cloned document's styles before capture.
-
-              // 1. Sanitize all <style> tags text content
-              const styles = clonedDoc.getElementsByTagName('style');
-              for (let s = 0; s < styles.length; s++) {
-                let css = styles[s].innerHTML;
-                if (css.includes('oklch') || css.includes('oklab') || css.includes('hwb')) {
-                  // Regex to find oklch(...) or oklab(...) and replace with a safe color
-                  styles[s].innerHTML = css.replace(/(oklch|oklab|hwb)\([^)]+\)/g, '#3b82f6');
-                }
-              }
-
-              // 2. Traverse elements and force fallbacks for computed styles
-              const tags = clonedDoc.getElementsByTagName('*');
-              for (let j = 0; j < tags.length; j++) {
-                const el = tags[j] as HTMLElement;
-                const style = window.getComputedStyle(el);
-
-                ['color', 'background-color', 'border-color', 'fill', 'stroke'].forEach(prop => {
-                  const val = el.style.getPropertyValue(prop) || style.getPropertyValue(prop);
-                  if (val && (val.includes('oklch') || val.includes('oklab') || val.includes('hwb'))) {
-                    let fallback = '#3b82f6';
-                    if (prop === 'color') fallback = '#ffffff';
-                    if (prop.includes('background')) fallback = '#070708';
-                    el.style.setProperty(prop, fallback, 'important');
-                  }
-                });
-              }
-            }
+            cacheBust: true,
           });
 
-          const imgData = canvas.toDataURL("image/png");
           const slide = pptx.addSlide();
           slide.background = { color: "070708" };
           slide.addImage({
