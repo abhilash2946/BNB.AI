@@ -1212,7 +1212,30 @@ export default function ClientReports({ report, siteId, category, setCategory, i
             scale: 2,
             useCORS: true,
             backgroundColor: "#070708",
-            logging: false
+            logging: false,
+            onclone: (clonedDoc) => {
+              // Modern CSS Fix: html2canvas does not support oklch() colors used by Tailwind v4
+              // We traverse and replace oklch with hex/rgb fallbacks in the cloned DOM
+              const tags = clonedDoc.getElementsByTagName('*');
+              for (let j = 0; j < tags.length; j++) {
+                const el = tags[j] as HTMLElement;
+                const style = window.getComputedStyle(el);
+
+                // Common color properties to sanitize
+                ['color', 'background-color', 'border-color', 'fill', 'stroke'].forEach(prop => {
+                  const val = el.style.getPropertyValue(prop) || style.getPropertyValue(prop);
+                  if (val && val.includes('oklch')) {
+                    // Force a standard RGB/Hex fallback for the capture engine
+                    // Most BNB elements are blue, gray, or white
+                    let fallback = '#3b82f6'; // Default blue
+                    if (prop === 'color') fallback = '#ffffff';
+                    if (prop === 'background-color') fallback = '#070708';
+
+                    el.style.setProperty(prop, fallback, 'important');
+                  }
+                });
+              }
+            }
           });
 
           const imgData = canvas.toDataURL("image/png");
