@@ -78,6 +78,8 @@ export default function ClientReports({ report, siteId, category, setCategory, i
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
 
   // Presentation Controls
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -1186,19 +1188,50 @@ export default function ClientReports({ report, siteId, category, setCategory, i
   };
 
   const exportDeck = async () => {
-    const slideIds = slides.map((_, i) => `slide-export-${i}`);
-    const filename = `Client_PPT_${new Date().toISOString().split('T')[0]}`;
+    if (isExporting) return;
 
-    toast.loading('Preparing PPT slides...', { id: 'ppt-export' });
+    setIsExporting(true);
+    setExportProgress(0);
+    const pptx = new (await import("pptxgenjs")).default();
+    pptx.layout = "LAYOUT_16x9";
+
+    toast.loading('Starting PowerPoint generation...', { id: 'ppt-export' });
 
     try {
-      await exportSlidesToPPT(slideIds, filename, (current, total) => {
-        toast.loading(`Capturing slide ${current} of ${total}...`, { id: 'ppt-export' });
-      });
-      toast.success('PPT Downloaded successfully!', { id: 'ppt-export' });
+      for (let i = 0; i < slides.length; i++) {
+        setExportProgress(i + 1);
+        toast.loading(`Capturing slide ${i + 1} of ${slides.length}...`, { id: 'ppt-export' });
+
+        // Wait for React to render the slide in the export viewport
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        const element = document.getElementById(`slide-capture-viewport`);
+        if (element) {
+          const html2canvas = (await import("html2canvas")).default;
+          const canvas = await html2canvas(element, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: "#070708",
+            logging: false
+          });
+
+          const imgData = canvas.toDataURL("image/png");
+          const slide = pptx.addSlide();
+          slide.background = { color: "070708" };
+          slide.addImage({
+            data: imgData,
+            x: 0, y: 0, w: "100%", h: "100%"
+          });
+        }
+      }
+
+      await pptx.writeFile({ fileName: `Client_Report_${new Date().toISOString().split('T')[0]}.pptx` });
+      toast.success('PowerPoint downloaded successfully!', { id: 'ppt-export' });
     } catch (err) {
       console.error('PPT Export Error:', err);
-      toast.error('Failed to generate PPT', { id: 'ppt-export' });
+      toast.error('Failed to generate PowerPoint', { id: 'ppt-export' });
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -1407,34 +1440,42 @@ export default function ClientReports({ report, siteId, category, setCategory, i
         </div>
       </header>
 
-      {/* HIDDEN EXPORT CONTAINER - Pushed off-screen but rendered for capture engine */}
-      <div
-        style={{ position: 'fixed', left: '-5000px', top: '0', zIndex: -1000 }}
-        aria-hidden="true"
-      >
-        {slides.map((s, i) => (
-          <div
-            key={`export-${s.id}`}
-            id={`slide-export-${i}`}
-            style={{
-              width: '1280px',
-              height: '720px',
-              backgroundColor: '#070708',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column'
-            }}
+      {/* EXPORT PROGRESS OVERLAY */}
+      <AnimatePresence>
+        {isExporting && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-black/90 flex flex-col items-center justify-center backdrop-blur-md"
           >
-            <SlideRenderer
-              slide={s}
-              isEditMode={false}
-              onUpdateSlide={() => {}}
-              siteImageUrl={report?.imageUrl}
-              userAvatarUrl={userAvatarUrl}
-            />
-          </div>
-        ))}
-      </div>
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold text-white mb-2">Generating Professional PPT</h2>
+              <p className="text-gray-400 font-mono">Processing Slide {exportProgress} / {slides.length}</p>
+              <div className="w-64 h-1.5 bg-white/10 rounded-full mt-4 overflow-hidden mx-auto">
+                <motion.div
+                  className="h-full bg-blue-500"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(exportProgress / slides.length) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            {/* ACTUAL CAPTURE VIEWPORT - Visible to user so browser renders it perfectly */}
+            <div className="w-[960px] h-[540px] bg-[#070708] rounded-xl shadow-2xl border border-white/10 overflow-hidden relative">
+              <div id="slide-capture-viewport" className="w-full h-full flex flex-col">
+                <SlideRenderer
+                  slide={slides[exportProgress - 1] || slides[0]}
+                  isEditMode={false}
+                  onUpdateSlide={() => {}}
+                  siteImageUrl={report?.imageUrl}
+                  userAvatarUrl={userAvatarUrl}
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* DYNAMIC VIEWPORTS CONTAINER */}
       {!isPresenting ? (
