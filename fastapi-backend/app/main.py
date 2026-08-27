@@ -10,7 +10,11 @@ app = FastAPI(title="BNB.AI Marketing Intelligences API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://103.155.85.64:3001"],
+    allow_origins=[
+        "http://103.155.85.64:3001",
+        "http://frontend.test",
+        "http://backend.test"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
