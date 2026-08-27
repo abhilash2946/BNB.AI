@@ -1,6 +1,8 @@
 import pptxgen from "pptxgenjs";
 import html2canvas from "html2canvas";
 
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const exportSlidesToPPT = async (
   slideIds: string[],
   filename: string,
@@ -11,20 +13,29 @@ export const exportSlidesToPPT = async (
 
   for (let i = 0; i < slideIds.length; i++) {
     const element = document.getElementById(slideIds[i]);
-    if (!element) continue;
+    if (!element) {
+      console.warn(`Slide element ${slideIds[i]} not found`);
+      continue;
+    }
 
     if (onProgress) onProgress(i + 1, slideIds.length);
 
     try {
+      // Give the slide a moment to render its contents/animations
+      await wait(800);
+
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         logging: false,
-        backgroundColor: "#000000",
+        backgroundColor: "#070708", // Match slide background
+        removeContainer: true,
       });
 
       const imgData = canvas.toDataURL("image/png");
       const slide = pptx.addSlide();
+      slide.background = { color: "070708" };
+
       slide.addImage({
         data: imgData,
         x: 0,

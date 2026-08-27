@@ -1407,13 +1407,23 @@ export default function ClientReports({ report, siteId, category, setCategory, i
         </div>
       </header>
 
-      {/* HIDDEN EXPORT CONTAINER */}
-      <div className="fixed -left-[9999px] -top-[9999px] opacity-0 pointer-events-none">
+      {/* HIDDEN EXPORT CONTAINER - Pushed off-screen but rendered for capture engine */}
+      <div
+        style={{ position: 'fixed', left: '-5000px', top: '0', zIndex: -1000 }}
+        aria-hidden="true"
+      >
         {slides.map((s, i) => (
           <div
             key={`export-${s.id}`}
             id={`slide-export-${i}`}
-            className="w-[1280px] h-[720px] bg-[#070708] relative overflow-hidden flex flex-col"
+            style={{
+              width: '1280px',
+              height: '720px',
+              backgroundColor: '#070708',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
           >
             <SlideRenderer
               slide={s}
