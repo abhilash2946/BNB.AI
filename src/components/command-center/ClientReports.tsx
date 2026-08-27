@@ -1192,45 +1192,62 @@ export default function ClientReports({ report, siteId, category, setCategory, i
 
     setIsExporting(true);
     setExportProgress(0);
-    const pptx = new (await import("pptxgenjs")).default();
-    pptx.layout = "LAYOUT_16x9";
 
-    toast.loading('Starting PowerPoint generation...', { id: 'ppt-export' });
+    toast.loading('Initializing PowerPoint Engine...', { id: 'ppt-export' });
 
     try {
+      // Import libraries dynamically
+      const [pptxModule, html2canvasModule] = await Promise.all([
+        import("pptxgenjs"),
+        import("html2canvas")
+      ]);
+
+      const PptxGen = pptxModule.default || pptxModule;
+      const html2canvas = html2canvasModule.default || html2canvasModule;
+
+      const pptx = new PptxGen();
+      pptx.layout = "LAYOUT_16x9";
+
       for (let i = 0; i < slides.length; i++) {
         setExportProgress(i + 1);
         toast.loading(`Capturing slide ${i + 1} of ${slides.length}...`, { id: 'ppt-export' });
 
-        // Wait for React to render the slide in the export viewport
-        await new Promise(resolve => setTimeout(resolve, 800));
+        // Wait for slide to fully render in the export overlay
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         const element = document.getElementById(`slide-capture-viewport`);
         if (element) {
-          const html2canvas = (await import("html2canvas")).default;
           const canvas = await html2canvas(element, {
             scale: 2,
             useCORS: true,
             backgroundColor: "#070708",
             logging: false,
             onclone: (clonedDoc) => {
-              // Modern CSS Fix: html2canvas does not support oklch() colors used by Tailwind v4
-              // We traverse and replace oklch with hex/rgb fallbacks in the cloned DOM
+              // Modern CSS Fix: html2canvas v1.4.1 (and below) crashes on Tailwind v4's oklch/oklab colors.
+              // We must sanitize the cloned document's styles before capture.
+
+              // 1. Sanitize all <style> tags text content
+              const styles = clonedDoc.getElementsByTagName('style');
+              for (let s = 0; s < styles.length; s++) {
+                let css = styles[s].innerHTML;
+                if (css.includes('oklch') || css.includes('oklab') || css.includes('hwb')) {
+                  // Regex to find oklch(...) or oklab(...) and replace with a safe color
+                  styles[s].innerHTML = css.replace(/(oklch|oklab|hwb)\([^)]+\)/g, '#3b82f6');
+                }
+              }
+
+              // 2. Traverse elements and force fallbacks for computed styles
               const tags = clonedDoc.getElementsByTagName('*');
               for (let j = 0; j < tags.length; j++) {
                 const el = tags[j] as HTMLElement;
                 const style = window.getComputedStyle(el);
 
-                // Common color properties to sanitize
                 ['color', 'background-color', 'border-color', 'fill', 'stroke'].forEach(prop => {
                   const val = el.style.getPropertyValue(prop) || style.getPropertyValue(prop);
-                  if (val && (val.includes('oklch') || val.includes('oklab'))) {
-                    // Force a standard RGB/Hex fallback for the capture engine
-                    // Most BNB elements are blue, gray, or white
-                    let fallback = '#3b82f6'; // Default blue
+                  if (val && (val.includes('oklch') || val.includes('oklab') || val.includes('hwb'))) {
+                    let fallback = '#3b82f6';
                     if (prop === 'color') fallback = '#ffffff';
-                    if (prop === 'background-color') fallback = '#070708';
-
+                    if (prop.includes('background')) fallback = '#070708';
                     el.style.setProperty(prop, fallback, 'important');
                   }
                 });
@@ -1248,16 +1265,17 @@ export default function ClientReports({ report, siteId, category, setCategory, i
         }
       }
 
-      await pptx.writeFile({ fileName: `Client_Report_${new Date().toISOString().split('T')[0]}.pptx` });
+      const fileName = `Client_Report_${new Date().toISOString().split('T')[0]}.pptx`;
+      await pptx.writeFile({ fileName });
       toast.success('PowerPoint downloaded successfully!', { id: 'ppt-export' });
-    } catch (err) {
+    } catch (err: any) {
       console.error('PPT Export Error:', err);
-      toast.error('Failed to generate PowerPoint', { id: 'ppt-export' });
+      toast.error(`Export Failed: ${err.message || 'Unknown Error'}`, { id: 'ppt-export' });
     } finally {
       setIsExporting(false);
+      setExportProgress(0);
     }
   };
-
   const applyAISmartMutation = (actionType: string) => {
     let copy = JSON.parse(JSON.stringify(slides));
     if (actionType === 'scale') {
