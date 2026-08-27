@@ -83,7 +83,6 @@ export default function ClientReports({ report, siteId, category, setCategory, i
   const [playSpeed, setPlaySpeed] = useState<number>(5000); // ms per slide
   const [timeLeft, setTimeLeft] = useState<number>(100); // percentage of visual progress bar
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const presentationRef = useRef<HTMLDivElement>(null);
 
@@ -1115,12 +1114,6 @@ export default function ClientReports({ report, siteId, category, setCategory, i
     }
   };
 
-  const handleReset = () => {
-    if (window.confirm('Are you sure you want to revert all slide contents back to original template parameters?')) {
-      setSlides(initialSlides);
-      setCurrentIdx(0);
-    }
-  };
 
   const addSlide = (type: SlideType) => {
     const defaultTitles: Record<SlideType, string> = {
@@ -1195,30 +1188,8 @@ export default function ClientReports({ report, siteId, category, setCategory, i
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(slides, null, 2));
     const dlAnchorElem = document.createElement('a');
     dlAnchorElem.setAttribute('href', dataStr);
-    dlAnchorElem.setAttribute('download', `PptInteractiveDeck_${new Date().toISOString().split('T')[0]}.json`);
+    dlAnchorElem.setAttribute('download', `Client_PPT_${new Date().toISOString().split('T')[0]}.ppt`);
     dlAnchorElem.click();
-  };
-
-  const importDeck = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    const file = files[0];
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const parsed = JSON.parse(event.target?.result as string);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setSlides(parsed);
-          setCurrentIdx(0);
-          alert('Successfully imported PPT interactive deck data!');
-        } else {
-          alert('Invalid file structure. Make sure you load a valid backup presentation JSON.');
-        }
-      } catch (err) {
-        alert('Failed to parse uploaded file. Ensure it is a valid JSON presentation.');
-      }
-    };
-    reader.readAsText(file);
   };
 
   const applyAISmartMutation = (actionType: string) => {
@@ -1417,36 +1388,11 @@ export default function ClientReports({ report, siteId, category, setCategory, i
             )}
             <button
               onClick={exportDeck}
-              title="Download backup (JSON)"
+              title="Download PPT"
               className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-colors border border-white/10"
             >
               <Download className="w-4 h-4" />
             </button>
-            {!isSharedMode && (
-              <>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Upload backup"
-                  className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-colors border border-white/10"
-                >
-                  <Upload className="w-4 h-4" />
-                </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={importDeck}
-                  accept=".json"
-                  className="hidden"
-                />
-                <button
-                  onClick={handleReset}
-                  title="Reset PPT parameters"
-                  className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded transition-all ml-1 border border-white/10"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-              </>
-            )}
           </div>
         </div>
       </header>
