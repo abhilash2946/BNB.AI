@@ -35,6 +35,7 @@ from app.services.meta_ads import (
 from app.analytics.performance_analytics import *
 from app.analytics.radar_builder import build_dynamic_radar
 from app.config import settings
+from app.services.search_service import search_manager
 import requests
 from app.services.gemini import call_gemini
 from app.services.prompt_builders import build_performance_exec_prompt, build_competitor_batch_prompt, build_performance_advice_prompt, build_performance_explanations_prompt
@@ -625,20 +626,15 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
         # 7. Competitor Discovery
         site_city = site_info.get("city")
         competitor_insights = []
-        if site_city and settings.openserp_url:
-            print(f"---> Discovering competitors in {site_city} via OpenSERP (Cache-First)...")
+        if site_city:
+            print(f"---> Discovering competitors in {site_city} via SearchManager (Cache-First)...")
             your_domain = site_info.get("url", "").replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
             competitor_discovery_map = {} # domain -> discovery_query
 
             # A. Fetch Historical Competitors first
             try:
-                try:
-                    # Try fetching with the new column and source filter
-                    history = supabase.table("competitor_insights").select("competitor_url, discovery_query").eq("site_id", site_id).eq("source_module", "performance").execute()
-                except Exception as db_e:
-                    print(f"!!! DB history fetch (enhanced) failed, falling back to basic: {db_e}")
-                    # Fallback if column is missing (should not happen after migration)
-                    history = supabase.table("competitor_insights").select("competitor_url").eq("site_id", site_id).execute()
+                # Try fetching with the new column and source filter
+                history = supabase.table("competitor_insights").select("competitor_url, discovery_query").eq("site_id", site_id).eq("source_module", "performance").execute()
 
                 if history and history.data:
                     for item in history.data:
@@ -651,7 +647,7 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             except Exception as e:
                 print(f"!!! Error fetching competitor history: {e}")
 
-            # B. Live Discovery (OpenSERP)
+            # B. Live Discovery (Round-Robin Python)
             top_kw = list(dict.fromkeys([k.get('keyword') for k in google_ads_details.get('top_keywords', [])[:10] if k.get('keyword')]))
             if not top_kw and site_info.get("industry"):
                 top_kw = [site_info.get("industry")]
@@ -659,59 +655,20 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
 
             print(f"DEBUG: Keywords for live discovery: {top_kw}")
 
-            engines_to_try = ["bing", "duckduckgo", "google"]
-            unavailable_engines = set()
-
             for kw in top_kw:
                 if len(competitor_discovery_map) >= 20: break
                 query = f"{kw} {site_city}"
-                results_list = []
-                found_engine = None
 
-                # Multi-engine fallback loop
-                for engine in engines_to_try:
-                    if engine in unavailable_engines:
-                        continue
-
-                    try:
-                        print(f"DEBUG: Searching OpenSERP ({engine}) for query: '{query}'")
-                        async with httpx.AsyncClient(timeout=20) as client:
-                            resp = await client.get(f"{settings.openserp_url}/{engine}/search", params={"text": query})
-
-                            if resp.status_code == 200:
-                                data = resp.json()
-                                if isinstance(data, dict) and (data.get("error") or data.get("code") == 429):
-                                    print(f"!!! OpenSERP {engine} blocked/captcha: {data.get('error')}. Trying next...")
-                                    continue
-
-                                results_list = data.get("results", [])
-                                if results_list:
-                                    found_engine = engine
-                                    break
-                            elif resp.status_code == 404:
-                                print(f"!!! OpenSERP {engine} engine NOT FOUND (404). Disabling for this run.")
-                                unavailable_engines.add(engine)
-                            else:
-                                print(f"!!! OpenSERP {engine} HTTP {resp.status_code}. Trying next...")
-                    except Exception as e:
-                        print(f"!!! Error searching OpenSERP {engine}: {e}")
-                        continue
-
-                # LAST RESORT: Direct Fallbacks if all OpenSERP engines failed
-                if not results_list:
-                    print(f"DEBUG: All OpenSERP engines failed. Trying direct fallbacks for '{query}'...")
-                    # Try Bing first, then DDG
-                    results_list = await scrape_bing_fallback(query)
-                    if results_list:
-                        found_engine = "bing_fallback"
-                    else:
-                        results_list = await scrape_duckduckgo_fallback(query)
-                        if results_list:
-                            found_engine = "ddg_fallback"
+                try:
+                    # Use the new SearchManager (DDG -> Google -> Bing rotation)
+                    results_list = await search_manager.get_results(query)
+                except Exception as e:
+                    print(f"!!! SearchManager failed for '{query}': {e}")
+                    continue
 
                 # Process results if any were found
                 if results_list:
-                    print(f"✅ Found {len(results_list)} results via {found_engine} for '{query}'")
+                    print(f"✅ Found {len(results_list)} results for '{query}'")
                     for res in results_list[:10]:
                         link = res.get("url", "")
                         if link:
