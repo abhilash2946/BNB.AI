@@ -1,24 +1,26 @@
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.models import ReportRequest, ReportResponse, AdviceSummarizeRequest
 from app.supabase_client import supabase
+from app.config import settings
 # Deferred imports for workers to speed up startup
 import uuid
-print("---> Starting BNB.AI API Server...")
+print(f"---> Starting BNB.AI API Server...")
+print(f"---> Configured Supabase URL: {settings.supabase_url[:15]}...")
 
 app = FastAPI(title="BNB.AI Marketing Intelligences API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://103.155.85.64:3001",
-        "http://frontend.test",
-        "http://backend.test"
-    ],
+    allow_origins=["*"], # Loosened for debugging CORS issues
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/health")
+async def health_check():
+    return {"status": "online", "supabase_connected": bool(settings.supabase_url)}
 
 # Defer router import to speed up startup if possible,
 # but usually routes are fine. Moving it here for consistency.
@@ -75,7 +77,11 @@ async def performance_report(req: ReportRequest, background_tasks: BackgroundTas
         print(f"---> Successfully initialized report {report_id} in database")
     except Exception as e:
         print(f"!!! Error inserting report status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Return detailed error to help debug 500 issues
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database Error: {str(e)}. Ensure Supabase connection is valid."
+        )
 
     background_tasks.add_task(run_performance_report, req.user_id, req.site_id, req.start_date, req.end_date, report_id, req.bnb_mode)
     return ReportResponse(success=True, report_id=report_id)
@@ -120,7 +126,11 @@ async def seo_report(req: ReportRequest, background_tasks: BackgroundTasks):
         print(f"---> Successfully initialized report {report_id} in database")
     except Exception as e:
         print(f"!!! Error inserting report status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Return detailed error to help debug 500 issues
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database Error: {str(e)}. Ensure Supabase connection is valid."
+        )
 
     background_tasks.add_task(run_seo_report, req.user_id, req.site_id, req.start_date, req.end_date, report_id, req.bnb_mode)
     return ReportResponse(success=True, report_id=report_id)
@@ -161,7 +171,11 @@ async def social_report(req: ReportRequest, background_tasks: BackgroundTasks):
         print(f"---> Successfully initialized report {report_id} in database")
     except Exception as e:
         print(f"!!! Error inserting report status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Return detailed error to help debug 500 issues
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database Error: {str(e)}. Ensure Supabase connection is valid."
+        )
 
     background_tasks.add_task(run_social_report, req.user_id, req.site_id, req.start_date, req.end_date, report_id)
     return ReportResponse(success=True, report_id=report_id)
