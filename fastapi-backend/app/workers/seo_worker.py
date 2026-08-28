@@ -514,9 +514,6 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                     print(f"✅ Found {len(results_list)} results for '{query}'")
                     for res in results_list[:10]:
                         link = res.get("url", "")
-                    print(f"✅ Found {len(results_list)} results via {found_engine} for '{query}'")
-                    for res in results_list[:10]:
-                        link = res.get("url", "")
                         if link:
                             domain = link.split("/")[2].lower().replace("www.", "")
                             if not domain: continue
