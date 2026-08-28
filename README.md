@@ -1,81 +1,46 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# BNB.AI Marketing Intelligence API
 
-# Run and deploy your AI Studio app
+This is the core backend service for generating marketing intelligence reports using Python and FastAPI.
 
-This contains everything you need to run your app locally.
+## Setup
 
-View your app in AI Studio: https://ai.studio/apps/d1057251-8b8c-4658-8878-71f9a175ac0e
+1.  **Install Dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-## Run Locally
+2.  **Environment Variables:**
+    Copy `.env` template and fill in your credentials:
+    - `SUPABASE_URL`
+    - `SUPABASE_SERVICE_ROLE_KEY`
+    - `GEMINI_API_KEY`
+    - `PAGESPEED_API_KEY` (optional, used for Core Web Vitals / PageSpeed Insights)
 
-**Prerequisites:**  Node.js
+3.  **Run the Server:**
+    ```bash
+    uvicorn app.main:app --reload --port 8000
+    ```
 
+## Endpoints
 
-1. Install dependencies:
-   `npm install`
-2. Set up environment variables:
-   Copy `.env.example` to `.env` and fill in your Supabase and API details.
-3. Run the app:
-   `npm run dev`
+- `POST /performance-report`: Generates Google Ads + Meta Ads reports.
+- `POST /seo-report`: Generates GA4 + GSC reports.
+- `POST /social-report`: Generates Facebook Page + Instagram reports.
 
-## Testing
-
-Run unit tests with Vitest:
-`npm test`
-
-## Features
-
-- **Neural Command Center**: Real-time marketing insights powered by AI.
-- **Multi-Module Intelligence**: Specialized reports for SEO, Performance, and Social.
-- **Theme Support**: Dark and light modes.
-- **PDF Export**: Export your intelligence reports to PDF.
-- **Modular Architecture**: Clean, maintainable codebase with custom hooks and components.
-
-## Deployment & Server Management
-
-The project is hosted on an **IntechDC VPS** managed with **CloudPanel** and **PM2**.
-
-### Server Infrastructure
-- **Host IP**: `103.155.85.64`
-- **Frontend URL**: [http://frontend.test](http://frontend.test) (Port 3001)
-- **Backend URL**: [http://backend.test](http://backend.test) (Port 8000)
-- **Search API**: OpenSERP (Port 7000)
-
-### File Paths (On Server)
-- **Frontend**: `/home/frontend/htdocs/frontend.test/`
-- **Backend**: `/home/backend/htdocs/backend.test/`
-- **OpenSERP**: `/root/openserp`
-
-### Update Workflow
-
-#### 1. Push changes from Laptop
-```bash
-git add .
-git commit -m "Your description"
-git push origin master
+All endpoints accept:
+```json
+{
+  "user_id": "string",
+  "site_id": "string",
+  "start_date": "YYYY-MM-DD",
+  "end_date": "YYYY-MM-DD"
+}
 ```
 
-#### 2. Apply updates on Server (via SSH)
-**Frontend Update:**
-```bash
-cd /home/frontend/htdocs/frontend.test/
-git pull origin master
-npm run build
-pm2 restart frontend
-```
+## Architecture
 
-**Backend Update:**
-```bash
-cd /home/backend/htdocs/backend.test/
-git pull origin master
-pm2 restart backend
-```
-
-### Useful Maintenance Commands
-- **View all services**: `pm2 list`
-- **View live logs**: `pm2 logs backend`
-- **Flush old logs**: `pm2 flush`
-- **Check RAM/Disk**: `free -h` / `df -h`
-
+- **FastAPI:** High-performance web framework for the API layer.
+- **Background Tasks:** Handles long-running API calls and AI generation asynchronously.
+- **Supabase:** Used for credential storage, report status tracking, and persisting processed reports.
+- **Gemini 2.0:** Powers the AI narrative analysis and recommendations.
+- **PageSpeed Insights:** Used for Core Web Vitals when `PAGESPEED_API_KEY` is configured.
