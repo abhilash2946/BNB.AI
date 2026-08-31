@@ -81,6 +81,10 @@ async def google_callback(request: Request, code: str = None, state: str = None)
         # We ensure the redirect_uri is set EXACTLY as registered in Google Console
         flow.redirect_uri = google_creds["redirect_uri"]
 
+        # Force disable PKCE by ensuring no verifier is expected or sent
+        if hasattr(flow, 'code_verifier'):
+            flow.code_verifier = None
+
         flow.fetch_token(code=code, code_verifier=None)
         credentials = flow.credentials
 
