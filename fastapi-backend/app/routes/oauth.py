@@ -81,7 +81,7 @@ async def google_callback(request: Request, code: str = None, state: str = None)
         # We ensure the redirect_uri is set EXACTLY as registered in Google Console
         flow.redirect_uri = google_creds["redirect_uri"]
 
-        flow.fetch_token(code=code)
+        flow.fetch_token(code=code, code_verifier=None)
         credentials = flow.credentials
 
         # Store refresh token in Supabase (Merging with existing IDs)
