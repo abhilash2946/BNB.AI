@@ -8,6 +8,8 @@ import os
 
 # Disable PKCE for Google Auth to ensure compatibility with all environments
 os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
+
+from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.openapi.docs import (
