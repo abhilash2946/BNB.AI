@@ -14,7 +14,7 @@ interface SiteManagementProps {
   onLogout: () => void;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "http://103.155.85.64:8000";
+const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 export default function SiteManagement({
   user,

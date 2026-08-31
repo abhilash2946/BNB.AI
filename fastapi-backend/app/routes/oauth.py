@@ -1,7 +1,7 @@
 import hashlib
 import base64
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from google_auth_oauthlib.flow import Flow
 from app.config import settings
 from app.supabase_client import supabase
@@ -53,51 +53,63 @@ async def get_google_auth_url(user_id: str, site_id: str = None):
 
 @router.get("/google/callback")
 async def google_callback(request: Request, code: str = None, state: str = None):
-    if not code:
-        raise HTTPException(status_code=400, detail="Missing code")
-    parts = state.split(":")
-    user_id = parts[0]
-    site_id = parts[1] if len(parts) > 1 else None
+    try:
+        if not code:
+            raise HTTPException(status_code=400, detail="Missing code")
+        parts = state.split(":")
+        user_id = parts[0]
+        site_id = parts[1] if len(parts) > 1 else None
 
-    # Get User specific Google creds
-    google_creds = get_user_google_creds(user_id)
+        # Get User specific Google creds
+        google_creds = get_user_google_creds(user_id)
 
-    flow = Flow.from_client_config(
-        {
-            "web": {
-                "client_id": google_creds["client_id"],
-                "client_secret": google_creds["client_secret"],
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [google_creds["redirect_uri"]],
+        flow = Flow.from_client_config(
+            {
+                "web": {
+                    "client_id": google_creds["client_id"],
+                    "client_secret": google_creds["client_secret"],
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [google_creds["redirect_uri"]],
+                }
+            },
+            scopes=[
+                "https://www.googleapis.com/auth/analytics.readonly",
+                "https://www.googleapis.com/auth/webmasters.readonly",
+                "https://www.googleapis.com/auth/adwords",
+            ],
+        )
+        flow.redirect_uri = google_creds["redirect_uri"]
+
+        verifier = get_pkce_verifier(user_id)
+        flow.fetch_token(code=code, code_verifier=verifier)
+        credentials = flow.credentials
+
+        # Store refresh token in Supabase (Merging with existing IDs)
+        supabase.table("user_credentials").upsert({
+            "user_id": user_id,
+            "platform": "google_oauth",
+            "credentials": {
+                **google_creds,
+                "refresh_token": credentials.refresh_token,
             }
-        },
-        scopes=[
-            "https://www.googleapis.com/auth/analytics.readonly",
-            "https://www.googleapis.com/auth/webmasters.readonly",
-            "https://www.googleapis.com/auth/adwords",
-        ],
-    )
-    flow.redirect_uri = google_creds["redirect_uri"]
-    
-    verifier = get_pkce_verifier(user_id)
-    flow.fetch_token(code=code, code_verifier=verifier)
-    credentials = flow.credentials
+        }).execute()
 
-    # Store refresh token in Supabase (Merging with existing IDs)
-    supabase.table("user_credentials").upsert({
-        "user_id": user_id,
-        "platform": "google_oauth",
-        "credentials": {
-            **google_creds,
-            "refresh_token": credentials.refresh_token,
-        }
-    }).execute()
-
-    redirect_url = f"{settings.frontend_url}/onboarding?step=3&success=true"
-    if site_id:
-        redirect_url += f"&site_id={site_id}"
-    return RedirectResponse(url=redirect_url)
+        redirect_url = f"{settings.frontend_url}/onboarding?step=3&success=true"
+        if site_id:
+            redirect_url += f"&site_id={site_id}"
+        return RedirectResponse(url=redirect_url)
+    except Exception as e:
+        import traceback
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": str(e),
+                "traceback": traceback.format_exc(),
+                "user_id": user_id if 'user_id' in locals() else None,
+                "redirect_uri": google_creds.get("redirect_uri") if 'google_creds' in locals() else None
+            }
+        )
 
 @router.get("/meta/url")
 async def get_meta_auth_url(user_id: str):

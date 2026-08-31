@@ -14,7 +14,7 @@ interface OnboardingProps {
   defaultSites: SiteProfile[];
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 export default function Onboarding({ userId, initialEmail, initialName, onComplete }: OnboardingProps) {
   const STORAGE_KEY = `bnb_onboarding_state_${userId}`;

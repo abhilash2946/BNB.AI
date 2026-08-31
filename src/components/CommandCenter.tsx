@@ -195,7 +195,7 @@ export default function CommandCenter({
   };
 
   const testWebhook = async () => {
-    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+    const API_URL = import.meta.env.VITE_API_URL || "/api";
     const webhookPath = category === "SEO" ? "seo-report" : category === "Performance Marketing" ? "performance-report" : category === "Combined Intelligence" ? "combined-report" : "social-report";
     const url = `${API_URL}/${webhookPath}`;
     try {
