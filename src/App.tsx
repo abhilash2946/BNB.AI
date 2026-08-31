@@ -3,20 +3,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "./lib/supabaseClient";
 import { UserProfile, SiteProfile, UserCredentials } from "./types";
 import LandingPage from "./components/LandingPage";
-import Onboarding from "./components/Onboarding";
 import SiteManagement from "./components/SiteManagement";
 import CommandCenter from "./components/CommandCenter";
 import { Toaster } from 'react-hot-toast';
 import { Sparkles } from 'lucide-react';
 import { useTheme } from "./contexts/ThemeContext";
 
-type ViewState = "landing" | "onboarding" | "dashboard" | "site_management";
+type ViewState = "landing" | "dashboard" | "site_management";
 
 export default function App() {
   const { theme } = useTheme();
   const [view, setView] = useState<ViewState>(() => {
     const path = window.location.pathname;
-    if (path === "/onboarding") return "onboarding";
     if (path === "/site-management") return "site_management";
     if (path === "/dashboard") return "dashboard";
     const saved = localStorage.getItem('bnb_app_view') as ViewState;
@@ -64,8 +62,7 @@ export default function App() {
 
     const handlePopState = () => {
       const path = window.location.pathname;
-      if (path === "/onboarding") setView("onboarding");
-      else if (path === "/site-management") setView("site_management");
+      if (path === "/site-management") setView("site_management");
       else if (path === "/dashboard") setView("dashboard");
       else setView("landing");
     };
@@ -79,15 +76,14 @@ export default function App() {
 
   useEffect(() => {
     if (!isLoading) {
-      if (view !== "landing" && view !== "onboarding" && !user) {
+      if (view !== "landing" && !user) {
         setView("landing");
         return;
       }
       localStorage.setItem('bnb_app_view', view);
       const currentPath = window.location.pathname;
       let targetPath = "/";
-      if (view === "onboarding") targetPath = "/onboarding";
-      else if (view === "dashboard") targetPath = "/dashboard";
+      if (view === "dashboard") targetPath = "/dashboard";
       else if (view === "site_management") targetPath = "/site-management";
       if (currentPath !== targetPath) {
         window.history.replaceState({}, "", targetPath);
@@ -319,7 +315,7 @@ export default function App() {
       setIsLoading(false); // Only now we stop the initial loading spinner
 
       setView(current => {
-        const protectedViews: ViewState[] = ["dashboard", "site_management", "onboarding"];
+        const protectedViews: ViewState[] = ["dashboard", "site_management"];
         if (protectedViews.includes(current)) return current;
         const savedView = localStorage.getItem('bnb_app_view') as ViewState;
         return (savedView && protectedViews.includes(savedView as ViewState)) ? (savedView as ViewState) : "dashboard";
@@ -476,11 +472,6 @@ export default function App() {
         {view === "landing" && (
           <motion.div key="landing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <LandingPage onStart={handleLoginSuccess} onLogin={handleLoginSuccess} />
-          </motion.div>
-        )}
-        {view === "onboarding" && (
-          <motion.div key="onboarding" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <Onboarding userId={sessionUserId || ""} initialEmail={sessionUserMetadata?.email || ""} initialName={sessionUserMetadata?.full_name || ""} onComplete={() => setView("dashboard")} defaultSites={[]} />
           </motion.div>
         )}
         {view === "dashboard" && user && activeSite && (

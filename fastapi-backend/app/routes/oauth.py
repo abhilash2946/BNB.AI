@@ -194,7 +194,7 @@ async def meta_callback(request: Request, code: str = None, state: str = None):
         }
     }, on_conflict="user_id, platform").execute()
 
-    return RedirectResponse(url=f"{settings.frontend_url}/onboarding?step=3&success=true")
+    return RedirectResponse(url=f"{settings.frontend_url}/site-management?success=true")
 
 from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta
