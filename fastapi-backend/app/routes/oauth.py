@@ -21,31 +21,21 @@ def get_pkce_challenge(verifier: str) -> str:
 @router.get("/google/url")
 async def get_google_auth_url(user_id: str, site_id: str = None):
     google_creds = get_user_google_creds(user_id)
-    flow = Flow.from_client_config(
-        {
-            "web": {
-                "client_id": google_creds["client_id"],
-                "client_secret": google_creds["client_secret"],
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [google_creds["redirect_uri"]],
-            }
-        },
-        scopes=[
-            "https://www.googleapis.com/auth/analytics.readonly",
-            "https://www.googleapis.com/auth/webmasters.readonly",
-            "https://www.googleapis.com/auth/adwords",
-        ],
-    )
-    flow.redirect_uri = google_creds["redirect_uri"]
     state = f"{user_id}:{site_id or ''}"
 
-    # Standard flow without PKCE for maximum compatibility across environments
-    auth_url, _ = flow.authorization_url(
-        prompt="consent", 
-        state=state, 
-        access_type="offline"
-    )
+    # MANUALLY construct the URL to ensure NO PKCE parameters are included
+    from urllib.parse import urlencode
+    params = {
+        "client_id": google_creds["client_id"],
+        "redirect_uri": google_creds["redirect_uri"],
+        "response_type": "code",
+        "scope": "https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/adwords",
+        "access_type": "offline",
+        "prompt": "consent",
+        "state": state
+    }
+
+    auth_url = f"https://accounts.google.com/o/oauth2/auth?{urlencode(params)}"
     return {"url": auth_url}
 
 @router.get("/google/callback")
