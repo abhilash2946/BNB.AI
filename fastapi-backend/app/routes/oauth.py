@@ -81,8 +81,8 @@ async def google_callback(request: Request, code: str = None, state: str = None)
         )
         flow.redirect_uri = google_creds["redirect_uri"]
 
-        verifier = get_pkce_verifier(user_id)
-        flow.fetch_token(code=code, code_verifier=verifier)
+        # Standard flow without PKCE for now to ensure compatibility
+        flow.fetch_token(code=code)
         credentials = flow.credentials
 
         # Store refresh token in Supabase (Merging with existing IDs)
