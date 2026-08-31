@@ -38,16 +38,12 @@ async def get_google_auth_url(user_id: str, site_id: str = None):
     )
     flow.redirect_uri = google_creds["redirect_uri"]
     state = f"{user_id}:{site_id or ''}"
-    
-    verifier = get_pkce_verifier(user_id)
-    challenge = get_pkce_challenge(verifier)
-    
+
+    # Standard flow without PKCE for maximum compatibility across environments
     auth_url, _ = flow.authorization_url(
         prompt="consent", 
         state=state, 
-        access_type="offline",
-        code_challenge=challenge,
-        code_challenge_method="S256"
+        access_type="offline"
     )
     return {"url": auth_url}
 
@@ -82,6 +78,9 @@ async def google_callback(request: Request, code: str = None, state: str = None)
         flow.redirect_uri = google_creds["redirect_uri"]
 
         # Standard flow without PKCE for now to ensure compatibility
+        # We ensure the redirect_uri is set EXACTLY as registered in Google Console
+        flow.redirect_uri = google_creds["redirect_uri"]
+
         flow.fetch_token(code=code)
         credentials = flow.credentials
 
