@@ -89,7 +89,7 @@ async def google_callback(request: Request, code: str = None, state: str = None)
         token_data = resp.json()
         refresh_token = token_data.get("refresh_token")
 
-        # Store refresh token in Supabase
+        # Store refresh token in Supabase (using on_conflict to handle existing records)
         supabase.table("user_credentials").upsert({
             "user_id": user_id,
             "platform": "google_oauth",
@@ -97,7 +97,7 @@ async def google_callback(request: Request, code: str = None, state: str = None)
                 **google_creds,
                 "refresh_token": refresh_token,
             }
-        }).execute()
+        }, on_conflict="user_id, platform").execute()
 
         redirect_url = f"{settings.frontend_url}/onboarding?step=3&success=true"
         if site_id:
