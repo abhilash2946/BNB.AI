@@ -2,6 +2,7 @@ import hashlib
 import base64
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse, JSONResponse
+import requests
 from google_auth_oauthlib.flow import Flow
 from app.config import settings
 from app.supabase_client import supabase
@@ -81,20 +82,30 @@ async def google_callback(request: Request, code: str = None, state: str = None)
         # We ensure the redirect_uri is set EXACTLY as registered in Google Console
         flow.redirect_uri = google_creds["redirect_uri"]
 
-        # Force disable PKCE by ensuring no verifier is expected or sent
-        if hasattr(flow, 'code_verifier'):
-            flow.code_verifier = None
+        # DEFINITIVE FIX: Use direct requests to bypass PKCE library constraints
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "code": code,
+            "client_id": google_creds["client_id"],
+            "client_secret": google_creds["client_secret"],
+            "redirect_uri": google_creds["redirect_uri"],
+            "grant_type": "authorization_code",
+        }
 
-        flow.fetch_token(code=code, code_verifier=None)
-        credentials = flow.credentials
+        resp = requests.post(token_url, data=data)
+        if resp.status_code != 200:
+             return JSONResponse(status_code=400, content={"error": "Token exchange failed", "details": resp.text})
 
-        # Store refresh token in Supabase (Merging with existing IDs)
+        token_data = resp.json()
+        refresh_token = token_data.get("refresh_token")
+
+        # Store refresh token in Supabase
         supabase.table("user_credentials").upsert({
             "user_id": user_id,
             "platform": "google_oauth",
             "credentials": {
                 **google_creds,
-                "refresh_token": credentials.refresh_token,
+                "refresh_token": refresh_token,
             }
         }).execute()
 
