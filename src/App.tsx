@@ -99,9 +99,14 @@ export default function App() {
         return;
       }
 
-      // If we just finished OAuth, stay on site_management to show the toast
-      if (isComingFromOAuth && view !== "site_management") {
-        setView("site_management");
+      // If we just finished OAuth, try to stay on site_management if logged in,
+      // otherwise go to landing so the user can log back in (the toast will still show)
+      if (isComingFromOAuth) {
+        if (user && view !== "site_management") {
+          setView("site_management");
+        } else if (!user && view !== "landing") {
+          setView("landing");
+        }
       }
 
       localStorage.setItem('bnb_app_view', view);
