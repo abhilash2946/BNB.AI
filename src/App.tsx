@@ -196,6 +196,13 @@ export default function App() {
 
           const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
           if (refreshError || !refreshed?.user) {
+            // If session refresh fails, don't immediately sign out if we are coming from OAuth
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('success') || urlParams.has('error')) {
+               console.warn("Session refresh failed during OAuth, relying on local storage");
+               setIsLoading(false);
+               return;
+            }
             await supabase.auth.signOut();
             setIsLoading(false);
             setView("landing");
@@ -213,7 +220,16 @@ export default function App() {
 
           void fetchProfileData(refreshed.user.id, refreshed.user);
         } else if (mounted && !session) {
-          setIsLoading(false);
+          // If no session, check if we have a persistent user in localStorage
+          const savedUser = localStorage.getItem('bnb_user_profile');
+          const urlParams = new URLSearchParams(window.location.search);
+          if (savedUser && (urlParams.has('success') || urlParams.has('error'))) {
+            console.log("Restoring session from localStorage for OAuth completion");
+            setUser(JSON.parse(savedUser));
+            setIsLoading(false);
+          } else {
+            setIsLoading(false);
+          }
         }
       } catch (err) {
         console.error("checkInitialSession error:", err);
