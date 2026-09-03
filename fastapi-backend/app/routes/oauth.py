@@ -102,6 +102,8 @@ async def google_callback(request: Request, code: str = None, state: str = None)
         redirect_url = f"{settings.frontend_url}/site-management?success=true"
         if site_id:
             redirect_url += f"&site_id={site_id}"
+
+        print(f"---> DEBUG: Redirecting user to: {redirect_url}")
         return RedirectResponse(url=redirect_url)
     except Exception as e:
         import traceback
