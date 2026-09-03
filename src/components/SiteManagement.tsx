@@ -110,12 +110,25 @@ export default function SiteManagement({
   } | null>(null);
 
   const getAgencyHealth = () => {
+    const googleScopes = sharedCreds.googleOAuth?.granted_scopes || "";
+
     const googleItems = [
       { id: 'g_cid', label: 'Google Client ID', status: sharedCreds.googleOAuth?.client_id ? 'ok' : 'missing' as const },
       { id: 'g_cs', label: 'Google Client Secret', status: sharedCreds.googleOAuth?.client_secret ? 'ok' : 'missing' as const },
-      { id: 'g_rt', label: 'Google Sync (Refresh Token)', status: sharedCreds.googleOAuth?.refresh_token ? 'ok' : 'missing' as const },
-      { id: 'g_dt', label: 'Google Ads Dev Token', status: sharedCreds.googleAdsDeveloperToken ? 'ok' : 'missing' as const },
+      { id: 'g_rt', label: 'Google Sync (Master Key)', status: sharedCreds.googleOAuth?.refresh_token ? 'ok' : 'missing' as const },
     ];
+
+    // If Refresh Token exists, show detailed permissions
+    if (sharedCreds.googleOAuth?.refresh_token) {
+      googleItems.push(
+        { id: 'g_sc_ga4', label: '↳ Permission: GA4 Analytics', status: googleScopes.includes('analytics') ? 'ok' : 'missing' as const },
+        { id: 'g_sc_gsc', label: '↳ Permission: Search Console', status: googleScopes.includes('webmasters') ? 'ok' : 'missing' as const },
+        { id: 'g_sc_ads', label: '↳ Permission: Google Ads', status: googleScopes.includes('adwords') ? 'ok' : 'missing' as const },
+      );
+    }
+
+    googleItems.push({ id: 'g_dt', label: 'Google Ads Dev Token', status: sharedCreds.googleAdsDeveloperToken ? 'ok' : 'missing' as const });
+
     const metaItems = [
       { id: 'm_aid', label: 'Meta App ID', status: sharedCreds.metaAppCreds?.app_id ? 'ok' : 'missing' as const },
       { id: 'm_as', label: 'Meta App Secret', status: sharedCreds.metaAppCreds?.app_secret ? 'ok' : 'missing' as const },

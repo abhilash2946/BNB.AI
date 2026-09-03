@@ -90,6 +90,7 @@ async def google_callback(request: Request, code: str = None, state: str = None)
 
         token_data = resp.json()
         refresh_token = token_data.get("refresh_token")
+        granted_scopes = token_data.get("scope", "")
 
         # Store refresh token in Supabase (using on_conflict to handle existing records)
         supabase.table("user_credentials").upsert({
@@ -98,6 +99,7 @@ async def google_callback(request: Request, code: str = None, state: str = None)
             "credentials": {
                 **google_creds,
                 "refresh_token": refresh_token,
+                "granted_scopes": granted_scopes
             }
         }, on_conflict="user_id, platform").execute()
 
