@@ -98,6 +98,12 @@ export default function App() {
         setView("landing");
         return;
       }
+
+      // If we just finished OAuth, stay on site_management to show the toast
+      if (isComingFromOAuth && view !== "site_management") {
+        setView("site_management");
+      }
+
       localStorage.setItem('bnb_app_view', view);
       const currentPath = window.location.pathname;
       let targetPath = "/";
@@ -536,9 +542,16 @@ export default function App() {
             )}
           </motion.div>
         )}
-        {view === "site_management" && user && (
+        {view === "site_management" && (
           <motion.div key="site_management" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}>
-            <SiteManagement user={user} sites={sites} sharedCreds={sharedCreds} onRefresh={() => fetchProfileData(sessionUserId!)} onClose={() => setView("dashboard")} onLogout={handleLogout} />
+            {user ? (
+              <SiteManagement user={user} sites={sites} sharedCreds={sharedCreds} onRefresh={() => fetchProfileData(sessionUserId!)} onClose={() => setView("dashboard")} onLogout={handleLogout} />
+            ) : (
+              <div className="min-h-screen flex items-center justify-center">
+                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                 <span className="ml-3 text-white/70">Finalizing neural sync...</span>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
