@@ -360,7 +360,14 @@ export default function SiteManagement({
       const { toast } = await import('react-hot-toast');
       if (data.valid) {
         toast.success("Connection verified successfully!");
-        onRefresh(); // Reload data to show green dots
+
+        // Update local state immediately so dots turn green without a reload
+        if (sharedCreds.googleOAuth) {
+          sharedCreds.googleOAuth.granted_scopes = data.scopes;
+          localStorage.setItem('bnb_shared_creds', JSON.stringify(sharedCreds));
+        }
+
+        onRefresh();
       } else {
         toast.error(`Verification failed: ${data.error || "Token invalid"}`);
       }
