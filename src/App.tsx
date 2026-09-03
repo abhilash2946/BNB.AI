@@ -241,16 +241,25 @@ export default function App() {
           void fetchProfileData(session.user.id, session.user);
         }
       } else if (event === "SIGNED_OUT") {
-        setUser(null);
-        setSessionUserId(null);
-        setSites([]);
-        setActiveSite(null);
-        setSharedCreds({});
-        localStorage.clear();
-        setView("landing");
-        localStorage.removeItem('bnb_app_view');
-        localStorage.removeItem('bnb_active_site_id');
-        setIsLoading(false);
+        const urlParams = new URLSearchParams(window.location.search);
+        const isComingFromOAuth = urlParams.has('success') || urlParams.has('error');
+
+        // Only clear everything if we are NOT in the middle of an OAuth redirect
+        if (!isComingFromOAuth) {
+          setUser(null);
+          setSessionUserId(null);
+          setSites([]);
+          setActiveSite(null);
+          setSharedCreds({});
+          localStorage.clear();
+          setView("landing");
+          localStorage.removeItem('bnb_app_view');
+          localStorage.removeItem('bnb_active_site_id');
+          setIsLoading(false);
+        } else {
+          console.log("Session lost during OAuth, but preserving local state for recovery");
+          setIsLoading(false);
+        }
       } else if (event === 'INITIAL_SESSION' && !session) {
         setIsLoading(false);
       }
