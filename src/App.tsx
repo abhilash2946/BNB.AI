@@ -29,7 +29,7 @@ export default function App() {
   const [sharedConfig, setSharedConfig] = useState<any>(null);
 
   const [user, setUser] = useState<UserProfile | null>(() => {
-    const saved = sessionStorage.getItem('bnb_user_profile');
+    const saved = localStorage.getItem('bnb_user_profile');
     try { return saved ? JSON.parse(saved) : null; } catch { return null; }
   });
 
@@ -37,17 +37,17 @@ export default function App() {
   const [sessionUserMetadata, setSessionUserMetadata] = useState<any>(null);
 
   const [sites, setSites] = useState<SiteProfile[]>(() => {
-    const saved = sessionStorage.getItem('bnb_sites');
+    const saved = localStorage.getItem('bnb_sites');
     try { return saved ? JSON.parse(saved) : []; } catch { return []; }
   });
 
   const [activeSite, setActiveSite] = useState<SiteProfile | null>(() => {
-    const saved = sessionStorage.getItem('bnb_active_site');
+    const saved = localStorage.getItem('bnb_active_site');
     try { return saved ? JSON.parse(saved) : null; } catch { return null; }
   });
 
   const [sharedCreds, setSharedCreds] = useState<UserCredentials>(() => {
-    const saved = sessionStorage.getItem('bnb_shared_creds');
+    const saved = localStorage.getItem('bnb_shared_creds');
     try { return saved ? JSON.parse(saved) : {}; } catch { return {}; }
   });
 
@@ -91,7 +91,10 @@ export default function App() {
 
   useEffect(() => {
     if (!isLoading) {
-      if (view !== "landing" && !user) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const isComingFromOAuth = urlParams.has('success') || urlParams.has('error');
+
+      if (view !== "landing" && !user && !isComingFromOAuth) {
         setView("landing");
         return;
       }
@@ -109,7 +112,7 @@ export default function App() {
   useEffect(() => {
     if (activeSite?.id) {
       localStorage.setItem('bnb_active_site_id', activeSite.id);
-      sessionStorage.setItem('bnb_active_site', JSON.stringify(activeSite));
+      localStorage.setItem('bnb_active_site', JSON.stringify(activeSite));
     }
   }, [activeSite]);
 
@@ -232,7 +235,7 @@ export default function App() {
         setSites([]);
         setActiveSite(null);
         setSharedCreds({});
-        sessionStorage.clear();
+        localStorage.clear();
         setView("landing");
         localStorage.removeItem('bnb_app_view');
         localStorage.removeItem('bnb_active_site_id');
@@ -326,7 +329,7 @@ export default function App() {
       };
 
       setUser(userData);
-      sessionStorage.setItem('bnb_user_profile', JSON.stringify(userData));
+      localStorage.setItem('bnb_user_profile', JSON.stringify(userData));
       setIsLoading(false); // Only now we stop the initial loading spinner
 
       setView(current => {
@@ -359,7 +362,7 @@ export default function App() {
               }
             });
             setSharedCreds(creds);
-            sessionStorage.setItem('bnb_shared_creds', JSON.stringify(creds));
+            localStorage.setItem('bnb_shared_creds', JSON.stringify(creds));
           }
 
           let mappedSites: SiteProfile[] = [];
@@ -374,7 +377,7 @@ export default function App() {
               seoSettings: s.seo_settings || undefined,
             }));
             setSites(mappedSites);
-            sessionStorage.setItem('bnb_sites', JSON.stringify(mappedSites));
+            localStorage.setItem('bnb_sites', JSON.stringify(mappedSites));
 
             let finalActive: SiteProfile | null = null;
             if (mappedSites.length > 0) {
@@ -382,7 +385,7 @@ export default function App() {
               const restoredSite = mappedSites.find(s => s.id === lastSiteId);
               finalActive = restoredSite || mappedSites[0];
               setActiveSite(finalActive);
-              sessionStorage.setItem('bnb_active_site', JSON.stringify(finalActive));
+              localStorage.setItem('bnb_active_site', JSON.stringify(finalActive));
               localStorage.setItem('bnb_active_site_id', finalActive.id);
             } else {
               // No sites → clear active site completely
