@@ -119,6 +119,61 @@ async def google_callback(request: Request, code: str = None, state: str = None)
         redirect_url = f"{settings.frontend_url}/site-management?success=false&error={error_msg}"
         return RedirectResponse(url=redirect_url)
 
+@router.get("/google/verify-token")
+async def verify_google_token(user_id: str):
+    """
+    Verifies if the stored refresh token is valid and what scopes it has.
+    Updates the database with the findings.
+    """
+    try:
+        google_creds = get_user_google_creds(user_id)
+        refresh_token = google_creds.get("refresh_token")
+
+        if not refresh_token:
+            raise HTTPException(status_code=404, detail="No refresh token found")
+
+        # 1. Try to get a fresh access token
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "client_id": google_creds["client_id"],
+            "client_secret": google_creds["client_secret"],
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        }
+
+        resp = requests.post(token_url, data=data)
+        if resp.status_code != 200:
+            return {"valid": False, "error": "Google rejected the token"}
+
+        token_data = resp.json()
+        access_token = token_data.get("access_token")
+
+        # 2. Check the scopes of this access token
+        info_url = f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={access_token}"
+        info_resp = requests.get(info_url)
+
+        if info_resp.status_code != 200:
+             return {"valid": False, "error": "Failed to fetch scope info"}
+
+        granted_scopes = info_resp.json().get("scope", "")
+
+        # 3. Update the database with the current scopes
+        supabase.table("user_credentials").upsert({
+            "user_id": user_id,
+            "platform": "google_oauth",
+            "credentials": {
+                **google_creds,
+                "granted_scopes": granted_scopes
+            }
+        }, on_conflict="user_id, platform").execute()
+
+        return {
+            "valid": True,
+            "scopes": granted_scopes
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @router.get("/meta/url")
 async def get_meta_auth_url(user_id: str):
     meta_creds = get_user_meta_creds(user_id)

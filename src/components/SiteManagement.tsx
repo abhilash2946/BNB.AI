@@ -346,6 +346,31 @@ export default function SiteManagement({
     }
   };
 
+  // Verification loading state
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  const handleVerifyGoogleToken = async () => {
+    if (isVerifying) return;
+    setIsVerifying(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/google/verify-token?user_id=${user.id}`);
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+
+      const { toast } = await import('react-hot-toast');
+      if (data.valid) {
+        toast.success("Connection verified successfully!");
+        onRefresh(); // Reload data to show green dots
+      } else {
+        toast.error(`Verification failed: ${data.error || "Token invalid"}`);
+      }
+    } catch (err: any) {
+      alert("Verification Error: " + err.message);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#000000] text-white p-8">
       <div className="max-w-7xl mx-auto">
@@ -689,7 +714,19 @@ export default function SiteManagement({
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm">
               <GlassCard className="p-6 border-white/20 shadow-2xl">
                 <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400">{healthDetail.title}</h3>
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400">{healthDetail.title}</h3>
+                    {healthDetail.title.includes('Google') && (
+                      <button
+                        onClick={handleVerifyGoogleToken}
+                        disabled={isVerifying}
+                        className={`p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-all text-cyan-400 ${isVerifying ? 'animate-spin' : ''}`}
+                        title="Re-verify permissions"
+                      >
+                        <ExternalLink size={14} className={isVerifying ? 'opacity-50' : ''} />
+                      </button>
+                    )}
+                  </div>
                   <button onClick={() => setHealthDetail(null)} className="p-1 hover:bg-white/5 rounded-lg"><X size={16}/></button>
                 </div>
                 <div className="space-y-4">
