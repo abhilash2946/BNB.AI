@@ -103,6 +103,46 @@ export default function SiteManagement({
 
   const [isSaving, setIsSaving] = useState(false);
 
+  // Health Detail Modal State
+  const [healthDetail, setHealthDetail] = useState<{
+    title: string;
+    items: { label: string; status: 'ok' | 'missing'; id: string }[];
+  } | null>(null);
+
+  const getAgencyHealth = () => {
+    const googleItems = [
+      { id: 'g_cid', label: 'Google Client ID', status: sharedCreds.googleOAuth?.client_id ? 'ok' : 'missing' as const },
+      { id: 'g_cs', label: 'Google Client Secret', status: sharedCreds.googleOAuth?.client_secret ? 'ok' : 'missing' as const },
+      { id: 'g_rt', label: 'Google Sync (Refresh Token)', status: sharedCreds.googleOAuth?.refresh_token ? 'ok' : 'missing' as const },
+      { id: 'g_dt', label: 'Google Ads Dev Token', status: sharedCreds.googleAdsDeveloperToken ? 'ok' : 'missing' as const },
+    ];
+    const metaItems = [
+      { id: 'm_aid', label: 'Meta App ID', status: sharedCreds.metaAppCreds?.app_id ? 'ok' : 'missing' as const },
+      { id: 'm_as', label: 'Meta App Secret', status: sharedCreds.metaAppCreds?.app_secret ? 'ok' : 'missing' as const },
+      { id: 'm_lt', label: 'Meta Long-Lived Token', status: sharedCreds.metaLongLivedToken ? 'ok' : 'missing' as const },
+    ];
+
+    return {
+      google: { items: googleItems, isOk: googleItems.every(i => i.status === 'ok') },
+      meta: { items: metaItems, isOk: metaItems.every(i => i.status === 'ok') }
+    };
+  };
+
+  const getSiteHealth = (site: SiteProfile) => {
+    const seo = site.seoSettings || {};
+    const items = [
+      { id: 'ga4', label: 'GA4 Property ID', status: seo.ga4Id ? 'ok' : 'missing' as const },
+      { id: 'gsc', label: 'Search Console URL', status: seo.gscUrl ? 'ok' : 'missing' as const },
+      { id: 'gads', label: 'Google Ads ID', status: seo.googleAdsId ? 'ok' : 'missing' as const },
+      { id: 'mads', label: 'Meta Ads ID', status: seo.metaAdsId ? 'ok' : 'missing' as const },
+      { id: 'fb', label: 'FB Page ID', status: seo.fbPageId ? 'ok' : 'missing' as const },
+      { id: 'ig', label: 'IG Business ID', status: seo.igBusId ? 'ok' : 'missing' as const },
+    ];
+    return { items, isOk: items.every(i => i.status === 'ok') };
+  };
+
+  const agencyHealth = getAgencyHealth();
+
   // New effect to handle success state from URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -407,8 +447,20 @@ export default function SiteManagement({
 
                 {!isEditingProfile && (
                   <div className="space-y-2">
-                    <button onClick={() => setActiveSettingsModal('google')} className="w-full text-left text-xs p-2 rounded-lg hover:bg-white/5 transition-all flex items-center gap-2 text-gray-400 hover:text-white"><Globe size={14}/> Google Protocol</button>
-                    <button onClick={() => setActiveSettingsModal('meta')} className="w-full text-left text-xs p-2 rounded-lg hover:bg-white/5 transition-all flex items-center gap-2 text-gray-400 hover:text-white"><Facebook size={14}/> Meta Protocol</button>
+                    <div className="flex items-center gap-2 group/h">
+                      <button onClick={() => setActiveSettingsModal('google')} className="flex-1 text-left text-xs p-2 rounded-lg hover:bg-white/5 transition-all flex items-center gap-2 text-gray-400 hover:text-white"><Globe size={14}/> Google Protocol</button>
+                      <button
+                        onClick={() => setHealthDetail({ title: 'Google Protocol Status', items: agencyHealth.google.items })}
+                        className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-sm cursor-help transition-transform hover:scale-125 ${agencyHealth.google.isOk ? 'bg-emerald-500 shadow-emerald-500/50' : 'bg-rose-500 shadow-red-500/50'}`}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 group/h">
+                      <button onClick={() => setActiveSettingsModal('meta')} className="flex-1 text-left text-xs p-2 rounded-lg hover:bg-white/5 transition-all flex items-center gap-2 text-gray-400 hover:text-white"><Facebook size={14}/> Meta Protocol</button>
+                      <button
+                        onClick={() => setHealthDetail({ title: 'Meta Protocol Status', items: agencyHealth.meta.items })}
+                        className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-sm cursor-help transition-transform hover:scale-125 ${agencyHealth.meta.isOk ? 'bg-emerald-500 shadow-emerald-500/50' : 'bg-rose-500 shadow-red-500/50'}`}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -515,23 +567,36 @@ export default function SiteManagement({
             </AnimatePresence>
 
             <div className="grid gap-4">
-              {sites.map(site => (
-                <GlassCard key={site.id} className="p-6 flex justify-between items-center group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden border border-white/10 transition-all group-hover:border-cyan-500/30">
-                      {site.imageUrl ? (
-                        <img src={site.imageUrl} alt={site.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <Globe size={20} className="text-cyan-400 group-hover:scale-110 transition-transform" />
-                      )}
+              {sites.map(site => {
+                const health = getSiteHealth(site);
+                return (
+                  <GlassCard key={site.id} className="p-6 flex justify-between items-center group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden border border-white/10 transition-all group-hover:border-cyan-500/30">
+                        {site.imageUrl ? (
+                          <img src={site.imageUrl} alt={site.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Globe size={20} className="text-cyan-400 group-hover:scale-110 transition-transform" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <h4 className="font-bold">{site.name}</h4>
+                          <p className="text-xs text-gray-500">{site.url}</p>
+                        </div>
+                        <button
+                          onClick={() => setHealthDetail({ title: `${site.name} Connection Health`, items: health.items })}
+                          className={`w-2 h-2 rounded-full cursor-help shadow-sm transition-transform hover:scale-125 ${health.isOk ? 'bg-emerald-500 shadow-emerald-500/50' : 'bg-rose-500 shadow-red-500/50'}`}
+                          title="View Connection Health"
+                        />
+                      </div>
                     </div>
-                    <div><h4 className="font-bold">{site.name}</h4><p className="text-xs text-gray-500">{site.url}</p></div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => startEdit(site)} className="p-3 rounded-xl hover:bg-white/5 text-gray-400 hover:text-white transition-all"><Edit size={18}/></button>
-                  </div>
-                </GlassCard>
-              ))}
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => startEdit(site)} className="p-3 rounded-xl hover:bg-white/5 text-gray-400 hover:text-white transition-all"><Edit size={18}/></button>
+                    </div>
+                  </GlassCard>
+                );
+              })}
             </div>
           </main>
         </div>
@@ -598,6 +663,36 @@ export default function SiteManagement({
                   )}
                   <button type="submit" className="w-full py-4 bg-white text-black rounded-2xl font-bold hover:bg-gray-200 transition-all mt-4">Update Neural Sync Keys</button>
                 </form>
+              </GlassCard>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {healthDetail && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setHealthDetail(null)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-sm">
+              <GlassCard className="p-6 border-white/20 shadow-2xl">
+                <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400">{healthDetail.title}</h3>
+                  <button onClick={() => setHealthDetail(null)} className="p-1 hover:bg-white/5 rounded-lg"><X size={16}/></button>
+                </div>
+                <div className="space-y-4">
+                  {healthDetail.items.map(item => (
+                    <div key={item.id} className="flex items-center justify-between group">
+                      <span className="text-xs text-gray-300">{item.label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold uppercase tracking-tighter ${item.status === 'ok' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {item.status === 'ok' ? 'Active' : 'Missing'}
+                        </span>
+                        <div className={`w-1.5 h-1.5 rounded-full ${item.status === 'ok' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]'}`} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setHealthDetail(null)} className="w-full mt-8 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold transition-all border border-white/5">Close Diagnostics</button>
               </GlassCard>
             </motion.div>
           </div>
