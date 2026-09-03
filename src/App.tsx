@@ -266,24 +266,26 @@ export default function App() {
         const urlParams = new URLSearchParams(window.location.search);
         const isComingFromOAuth = urlParams.has('success') || urlParams.has('error');
         const recentlySynced = localStorage.getItem('bnb_last_oauth_sync');
-        const isRecentlySynced = recentlySynced && (Date.now() - parseInt(recentlySynced) < 10000);
+        const isRecentlySynced = recentlySynced && (Date.now() - parseInt(recentlySynced) < 30000); // 30 second window
 
-        // Only clear everything if we are NOT in the middle of or just finished an OAuth redirect
-        if (!isComingFromOAuth && !isRecentlySynced) {
-          setUser(null);
-          setSessionUserId(null);
-          setSites([]);
-          setActiveSite(null);
-          setSharedCreds({});
-          localStorage.clear();
-          setView("landing");
-          localStorage.removeItem('bnb_app_view');
-          localStorage.removeItem('bnb_active_site_id');
+        // CRITICAL: If we are in an OAuth flow, DO NOT clear localStorage.
+        // This allows us to recover the session even if the browser hides the cookies.
+        if (isComingFromOAuth || isRecentlySynced) {
+          console.log("Session hidden by browser during OAuth, preserving local data for recovery...");
           setIsLoading(false);
-        } else {
-          console.log("Session lost during OAuth, but preserving local state for recovery");
-          setIsLoading(false);
+          return;
         }
+
+        setUser(null);
+        setSessionUserId(null);
+        setSites([]);
+        setActiveSite(null);
+        setSharedCreds({});
+        localStorage.clear();
+        setView("landing");
+        localStorage.removeItem('bnb_app_view');
+        localStorage.removeItem('bnb_active_site_id');
+        setIsLoading(false);
       } else if (event === 'INITIAL_SESSION' && !session) {
         setIsLoading(false);
       }
