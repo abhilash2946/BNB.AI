@@ -103,6 +103,15 @@ export default function SiteManagement({
 
   const [isSaving, setIsSaving] = useState(false);
 
+  // New effect to handle success state from URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('success') === 'true') {
+      // Potentially refresh data or show a more prominent success UI
+      onRefresh();
+    }
+  }, []);
+
   const resetFormState = () => {
     setName(""); setUrl(""); setIndustry("Travel & Leisure"); setCity(""); setSiteImageUrl(null);
     setGa4Id(""); setGscUrl(""); setGoogleAdsId(""); setMetaAdsId(""); setFbPageId(""); setIgBusId("");

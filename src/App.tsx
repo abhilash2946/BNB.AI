@@ -68,6 +68,21 @@ export default function App() {
     };
     window.addEventListener("popstate", handlePopState);
 
+    // Check for success/error parameters in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get('success');
+    const error = urlParams.get('error');
+    if (success) {
+      import('react-hot-toast').then(({ toast }) => {
+        toast.success("Authentication successful!");
+      });
+    }
+    if (error) {
+      import('react-hot-toast').then(({ toast }) => {
+        toast.error(`Authentication failed: ${error}`);
+      });
+    }
+
     return () => {
       window.removeEventListener("unhandledrejection", handleError);
       window.removeEventListener("popstate", handlePopState);

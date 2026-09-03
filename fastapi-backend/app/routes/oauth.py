@@ -84,7 +84,9 @@ async def google_callback(request: Request, code: str = None, state: str = None)
 
         resp = requests.post(token_url, data=data)
         if resp.status_code != 200:
-             return JSONResponse(status_code=400, content={"error": "Token exchange failed", "details": resp.text})
+             error_msg = f"Token exchange failed: {resp.text}"
+             print(f"!!! ERROR: {error_msg}")
+             return RedirectResponse(url=f"{settings.frontend_url}/site-management?success=false&error=token_exchange_failed")
 
         token_data = resp.json()
         refresh_token = token_data.get("refresh_token")
@@ -107,15 +109,13 @@ async def google_callback(request: Request, code: str = None, state: str = None)
         return RedirectResponse(url=redirect_url)
     except Exception as e:
         import traceback
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": str(e),
-                "traceback": traceback.format_exc(),
-                "user_id": user_id if 'user_id' in locals() else None,
-                "redirect_uri": google_creds.get("redirect_uri") if 'google_creds' in locals() else None
-            }
-        )
+        error_msg = str(e)
+        print(f"!!! ERROR: Google OAuth Callback failed: {error_msg}")
+        print(traceback.format_exc())
+
+        # Redirect back to frontend with error message
+        redirect_url = f"{settings.frontend_url}/site-management?success=false&error={error_msg}"
+        return RedirectResponse(url=redirect_url)
 
 @router.get("/meta/url")
 async def get_meta_auth_url(user_id: str):
