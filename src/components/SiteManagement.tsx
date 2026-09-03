@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { UserProfile, SiteProfile, UserCredentials } from "../types";
-import { Globe, Trash, Edit, Plus, ArrowLeft, ExternalLink, LogOut, Key, CheckCircle2, ShieldCheck, BarChart3, Facebook, Instagram, Settings, X, Building2, Sparkles, Camera } from "lucide-react";
+import { Globe, Trash, Edit, Plus, ArrowLeft, ExternalLink, LogOut, Key, CheckCircle2, ShieldCheck, BarChart3, Facebook, Instagram, Settings, X, Building2, Sparkles, Camera, RefreshCw } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard } from "./GlassCard";
@@ -730,7 +730,7 @@ export default function SiteManagement({
                         className={`p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-all text-cyan-400 ${isVerifying ? 'animate-spin' : ''}`}
                         title="Re-verify permissions"
                       >
-                        <ExternalLink size={14} className={isVerifying ? 'opacity-50' : ''} />
+                        <RefreshCw size={14} className={isVerifying ? 'opacity-50' : ''} />
                       </button>
                     )}
                   </div>
