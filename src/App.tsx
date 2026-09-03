@@ -94,14 +94,20 @@ export default function App() {
       const urlParams = new URLSearchParams(window.location.search);
       const isComingFromOAuth = urlParams.has('success') || urlParams.has('error');
 
-      if (view !== "landing" && !user && !isComingFromOAuth) {
+      // Capture OAuth result in a persistent way so it's not lost when URL is cleaned
+      if (isComingFromOAuth) {
+        localStorage.setItem('bnb_last_oauth_sync', Date.now().toString());
+      }
+
+      const recentlySynced = localStorage.getItem('bnb_last_oauth_sync');
+      const isRecentlySynced = recentlySynced && (Date.now() - parseInt(recentlySynced) < 10000); // 10 second window
+
+      if (view !== "landing" && !user && !isComingFromOAuth && !isRecentlySynced) {
         setView("landing");
         return;
       }
 
-      // If we just finished OAuth, try to stay on site_management if logged in,
-      // otherwise go to landing so the user can log back in (the toast will still show)
-      if (isComingFromOAuth) {
+      if (isComingFromOAuth || isRecentlySynced) {
         if (user && view !== "site_management") {
           setView("site_management");
         } else if (!user && view !== "landing") {
@@ -259,9 +265,11 @@ export default function App() {
       } else if (event === "SIGNED_OUT") {
         const urlParams = new URLSearchParams(window.location.search);
         const isComingFromOAuth = urlParams.has('success') || urlParams.has('error');
+        const recentlySynced = localStorage.getItem('bnb_last_oauth_sync');
+        const isRecentlySynced = recentlySynced && (Date.now() - parseInt(recentlySynced) < 10000);
 
-        // Only clear everything if we are NOT in the middle of an OAuth redirect
-        if (!isComingFromOAuth) {
+        // Only clear everything if we are NOT in the middle of or just finished an OAuth redirect
+        if (!isComingFromOAuth && !isRecentlySynced) {
           setUser(null);
           setSessionUserId(null);
           setSites([]);
