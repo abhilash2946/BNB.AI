@@ -17,7 +17,9 @@ def get_user_google_creds(user_id: str) -> Dict[str, str]:
             return {
                 "client_id": creds.get("client_id") or settings.google_client_id,
                 "client_secret": creds.get("client_secret") or settings.google_client_secret,
-                "redirect_uri": creds.get("redirect_uri") or settings.google_redirect_uri
+                "redirect_uri": creds.get("redirect_uri") or settings.google_redirect_uri,
+                "refresh_token": creds.get("refresh_token"),
+                "granted_scopes": creds.get("granted_scopes")
             }
     except Exception as e:
         logger.debug(f"No custom Google creds for user {user_id}: {e}")
