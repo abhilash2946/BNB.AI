@@ -13,17 +13,17 @@ async def get_google_ads_client(user_id: str) -> GoogleAdsClient:
 
     for attempt in range(max_retries):
         try:
-            resp = supabase.table("user_credentials").select("credentials").eq("user_id", user_id).eq("platform", "google_oauth").single().execute()
+            resp = supabase.table("user_credentials").select("credentials").eq("user_id", user_id).eq("platform", "google_oauth").execute()
             if not resp.data:
                 raise Exception(f"No Google OAuth credentials found for user {user_id}")
-            refresh_token = resp.data["credentials"].get("refresh_token")
+            refresh_token = resp.data[0]["credentials"].get("refresh_token")
             if not refresh_token:
                 raise Exception(f"No refresh token found for user {user_id}")
 
-            dev_resp = supabase.table("user_credentials").select("credentials").eq("user_id", user_id).eq("platform", "google_developer_token").single().execute()
+            dev_resp = supabase.table("user_credentials").select("credentials").eq("user_id", user_id).eq("platform", "google_developer_token").execute()
             if not dev_resp.data:
                 raise Exception("Google Ads Developer Token missing. Please set it in Agency Settings.")
-            developer_token = dev_resp.data["credentials"]["developer_token"]
+            developer_token = dev_resp.data[0]["credentials"]["developer_token"]
 
             google_creds = get_user_google_creds(user_id)
 

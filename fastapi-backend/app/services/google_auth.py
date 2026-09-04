@@ -6,14 +6,15 @@ from app.services.credential_service import get_user_google_creds
 
 async def get_access_token_from_refresh(user_id: str, scopes: list) -> str:
     # Fetch refresh token from user_credentials
-    resp = supabase.table("user_credentials").select("credentials").eq("user_id", user_id).eq("platform", "google_oauth").single().execute()
+    resp = supabase.table("user_credentials").select("credentials").eq("user_id", user_id).eq("platform", "google_oauth").execute()
     if not resp.data:
         raise Exception(f"No Google OAuth credentials found for user {user_id}")
 
-    google_creds = get_user_google_creds(user_id)
-    refresh_token = resp.data["credentials"].get("refresh_token")
+    refresh_token = resp.data[0]["credentials"].get("refresh_token")
     if not refresh_token:
          raise Exception(f"No refresh token found for user {user_id}")
+
+    google_creds = get_user_google_creds(user_id)
 
     creds = Credentials(
         token=None,

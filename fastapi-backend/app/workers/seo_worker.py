@@ -465,8 +465,8 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
         self_radar = compute_self_radar_scores(ga4_totals, gsc_agg, events_by_event_name, sessions_by_channel)
 
         # 7. Competitors
-        site_resp = supabase.table("sites").select("name, url, industry, city").eq("id", site_id).single().execute()
-        site_info = site_resp.data if site_resp else {}
+        site_resp = supabase.table("sites").select("name, url, industry, city").eq("id", site_id).execute()
+        site_info = site_resp.data[0] if site_resp.data else {}
         site_city = site_info.get("city")
         competitor_insights = []
         if site_city:
@@ -544,14 +544,14 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                 url = f"https://{domain}"
                 query = competitor_discovery_map.get(domain, "Local Search")
                 print(f"DEBUG: Processing competitor: {domain} ({url})")
-                cached = supabase.table("competitor_insights").select("*").eq("site_id", site_id).eq("competitor_url", url).eq("source_module", "seo").maybe_single().execute()
+                cached = supabase.table("competitor_insights").select("*").eq("site_id", site_id).eq("competitor_url", url).eq("source_module", "seo").execute()
 
                 is_fresh = False
-                if cached and cached.data and cached.data.get("extracted_at"):
-                    last = safe_parse_iso(cached.data["extracted_at"])
+                if cached.data and cached.data[0].get("extracted_at"):
+                    last = safe_parse_iso(cached.data[0]["extracted_at"])
                     if last and last > datetime.now(timezone.utc) - timedelta(days=FRESHNESS_THRESHOLD_DAYS):
                         # Filter out cached 404s or down sites if they were previously marked
-                        status = cached.data.get("full_text")
+                        status = cached.data[0].get("full_text")
                         if status in ["ERROR_404", "ERROR_SITE_DOWN"]:
                             print(f"Skipping cached dead site for {domain} (Status: {status})")
                             continue
@@ -560,14 +560,14 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                         print(f"Using cached insights for {domain} (Freshness: {last.date()})")
                         competitor_insights.append({
                             "competitor_name": clean_domain(domain), "url": url,
-                            "full_text": cached.data.get("full_text") or cached.data.get("raw_text_preview", ""),
-                            "key_phrases": cached.data.get("key_phrases", []), "cta": cached.data.get("cta", []),
-                            "entities": cached.data.get("entities", {}), "trust_signals": cached.data.get("trust_signals", []),
-                            "discovery_query": cached.data.get("discovery_query") or query
+                            "full_text": cached.data[0].get("full_text") or cached.data[0].get("raw_text_preview", ""),
+                            "key_phrases": cached.data[0].get("key_phrases", []), "cta": cached.data[0].get("cta", []),
+                            "entities": cached.data[0].get("entities", {}), "trust_signals": cached.data[0].get("trust_signals", []),
+                            "discovery_query": cached.data[0].get("discovery_query") or query
                         })
 
                 if not is_fresh:
-                    if cached and cached.data:
+                    if cached.data:
                         print(f"---> Competitor {domain} data is OLD (>14 days). Re-crawling...")
                     else:
                         print(f"---> New competitor discovered: {domain}. Crawling...")

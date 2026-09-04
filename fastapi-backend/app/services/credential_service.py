@@ -11,9 +11,9 @@ def get_user_google_creds(user_id: str) -> Dict[str, str]:
     Falls back to settings (Env vars) if not found in DB.
     """
     try:
-        resp = supabase.table("user_credentials").select("credentials").eq("user_id", user_id).eq("platform", "google_oauth").single().execute()
-        if resp.data and "client_id" in resp.data["credentials"]:
-            creds = resp.data["credentials"]
+        resp = supabase.table("user_credentials").select("credentials").eq("user_id", user_id).eq("platform", "google_oauth").execute()
+        if resp.data and "client_id" in resp.data[0]["credentials"]:
+            creds = resp.data[0]["credentials"]
             return {
                 "client_id": creds.get("client_id") or settings.google_client_id,
                 "client_secret": creds.get("client_secret") or settings.google_client_secret,
@@ -36,9 +36,9 @@ def get_user_meta_creds(user_id: str) -> Dict[str, str]:
     Falls back to settings (Env vars) if not found in DB.
     """
     try:
-        resp = supabase.table("user_credentials").select("credentials").eq("user_id", user_id).eq("platform", "meta_app_creds").single().execute()
-        if resp.data and "app_id" in resp.data["credentials"]:
-            creds = resp.data["credentials"]
+        resp = supabase.table("user_credentials").select("credentials").eq("user_id", user_id).eq("platform", "meta_app_creds").execute()
+        if resp.data and "app_id" in resp.data[0]["credentials"]:
+            creds = resp.data[0]["credentials"]
             return {
                 "app_id": creds.get("app_id") or settings.meta_app_id,
                 "app_secret": creds.get("app_secret") or settings.meta_app_secret
