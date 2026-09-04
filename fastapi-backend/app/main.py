@@ -154,9 +154,35 @@ def create_openapi_schema():
         }
     ]
 
-    return schema
+    # ========================================================
+    # INFO
+    # ========================================================
 
-app.openapi_schema = create_openapi_schema()
+    schema["info"] = {
+        "title": "BNB.AI Marketing Intelligences API",
+        "description": """
+BNB.AI Marketing Intelligence API.
+
+Provides:
+
+- Google OAuth
+- Meta OAuth
+- Performance Reports
+- SEO Reports
+- Social Reports
+- AI Advice Summarization
+""",
+        "version": "0.1.0",
+    }
+
+    app.openapi_schema = schema
+
+    print(
+        "---> OpenAPI schema created: "
+        + schema["openapi"]
+    )
+
+    return schema
 
 
 # ============================================================
@@ -344,34 +370,6 @@ async def update_processed_report(
     db.commit()
     db.refresh(report)
     return report
-    # INFO
-    # ========================================================
-
-    schema["info"] = {
-        "title": "BNB.AI Marketing Intelligences API",
-        "description": """
-BNB.AI Marketing Intelligence API.
-
-Provides:
-
-- Google OAuth
-- Meta OAuth
-- Performance Reports
-- SEO Reports
-- Social Reports
-- AI Advice Summarization
-""",
-        "version": "0.1.0",
-    }
-
-    app.openapi_schema = schema
-
-    print(
-        "---> OpenAPI schema created: "
-        + schema["openapi"]
-    )
-
-    return schema
 
 
 # ============================================================
