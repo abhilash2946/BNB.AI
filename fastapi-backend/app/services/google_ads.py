@@ -6,7 +6,7 @@ from app.supabase_client import supabase
 from app.config import settings
 from app.services.credential_service import get_user_google_creds
 
-async def get_google_ads_client(user_id: str) -> GoogleAdsClient:
+async def get_google_ads_client(user_id: str, login_customer_id: str = None) -> GoogleAdsClient:
     """Initialize the Google Ads Client using credentials from Supabase with retries."""
     max_retries = 3
     retry_delay = 2
@@ -35,6 +35,10 @@ async def get_google_ads_client(user_id: str) -> GoogleAdsClient:
                 "use_proto_plus": True
             }
 
+            if login_customer_id:
+                login_customer_id = str(login_customer_id).replace("-", "").replace(" ", "").strip()
+                credentials["login_customer_id"] = login_customer_id
+
             # This can trigger a token refresh which might fail due to network issues
             return GoogleAdsClient.load_from_dict(credentials)
         except Exception as e:
@@ -46,10 +50,12 @@ async def get_google_ads_client(user_id: str) -> GoogleAdsClient:
                 print(f"!!! Failed to get Google Ads client after {max_retries} attempts.")
                 raise e
 
-async def _run_gaql_query(user_id: str, customer_id: str, query: str) -> List[Any]:
+async def _run_gaql_query(user_id: str, customer_id: str, query: str, login_customer_id: str = None) -> List[Any]:
     """Execute a GAQL query using the official Google Ads library with retries."""
     customer_id = str(customer_id).replace("-", "").replace(" ", "").strip().strip("'").strip('"')
     print(f"[DEBUG GADS] Customer ID: {customer_id}")
+    if login_customer_id:
+        print(f"[DEBUG GADS] Using Login Customer ID: {login_customer_id}")
     print(f"[DEBUG GADS] Query: {query.strip()}")
 
     max_retries = 3
@@ -57,7 +63,7 @@ async def _run_gaql_query(user_id: str, customer_id: str, query: str) -> List[An
 
     for attempt in range(max_retries):
         try:
-            client = await get_google_ads_client(user_id)
+            client = await get_google_ads_client(user_id, login_customer_id)
             ga_service = client.get_service("GoogleAdsService")
 
             def sync_search():
@@ -77,7 +83,7 @@ async def _run_gaql_query(user_id: str, customer_id: str, query: str) -> List[An
                 print(f"!!! Google Ads query failed after {max_retries} attempts: {e}")
                 raise e
 
-async def fetch_google_ads_data(user_id: str, customer_id: str, start_date: str, end_date: str) -> List[Dict]:
+async def fetch_google_ads_data(user_id: str, customer_id: str, start_date: str, end_date: str, login_customer_id: str = None) -> List[Dict]:
     """Fetch daily aggregated metrics for the account."""
     query = f"""
         SELECT segments.date,
@@ -88,7 +94,7 @@ async def fetch_google_ads_data(user_id: str, customer_id: str, start_date: str,
         FROM customer
         WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
     """
-    rows = await _run_gaql_query(user_id, customer_id, query)
+    rows = await _run_gaql_query(user_id, customer_id, query, login_customer_id)
     return [{
         "metrics": {
             "impressions": int(r.metrics.impressions or 0),
@@ -103,7 +109,7 @@ async def fetch_google_ads_data(user_id: str, customer_id: str, start_date: str,
         "segments": {"date": r.segments.date}
     } for r in rows]
 
-async def fetch_google_ads_totals(user_id: str, customer_id: str, start_date: str, end_date: str) -> Dict[str, Any]:
+async def fetch_google_ads_totals(user_id: str, customer_id: str, start_date: str, end_date: str, login_customer_id: str = None) -> Dict[str, Any]:
     """Fetch total aggregated metrics for the account (no date segmentation)."""
     # Try querying the 'customer' resource first (standard)
     query = f"""
@@ -115,7 +121,7 @@ async def fetch_google_ads_totals(user_id: str, customer_id: str, start_date: st
         WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
     """
 
-    rows = await _run_gaql_query(user_id, customer_id, query)
+    rows = await _run_gaql_query(user_id, customer_id, query, login_customer_id)
 
     if not rows:
         # Fallback: aggregate from 'campaign' resource if 'customer' view is empty/buggy
@@ -128,7 +134,7 @@ async def fetch_google_ads_totals(user_id: str, customer_id: str, start_date: st
             FROM campaign
             WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
         """
-        rows = await _run_gaql_query(user_id, customer_id, fb_query)
+        rows = await _run_gaql_query(user_id, customer_id, fb_query, login_customer_id)
         if not rows:
             return {
                 "impressions": 0, "clicks": 0, "interactions": 0,
@@ -173,7 +179,7 @@ async def fetch_google_ads_totals(user_id: str, customer_id: str, start_date: st
         "roas": round(conversions_value / cost, 2) if cost > 0 else 0
     }
 
-async def fetch_google_ads_campaigns(user_id: str, customer_id: str, start_date: str, end_date: str, limit: int = 10) -> List[Dict]:
+async def fetch_google_ads_campaigns(user_id: str, customer_id: str, start_date: str, end_date: str, limit: int = 10, login_customer_id: str = None) -> List[Dict]:
     query = f"""
         SELECT campaign.name, campaign.status, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.ctr, metrics.conversions, metrics.conversions_value, metrics.interactions
         FROM campaign
@@ -181,7 +187,7 @@ async def fetch_google_ads_campaigns(user_id: str, customer_id: str, start_date:
         ORDER BY metrics.cost_micros DESC
         LIMIT {limit}
     """
-    rows = await _run_gaql_query(user_id, customer_id, query)
+    rows = await _run_gaql_query(user_id, customer_id, query, login_customer_id)
     return [{
         "campaign": r.campaign.name,
         "status": r.campaign.status.name,
@@ -194,7 +200,7 @@ async def fetch_google_ads_campaigns(user_id: str, customer_id: str, start_date:
         "conversions_value": r.metrics.conversions_value,
     } for r in rows]
 
-async def fetch_google_ads_keywords(user_id: str, customer_id: str, start_date: str, end_date: str, limit: int = 20) -> List[Dict]:
+async def fetch_google_ads_keywords(user_id: str, customer_id: str, start_date: str, end_date: str, limit: int = 20, login_customer_id: str = None) -> List[Dict]:
     query = f"""
         SELECT ad_group_criterion.keyword.text, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.ctr
         FROM keyword_view
@@ -203,7 +209,7 @@ async def fetch_google_ads_keywords(user_id: str, customer_id: str, start_date: 
         ORDER BY metrics.cost_micros DESC
         LIMIT {limit}
     """
-    rows = await _run_gaql_query(user_id, customer_id, query)
+    rows = await _run_gaql_query(user_id, customer_id, query, login_customer_id)
     return [{
         "keyword": r.ad_group_criterion.keyword.text,
         "impressions": r.metrics.impressions,
@@ -212,7 +218,7 @@ async def fetch_google_ads_keywords(user_id: str, customer_id: str, start_date: 
         "ctr": r.metrics.ctr * 100,
     } for r in rows]
 
-async def fetch_google_ads_search_terms(user_id: str, customer_id: str, start_date: str, end_date: str, limit: int = 20) -> List[Dict]:
+async def fetch_google_ads_search_terms(user_id: str, customer_id: str, start_date: str, end_date: str, limit: int = 20, login_customer_id: str = None) -> List[Dict]:
     query = f"""
         SELECT search_term_view.search_term, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.ctr
         FROM search_term_view
@@ -220,7 +226,7 @@ async def fetch_google_ads_search_terms(user_id: str, customer_id: str, start_da
         ORDER BY metrics.impressions DESC
         LIMIT {limit}
     """
-    rows = await _run_gaql_query(user_id, customer_id, query)
+    rows = await _run_gaql_query(user_id, customer_id, query, login_customer_id)
     return [{
         "search_term": r.search_term_view.search_term,
         "impressions": r.metrics.impressions,
@@ -229,13 +235,13 @@ async def fetch_google_ads_search_terms(user_id: str, customer_id: str, start_da
         "ctr": r.metrics.ctr * 100,
     } for r in rows]
 
-async def fetch_google_ads_devices(user_id: str, customer_id: str, start_date: str, end_date: str) -> List[Dict]:
+async def fetch_google_ads_devices(user_id: str, customer_id: str, start_date: str, end_date: str, login_customer_id: str = None) -> List[Dict]:
     query = f"""
         SELECT segments.device, metrics.impressions, metrics.clicks, metrics.cost_micros
         FROM campaign
         WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
     """
-    rows = await _run_gaql_query(user_id, customer_id, query)
+    rows = await _run_gaql_query(user_id, customer_id, query, login_customer_id)
     device_map = {}
     for r in rows:
         device = r.segments.device.name
@@ -246,7 +252,7 @@ async def fetch_google_ads_devices(user_id: str, customer_id: str, start_date: s
         device_map[device]["cost"] += r.metrics.cost_micros / 1_000_000
     return [{"device": k, **v} for k, v in device_map.items()]
 
-async def fetch_google_ads_demographics(user_id: str, customer_id: str, start_date: str, end_date: str) -> List[Dict]:
+async def fetch_google_ads_demographics(user_id: str, customer_id: str, start_date: str, end_date: str, login_customer_id: str = None) -> List[Dict]:
     # Age range and Gender cannot be queried from 'campaign' view.
     # We query gender_view as a representative demographic proxy.
     query = f"""
@@ -254,7 +260,7 @@ async def fetch_google_ads_demographics(user_id: str, customer_id: str, start_da
         FROM gender_view
         WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
     """
-    rows = await _run_gaql_query(user_id, customer_id, query)
+    rows = await _run_gaql_query(user_id, customer_id, query, login_customer_id)
     return [{
         "age_range": "ALL",
         "gender": r.ad_group_criterion.gender.type_.name,
@@ -263,13 +269,13 @@ async def fetch_google_ads_demographics(user_id: str, customer_id: str, start_da
         "cost": r.metrics.cost_micros / 1_000_000,
     } for r in rows]
 
-async def fetch_google_ads_day_hour(user_id: str, customer_id: str, start_date: str, end_date: str) -> List[Dict]:
+async def fetch_google_ads_day_hour(user_id: str, customer_id: str, start_date: str, end_date: str, login_customer_id: str = None) -> List[Dict]:
     query = f"""
         SELECT segments.day_of_week, segments.hour, metrics.impressions, metrics.clicks, metrics.cost_micros
         FROM campaign
         WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
     """
-    rows = await _run_gaql_query(user_id, customer_id, query)
+    rows = await _run_gaql_query(user_id, customer_id, query, login_customer_id)
     return [{
         "day_of_week": r.segments.day_of_week.name if r.segments.day_of_week else "N/A",
         "hour": r.segments.hour,
@@ -278,13 +284,13 @@ async def fetch_google_ads_day_hour(user_id: str, customer_id: str, start_date: 
         "cost": r.metrics.cost_micros / 1_000_000,
     } for r in rows]
 
-async def fetch_google_ads_networks(user_id: str, customer_id: str, start_date: str, end_date: str) -> List[Dict]:
+async def fetch_google_ads_networks(user_id: str, customer_id: str, start_date: str, end_date: str, login_customer_id: str = None) -> List[Dict]:
     query = f"""
         SELECT segments.ad_network_type, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.ctr
         FROM campaign
         WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
     """
-    rows = await _run_gaql_query(user_id, customer_id, query)
+    rows = await _run_gaql_query(user_id, customer_id, query, login_customer_id)
     return [{
         "network": r.segments.ad_network_type.name,
         "impressions": r.metrics.impressions,
@@ -293,7 +299,7 @@ async def fetch_google_ads_networks(user_id: str, customer_id: str, start_date: 
         "ctr": r.metrics.ctr * 100,
     } for r in rows]
 
-async def fetch_google_ads_assets(user_id: str, customer_id: str, start_date: str, end_date: str, limit: int = 10) -> List[Dict]:
+async def fetch_google_ads_assets(user_id: str, customer_id: str, start_date: str, end_date: str, limit: int = 10, login_customer_id: str = None) -> List[Dict]:
     query = f"""
         SELECT ad_group_ad.ad.id, ad_group_ad.status, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.ctr
         FROM ad_group_ad
@@ -301,7 +307,7 @@ async def fetch_google_ads_assets(user_id: str, customer_id: str, start_date: st
         ORDER BY metrics.cost_micros DESC
         LIMIT {limit}
     """
-    rows = await _run_gaql_query(user_id, customer_id, query)
+    rows = await _run_gaql_query(user_id, customer_id, query, login_customer_id)
     return [{
         "ad_id": r.ad_group_ad.ad.id,
         "status": r.ad_group_ad.status.name,
@@ -311,14 +317,14 @@ async def fetch_google_ads_assets(user_id: str, customer_id: str, start_date: st
         "ctr": r.metrics.ctr * 100,
     } for r in rows]
 
-async def fetch_google_ads_devices_daily(user_id: str, customer_id: str, start_date: str, end_date: str) -> List[Dict]:
+async def fetch_google_ads_devices_daily(user_id: str, customer_id: str, start_date: str, end_date: str, login_customer_id: str = None) -> List[Dict]:
     query = f"""
         SELECT segments.date, segments.device,
                metrics.impressions, metrics.clicks, metrics.cost_micros
         FROM campaign
         WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
     """
-    rows = await _run_gaql_query(user_id, customer_id, query)
+    rows = await _run_gaql_query(user_id, customer_id, query, login_customer_id)
     daily = []
     for r in rows:
         daily.append({
@@ -330,14 +336,14 @@ async def fetch_google_ads_devices_daily(user_id: str, customer_id: str, start_d
         })
     return daily
 
-async def fetch_google_ads_demographics_daily(user_id: str, customer_id: str, start_date: str, end_date: str) -> List[Dict]:
+async def fetch_google_ads_demographics_daily(user_id: str, customer_id: str, start_date: str, end_date: str, login_customer_id: str = None) -> List[Dict]:
     query = f"""
         SELECT segments.date, ad_group_criterion.gender.type,
                metrics.impressions, metrics.clicks, metrics.cost_micros
         FROM gender_view
         WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
     """
-    rows = await _run_gaql_query(user_id, customer_id, query)
+    rows = await _run_gaql_query(user_id, customer_id, query, login_customer_id)
     return [{
         "date": r.segments.date,
         "gender": r.ad_group_criterion.gender.type_.name,
@@ -346,14 +352,14 @@ async def fetch_google_ads_demographics_daily(user_id: str, customer_id: str, st
         "cost": r.metrics.cost_micros / 1_000_000,
     } for r in rows]
 
-async def fetch_google_ads_search_terms_daily(user_id: str, customer_id: str, start_date: str, end_date: str) -> List[Dict]:
+async def fetch_google_ads_search_terms_daily(user_id: str, customer_id: str, start_date: str, end_date: str, login_customer_id: str = None) -> List[Dict]:
     query = f"""
         SELECT segments.date, search_term_view.search_term,
                metrics.impressions, metrics.clicks, metrics.cost_micros
         FROM search_term_view
         WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
     """
-    rows = await _run_gaql_query(user_id, customer_id, query)
+    rows = await _run_gaql_query(user_id, customer_id, query, login_customer_id)
     return [{
         "date": r.segments.date,
         "search_term": r.search_term_view.search_term,
@@ -362,14 +368,14 @@ async def fetch_google_ads_search_terms_daily(user_id: str, customer_id: str, st
         "cost": r.metrics.cost_micros / 1_000_000,
     } for r in rows]
 
-async def fetch_google_ads_campaigns_daily(user_id: str, customer_id: str, start_date: str, end_date: str) -> List[Dict]:
+async def fetch_google_ads_campaigns_daily(user_id: str, customer_id: str, start_date: str, end_date: str, login_customer_id: str = None) -> List[Dict]:
     query = f"""
         SELECT segments.date, campaign.name,
                metrics.impressions, metrics.clicks, metrics.cost_micros
         FROM campaign
         WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
     """
-    rows = await _run_gaql_query(user_id, customer_id, query)
+    rows = await _run_gaql_query(user_id, customer_id, query, login_customer_id)
     return [{
         "date": r.segments.date,
         "campaign": r.campaign.name,
@@ -378,7 +384,7 @@ async def fetch_google_ads_campaigns_daily(user_id: str, customer_id: str, start
         "cost": r.metrics.cost_micros / 1_000_000,
     } for r in rows]
 
-async def fetch_auction_insights(user_id: str, customer_id: str, start_date: str, end_date: str) -> List[Dict]:
+async def fetch_auction_insights(user_id: str, customer_id: str, start_date: str, end_date: str, login_customer_id: str = None) -> List[Dict]:
     """
     Fetch Auction Insights – often restricted. Return empty list to avoid errors.
     """

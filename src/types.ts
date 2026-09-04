@@ -29,6 +29,7 @@ export interface SiteProfile {
     ga4Id?: string;
     gscUrl?: string;
     googleAdsId?: string;
+    googleLoginAdsId?: string;
     metaAdsId?: string;
     fbPageId?: string;
     igBusId?: string;

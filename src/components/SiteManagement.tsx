@@ -59,6 +59,7 @@ export default function SiteManagement({
   const [ga4Id, setGa4Id] = useState(() => getSavedState('ga4Id', ""));
   const [gscUrl, setGscUrl] = useState(() => getSavedState('gscUrl', ""));
   const [googleAdsId, setGoogleAdsId] = useState(() => getSavedState('googleAdsId', ""));
+  const [googleLoginAdsId, setGoogleLoginAdsId] = useState(() => getSavedState('googleLoginAdsId', ""));
   const [metaAdsId, setMetaAdsId] = useState(() => getSavedState('metaAdsId', ""));
   const [fbPageId, setFbPageId] = useState(() => getSavedState('fbPageId', ""));
   const [igBusId, setIgBusId] = useState(() => getSavedState('igBusId', ""));
@@ -97,12 +98,12 @@ export default function SiteManagement({
   useEffect(() => {
     const state = {
       isAddingNew, editingSiteId, activeSettingsModal, name, url, industry, otherIndustry, phone, email, city, siteImageUrl,
-      googleAdsDevToken, metaToken, metaTokenExpiry, ga4Id, gscUrl, googleAdsId,
+      googleAdsDevToken, metaToken, metaTokenExpiry, ga4Id, gscUrl, googleAdsId, googleLoginAdsId,
       metaAdsId, fbPageId, igBusId,
       googleClientId, googleClientSecret, metaAppId, metaAppSecret
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [isAddingNew, editingSiteId, activeSettingsModal, name, url, industry, otherIndustry, phone, email, city, siteImageUrl, googleAdsDevToken, metaToken, metaTokenExpiry, ga4Id, gscUrl, googleAdsId, metaAdsId, fbPageId, igBusId, googleClientId, googleClientSecret, metaAppId, metaAppSecret, STORAGE_KEY]);
+  }, [isAddingNew, editingSiteId, activeSettingsModal, name, url, industry, otherIndustry, phone, email, city, siteImageUrl, googleAdsDevToken, metaToken, metaTokenExpiry, ga4Id, gscUrl, googleAdsId, googleLoginAdsId, metaAdsId, fbPageId, igBusId, googleClientId, googleClientSecret, metaAppId, metaAppSecret, STORAGE_KEY]);
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -150,11 +151,12 @@ export default function SiteManagement({
       { id: 'ga4', label: 'GA4 Property ID', status: seo.ga4Id ? 'ok' : 'missing' as const },
       { id: 'gsc', label: 'Search Console URL', status: seo.gscUrl ? 'ok' : 'missing' as const },
       { id: 'gads', label: 'Google Ads ID', status: seo.googleAdsId ? 'ok' : 'missing' as const },
+      { id: 'glogin', label: 'G-Ads Manager ID', status: seo.googleLoginAdsId ? 'ok' : 'missing' as const },
       { id: 'mads', label: 'Meta Ads ID', status: seo.metaAdsId ? 'ok' : 'missing' as const },
       { id: 'fb', label: 'FB Page ID', status: seo.fbPageId ? 'ok' : 'missing' as const },
       { id: 'ig', label: 'IG Business ID', status: seo.igBusId ? 'ok' : 'missing' as const },
     ];
-    return { items, isOk: items.every(i => i.status === 'ok') };
+    return { items, isOk: items.every(i => i.status === 'ok' || i.id === 'glogin') };
   };
 
   const agencyHealth = getAgencyHealth();
@@ -170,7 +172,7 @@ export default function SiteManagement({
 
   const resetFormState = () => {
     setName(""); setUrl(""); setIndustry("Travel & Leisure"); setOtherIndustry(""); setPhone(""); setEmail(""); setCity(""); setSiteImageUrl(null);
-    setGa4Id(""); setGscUrl(""); setGoogleAdsId(""); setMetaAdsId(""); setFbPageId(""); setIgBusId("");
+    setGa4Id(""); setGscUrl(""); setGoogleAdsId(""); setGoogleLoginAdsId(""); setMetaAdsId(""); setFbPageId(""); setIgBusId("");
   };
 
   const handleSaveAgencySettings = async (e: React.FormEvent) => {
@@ -237,6 +239,7 @@ export default function SiteManagement({
           ga4Id: ga4Id.trim(),
           gscUrl: gscUrl.trim(),
           googleAdsId: googleAdsId.trim(),
+          googleLoginAdsId: googleLoginAdsId.trim(),
           metaAdsId: metaAdsId.trim(),
           fbPageId: fbPageId.trim(),
           igBusId: igBusId.trim()
@@ -250,9 +253,14 @@ export default function SiteManagement({
       const siteQuery = editingSiteId ? supabase.from("sites").update(payload).eq("id", editingSiteId).select() : supabase.from("sites").insert({ user_id: user.id, ...payload }).select();
       const siteResp = await siteQuery;
       if (siteResp.error) throw siteResp.error;
-      const siteId = siteResp.data?.[0].id;
-      const perSiteCreds = [{ platform: "ga4", data: { property_id: ga4Id.trim() } }, { platform: "google_search_console", data: { site_url: gscUrl.trim() } }, { platform: "google_ads", data: { customer_id: googleAdsId.trim() } }, { platform: "meta_ads", data: { ad_account_id: metaAdsId.trim() } }, { platform: "meta_business_suite", data: { page_id: fbPageId.trim() } }, { platform: "instagram", data: { instagram_business_id: igBusId.trim() } }];
-      const credTasks = perSiteCreds.filter(c => Object.values(c.data).some(v => v)).map(c => supabase.from("site_credentials").upsert({ site_id: siteId, platform: c.platform, credentials: c.data }, { onConflict: 'site_id,platform' }));
+      const perSiteCreds = [
+          { platform: "ga4", data: { property_id: ga4Id.trim() } },
+          { platform: "google_search_console", data: { site_url: gscUrl.trim() } },
+          { platform: "google_ads", data: { customer_id: googleAdsId.trim(), login_customer_id: googleLoginAdsId.trim() } },
+          { platform: "meta_ads", data: { ad_account_id: metaAdsId.trim() } },
+          { platform: "meta_business_suite", data: { page_id: fbPageId.trim() } },
+          { platform: "instagram", data: { instagram_business_id: igBusId.trim() } }
+      ];
       await Promise.all(credTasks);
       setIsAddingNew(false); setEditingSiteId(null); resetFormState();
       onRefresh();
@@ -279,7 +287,15 @@ export default function SiteManagement({
     setCity(site.city || "");
     setSiteImageUrl(site.imageUrl || null);
     const seo = site.seoSettings;
-    if (seo) { setGa4Id(seo.ga4Id || ""); setGscUrl(seo.gscUrl || ""); setGoogleAdsId(seo.googleAdsId || ""); setMetaAdsId(seo.metaAdsId || ""); setFbPageId(seo.fbPageId || ""); setIgBusId(seo.igBusId || ""); }
+    if (seo) {
+        setGa4Id(seo.ga4Id || "");
+        setGscUrl(seo.gscUrl || "");
+        setGoogleAdsId(seo.googleAdsId || "");
+        setGoogleLoginAdsId(seo.googleLoginAdsId || "");
+        setMetaAdsId(seo.metaAdsId || "");
+        setFbPageId(seo.fbPageId || "");
+        setIgBusId(seo.igBusId || "");
+    }
   };
 
   const handleUpdateProfile = async () => {
@@ -637,7 +653,10 @@ export default function SiteManagement({
                         </div>
                         <div className="space-y-4">
                           <span className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Performance</span>
-                          <input type="text" placeholder="G-Ads ID" value={googleAdsId} onChange={e => setGoogleAdsId(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-xs" />
+                          <div className="space-y-2">
+                            <input type="text" placeholder="G-Ads Client ID" value={googleAdsId} onChange={e => setGoogleAdsId(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-xs" />
+                            <input type="text" placeholder="G-Ads Manager ID (Optional)" value={googleLoginAdsId} onChange={e => setGoogleLoginAdsId(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-[10px]" />
+                          </div>
                           <input type="text" placeholder="Meta Ads ID" value={metaAdsId} onChange={e => setMetaAdsId(e.target.value)} className="w-full px-3 py-2 bg-black/20 border border-white/5 rounded-lg text-xs" />
                         </div>
                         <div className="space-y-4">

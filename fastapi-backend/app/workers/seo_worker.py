@@ -369,7 +369,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
             async with ga4_sem:
                 return await task
 
-        ga4_results = await asyncio.gather(
+        ga4_results_raw = await asyncio.gather(
             sem_ga4(fetch_ga4_totals(ga4_property_id, ga4_token, start_date, end_date, prev_start, prev_end)),
             sem_ga4(fetch_ga4_landing_pages(ga4_property_id, ga4_token, start_date, end_date)),
             sem_ga4(fetch_ga4_landing_pages(ga4_property_id, ga4_token, prev_start, prev_end)),
@@ -383,8 +383,11 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
             sem_ga4(fetch_ga4_events_by_event_name(ga4_property_id, ga4_token, start_date, end_date)),
             sem_ga4(fetch_ga4_events_by_event_name(ga4_property_id, ga4_token, prev_start, prev_end)),
             sem_ga4(fetch_ga4_key_events_by_platform(ga4_property_id, ga4_token, start_date, end_date)),
-            sem_ga4(fetch_ga4_key_events_by_platform(ga4_property_id, ga4_token, prev_start, prev_end))
+            sem_ga4(fetch_ga4_key_events_by_platform(ga4_property_id, ga4_token, prev_start, prev_end)),
+            return_exceptions=True
         )
+
+        ga4_results = [r if not isinstance(r, Exception) else {} for r in ga4_results_raw]
         ga4_totals, top_landing, prev_top_landing, top_page_titles, prev_top_page_titles, geo_users, prev_geo_users, daily_ga4, sessions_by_channel, prev_sessions_by_channel, events_by_event_name, prev_events_by_event_name, key_events_by_platform, prev_key_events_by_platform = ga4_results
         print(f"DEBUG: GA4 Totals: {ga4_totals}")
         print(f"DEBUG: GA4 Prev Sessions by Channel: {prev_sessions_by_channel}")
@@ -396,15 +399,18 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
         gsc_token = await get_gsc_token(user_id)
         gsc_site_url = gsc_creds.get("site_url")
 
-        gsc_results = await asyncio.gather(
+        gsc_results_raw = await asyncio.gather(
             fetch_gsc_aggregates(gsc_site_url, gsc_token, start_date, end_date),
             fetch_gsc_aggregates(gsc_site_url, gsc_token, prev_start, prev_end),
             fetch_gsc_daily(gsc_site_url, gsc_token, start_date, end_date),
             fetch_gsc_keywords(gsc_site_url, gsc_token, start_date, end_date, limit=100),
             fetch_gsc_keywords(gsc_site_url, gsc_token, prev_start, prev_end, limit=500),
             fetch_gsc_pages(gsc_site_url, gsc_token, start_date, end_date),
-            fetch_gsc_pages(gsc_site_url, gsc_token, prev_start, prev_end)
+            fetch_gsc_pages(gsc_site_url, gsc_token, prev_start, prev_end),
+            return_exceptions=True
         )
+
+        gsc_results = [r if not isinstance(r, Exception) else ({} if i < 2 else []) for i, r in enumerate(gsc_results_raw)]
         gsc_agg, gsc_agg_prev, gsc_daily, top_keywords_full, prev_keywords, current_gsc_pages, prev_gsc_pages = gsc_results
 
         print(f"DEBUG: GSC Current Keywords: {len(top_keywords_full)}, Previous Keywords: {len(prev_keywords)}")
@@ -424,38 +430,47 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
         print(f"DEBUG: GSC Clicks: {gsc_agg.get('clicks')}, CTR: {gsc_agg.get('ctr')}")
         print(f"DEBUG: GSC Prev Clicks: {gsc_agg_prev.get('clicks')}, Prev CTR: {gsc_agg_prev.get('ctr')}")
         print(f"DEBUG: Top Keywords count: {len(top_keywords_full)}")
+        print(f"✅ Finished GSC Data mapping for {len(top_keywords_full)} keywords.")
+
+        supabase.table("report_status").update({"status": "fetching_cwv"}).eq("report_id", report_id).execute()
 
         # 4. GBP & CWV
         gbp_details = {}
         if gbp_creds:
             try:
+                print("---> Fetching GBP Data...")
                 gbp_token = await get_gbp_token(user_id)
                 gbp_details = await fetch_gbp_metrics(gbp_creds.get("location_id"), gbp_token, start_date, end_date)
-            except Exception: pass
+            except Exception as e:
+                print(f"!!! GBP Fetch Error: {e}")
 
         cwv_data = {}
         try:
             print("---> Fetching Core Web Vitals...")
             cwv_data = await fetch_core_web_vitals(gsc_site_url)
         except Exception as e:
-            # Enhanced logging for better visibility in pm2 logs
-            err_type = type(e).__name__
-            err_msg = str(e)
-            print(f"!!! CWV Fetch Exception: {err_type} - {err_msg}")
-            if "Timeout" in err_type or "Timeout" in err_msg:
-                print("!!! CWV Suggestion: The PageSpeed API is timing out. Consider increasing timeout or checking network.")
-            traceback.print_exc()
+            print(f"!!! CWV Fetch Error: {e}")
+
+        supabase.table("report_status").update({"status": "detecting_seo_work"}).eq("report_id", report_id).execute()
 
         # 5. SEO Work Detection
         print("---> Detecting SEO Work...")
+        seo_work_results = await asyncio.gather(
+            detect_new_posts(current_gsc_pages, prev_gsc_pages),
+            detect_meta_tweaks(top_page_titles, prev_top_page_titles),
+            detect_internal_links(gsc_site_url, [p["page"] for p in top_landing]),
+            return_exceptions=True
+        )
+
         seo_work_details = {
-            "new_posts": await detect_new_posts(current_gsc_pages, prev_gsc_pages),
-            "meta_tweaks": await detect_meta_tweaks(top_page_titles, prev_top_page_titles),
-            "internal_links_count": await detect_internal_links(gsc_site_url, [p["page"] for p in top_landing])
+            "new_posts": seo_work_results[0] if not isinstance(seo_work_results[0], Exception) else [],
+            "meta_tweaks": seo_work_results[1] if not isinstance(seo_work_results[1], Exception) else [],
+            "internal_links_count": seo_work_results[2] if not isinstance(seo_work_results[2], Exception) else 0
         }
 
         # 6. Analytics
         print("---> Running SEO Analytics...")
+        supabase.table("report_status").update({"status": "analyzing_competitors"}).eq("report_id", report_id).execute()
         page_analysis = analyse_page_titles(top_page_titles)
         keyword_analysis = analyse_top_keywords(top_keywords_full)
         event_analysis = analyse_events(events_by_event_name)
@@ -499,7 +514,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
             print(f"DEBUG: Keywords for live discovery: {discovery_kws}")
 
             for kw in discovery_kws:
-                if len(competitor_discovery_map) >= 20: break
+                if len(competitor_discovery_map) >= 8: break # Reduced from 20 to 8 for speed
                 query = f"{kw} {site_city}"
 
                 try:
@@ -512,7 +527,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                 # Process results if any were found
                 if results_list:
                     print(f"✅ Found {len(results_list)} results for '{query}'")
-                    for res in results_list[:10]:
+                    for res in results_list[:5]: # Only take top 5 from each query
                         link = res.get("url", "")
                         if link:
                             domain = link.split("/")[2].lower().replace("www.", "")
@@ -528,6 +543,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                                 if domain not in competitor_discovery_map:
                                     print(f"DEBUG: Found new potential competitor: {domain}")
                                     competitor_discovery_map[domain] = query
+                                    if len(competitor_discovery_map) >= 12: break
 
             print(f"DEBUG: Total unique potential competitor domains (Cache + Live): {len(competitor_discovery_map)}")
             # Try to get exactly 6 successfully processed competitors
@@ -536,121 +552,89 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
             # 2-Week Freshness Threshold
             FRESHNESS_THRESHOLD_DAYS = 14
 
-            processed_count = 0
-            for domain in potential_domains:
-                if len(competitor_insights) >= 6: break # STOP exactly at 6
-                processed_count += 1
-
+            async def process_domain(domain):
                 url = f"https://{domain}"
                 query = competitor_discovery_map.get(domain, "Local Search")
+
                 print(f"DEBUG: Processing competitor: {domain} ({url})")
                 cached = supabase.table("competitor_insights").select("*").eq("site_id", site_id).eq("competitor_url", url).eq("source_module", "seo").execute()
 
-                is_fresh = False
                 if cached.data and cached.data[0].get("extracted_at"):
                     last = safe_parse_iso(cached.data[0]["extracted_at"])
                     if last and last > datetime.now(timezone.utc) - timedelta(days=FRESHNESS_THRESHOLD_DAYS):
-                        # Filter out cached 404s or down sites if they were previously marked
                         status = cached.data[0].get("full_text")
                         if status in ["ERROR_404", "ERROR_SITE_DOWN"]:
-                            print(f"Skipping cached dead site for {domain} (Status: {status})")
-                            continue
+                            return None
 
-                        is_fresh = True
-                        print(f"Using cached insights for {domain} (Freshness: {last.date()})")
-                        competitor_insights.append({
+                        print(f"Using cached insights for {domain}")
+                        return {
                             "competitor_name": clean_domain(domain), "url": url,
                             "full_text": cached.data[0].get("full_text") or cached.data[0].get("raw_text_preview", ""),
                             "key_phrases": cached.data[0].get("key_phrases", []), "cta": cached.data[0].get("cta", []),
                             "entities": cached.data[0].get("entities", {}), "trust_signals": cached.data[0].get("trust_signals", []),
                             "discovery_query": cached.data[0].get("discovery_query") or query
-                        })
-
-                if not is_fresh:
-                    if cached.data:
-                        print(f"---> Competitor {domain} data is OLD (>14 days). Re-crawling...")
-                    else:
-                        print(f"---> New competitor discovered: {domain}. Crawling...")
-
-                    content = await extract_with_webclaw(url)
-                    if content in ["ERROR_404", "ERROR_SITE_DOWN"]:
-                         # Store dead state to avoid re-crawling
-                         payload = {
-                            "site_id": site_id, "competitor_url": url, "competitor_name": clean_domain(domain),
-                            "full_text": content, "extracted_at": datetime.now(timezone.utc).isoformat(),
-                            "source_module": "seo"
-                         }
-                         supabase.table("competitor_insights").upsert(payload, on_conflict="site_id,competitor_url,source_module").execute()
-                         continue
-
-                    if content and len(content) > 100:
-                        # NEW: Validate Industry and City relevance
-                        if not validate_competitor_relevance(content, site_info.get("industry", ""), site_info.get("city", "")):
-                            print(f"!!! Skipping {domain} - Fails Industry/City relevance check.")
-                            continue
-
-                        analysis = analyse_competitor_text(content)
-                        full_text = content[:4000]
-                        competitor_insights.append({
-                            "competitor_name": clean_domain(domain), "url": url, "full_text": full_text,
-                            "key_phrases": analysis["key_phrases"], "cta": analysis["cta"],
-                            "entities": analysis["entities"], "trust_signals": analysis["trust_signals"],
-                            "discovery_query": query
-                        })
-                        payload = {
-                            "site_id": site_id, "competitor_url": url, "competitor_name": clean_domain(domain),
-                            "full_text": full_text, "key_phrases": analysis["key_phrases"], "cta": analysis["cta"],
-                            "entities": analysis["entities"], "trust_signals": analysis["trust_signals"],
-                            "raw_text_preview": content[:500], "extracted_at": datetime.now(timezone.utc).isoformat(),
-                            "discovery_query": query, "source_module": "seo"
                         }
-                        try:
-                            supabase.table("competitor_insights").upsert(payload, on_conflict="site_id,competitor_url,source_module").execute()
-                        except Exception as db_e:
-                            if "discovery_query" in str(db_e).lower() or "PGRST204" in str(db_e):
-                                print(f"!!! DB Upsert Warning: Column 'discovery_query' likely missing. Retrying without it...")
-                                payload.pop("discovery_query", None)
-                                supabase.table("competitor_insights").upsert(payload, on_conflict="site_id,competitor_url,source_module").execute()
-                            else:
-                                raise db_e
-                    else:
-                        print(f"!!! Failed to crawl {domain} or content too short. Skipping to next candidate.")
-                        # Fallback to old data if crawl failed, to at least show something
-                        if cached and cached.data and cached.data.get("full_text") not in ["ERROR_404", "ERROR_SITE_DOWN"]:
-                             # Validate cached data too
-                             c_text = cached.data.get("full_text") or cached.data.get("raw_text_preview", "")
-                             if validate_competitor_relevance(c_text, site_info.get("industry", ""), site_info.get("city", "")):
-                                 print(f"Using OLD cached data as fallback for {domain}")
-                                 competitor_insights.append({
-                                    "competitor_name": clean_domain(domain), "url": url,
-                                    "full_text": c_text,
-                                    "key_phrases": cached.data.get("key_phrases", []), "cta": cached.data.get("cta", []),
-                                    "entities": cached.data.get("entities", {}), "trust_signals": cached.data.get("trust_signals", []),
-                                    "discovery_query": cached.data.get("discovery_query") or query
-                                 })
-                             else:
-                                 print(f"!!! Skipping cached {domain} - Fails relevance check.")
 
-                # FALLBACK: If we've processed all current potential_domains and still have < 6,
-                # trigger a broader search (no city) to fill the remaining slots.
-                if processed_count == len(potential_domains) and len(competitor_insights) < 6:
-                    print(f"!!! Still only have {len(competitor_insights)} competitors. Triggering global fallback search...")
-                    broad_query = f"{discovery_kws[0] if discovery_kws else site_info.get('industry', 'Travel')} India"
-                    broad_results = await scrape_duckduckgo_fallback(broad_query)
+                # Re-crawling (Sequential as per user request to avoid IP flagging)
+                content = await extract_with_webclaw(url)
+                if content in ["ERROR_404", "ERROR_SITE_DOWN"]:
+                     payload = {
+                        "site_id": site_id, "competitor_url": url, "competitor_name": clean_domain(domain),
+                        "full_text": content, "extracted_at": datetime.now(timezone.utc).isoformat(),
+                        "source_module": "seo"
+                     }
+                     supabase.table("competitor_insights").upsert(payload, on_conflict="site_id,competitor_url,source_module").execute()
+                     return None
 
-                    if broad_results:
-                        new_domains = []
-                        for res in broad_results:
-                            link = res.get("url", "")
-                            if link:
-                                d = link.split("/")[2].lower().replace("www.", "")
-                                if d and d != your_domain and d not in EXCLUDED_DOMAINS and d not in competitor_discovery_map:
-                                    new_domains.append(d)
-                                    competitor_discovery_map[d] = broad_query
+                if content and len(content) > 100:
+                    if not validate_competitor_relevance(content, site_info.get("industry", ""), site_info.get("city", "")):
+                        return None
 
-                        if new_domains:
-                            print(f"DEBUG: Found {len(new_domains)} new domains via global search. Adding to queue.")
-                            potential_domains.extend(new_domains)
+                    analysis = analyse_competitor_text(content)
+                    full_text = content[:4000]
+                    payload = {
+                        "site_id": site_id, "competitor_url": url, "competitor_name": clean_domain(domain),
+                        "full_text": full_text, "key_phrases": analysis["key_phrases"], "cta": analysis["cta"],
+                        "entities": analysis["entities"], "trust_signals": analysis["trust_signals"],
+                        "raw_text_preview": content[:500], "extracted_at": datetime.now(timezone.utc).isoformat(),
+                        "discovery_query": query, "source_module": "seo"
+                    }
+                    try:
+                        supabase.table("competitor_insights").upsert(payload, on_conflict="site_id,competitor_url,source_module").execute()
+                    except Exception: pass
+
+                    return {
+                        "competitor_name": clean_domain(domain), "url": url, "full_text": full_text,
+                        "key_phrases": analysis["key_phrases"], "cta": analysis["cta"],
+                        "entities": analysis["entities"], "trust_signals": analysis["trust_signals"],
+                        "discovery_query": query
+                    }
+                return None
+
+            competitor_insights = []
+            # Sequential Processing loop
+            for d in potential_domains[:12]:
+                res = await process_domain(d)
+                if res:
+                    competitor_insights.append(res)
+                    if len(competitor_insights) >= 6: break
+
+            # FALLBACK: Global search if still < 6
+            if len(competitor_insights) < 6:
+                print(f"!!! Still only have {len(competitor_insights)} competitors. Triggering global fallback search...")
+                broad_query = f"{discovery_kws[0] if discovery_kws else site_info.get('industry', 'Travel')} India"
+                broad_results = await scrape_duckduckgo_fallback(broad_query)
+
+                if broad_results:
+                    for res in broad_results:
+                        link = res.get("url", "")
+                        if link:
+                            d = link.split("/")[2].lower().replace("www.", "")
+                            if d and d != your_domain and d not in EXCLUDED_DOMAINS and d not in competitor_discovery_map:
+                                res_comp = await process_domain(d)
+                                if res_comp:
+                                    competitor_insights.append(res_comp)
+                                    if len(competitor_insights) >= 6: break
 
             if len(competitor_insights) < 2:
                 print(f"!!! WARNING: Found only {len(competitor_insights)} competitors. Attempting broader discovery...")
