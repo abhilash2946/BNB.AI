@@ -1,9 +1,12 @@
+from sqlalchemy.orm import Session
 import hashlib
 import base64
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import RedirectResponse, JSONResponse
-from sqlalchemy.orm import Session
 import requests
+import httpx
+from datetime import datetime, timezone, timedelta
+from pydantic import BaseModel
 from google_auth_oauthlib.flow import Flow
 from app.config import settings
 from app.database import get_db, UserCredential
@@ -292,10 +295,6 @@ async def meta_callback(request: Request, code: str = None, state: str = None, d
     db.commit()
 
     return RedirectResponse(url=f"{settings.frontend_url}/site-management?success=true")
-
-from pydantic import BaseModel
-from datetime import datetime, timezone, timedelta
-import httpx
 
 class MetaTokenRequest(BaseModel):
     short_token: str

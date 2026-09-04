@@ -10,6 +10,7 @@ import traceback
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
+from sqlalchemy.orm import Session
 from fastapi import FastAPI, BackgroundTasks, HTTPException, File, UploadFile, Depends, APIRouter, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -20,7 +21,6 @@ from fastapi.openapi.docs import (
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import desc
-from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import (
@@ -50,6 +50,27 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
     openapi_url=None
+)
+
+# --- CORS Configuration ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://reports.blacknbold.in",
+        "https://blacknbold.in",
+        "https://www.blacknbold.in",
+        "https://frontend.test",
+        "http://frontend.test",
+        "https://www.frontend.test",
+        "http://www.frontend.test",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    # Regex to cover any variant of known domains
+    allow_origin_regex=r"https?://(.*\.)?(frontend\.test|blacknbold\.in|localhost)",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ============================================================
@@ -98,25 +119,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # --- CORS Configuration ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://reports.blacknbold.in",
-        "https://blacknbold.in",
-        "https://www.blacknbold.in",
-        "https://frontend.test",
-        "http://frontend.test",
-        "https://www.frontend.test",
-        "http://www.frontend.test",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
-    # Regex to cover any variant of frontend.test and reports.blacknbold.in
-    allow_origin_regex=r"https?://(.*\.)?(frontend\.test|blacknbold\.in|reports\.blacknbold\.in)",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# (Removed from here)
 
 # ============================================================
 # STATIC FILES
@@ -125,21 +128,21 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # ============================================================
-# API ROUTER (Prefix: /api)
+# ROBUST ROUTING (Directly on app)
 # ============================================================
-
-api_router = APIRouter()
 
 # --- Profile Routes ---
 
-@api_router.get("/profile", tags=["Profile"])
+@app.get("/api/profile", tags=["Profile"])
+@app.get("/profile", tags=["Profile"])
 async def get_profile(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     profile = db.query(Profile).filter(Profile.id == user_id).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
     return profile
 
-@api_router.patch("/profile", tags=["Profile"])
+@app.patch("/api/profile", tags=["Profile"])
+@app.patch("/profile", tags=["Profile"])
 async def update_profile(profile_data: ProfileUpdate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     profile = db.query(Profile).filter(Profile.id == user_id).first()
     if not profile:
@@ -154,12 +157,14 @@ async def update_profile(profile_data: ProfileUpdate, user_id: str = Depends(get
 
 # --- Site Routes ---
 
-@api_router.get("/sites", tags=["Sites"])
+@app.get("/api/sites", tags=["Sites"])
+@app.get("/sites", tags=["Sites"])
 async def list_sites(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     sites = db.query(Site).filter(Site.user_id == user_id).all()
     return sites
 
-@api_router.post("/sites", tags=["Sites"])
+@app.post("/api/sites", tags=["Sites"])
+@app.post("/sites", tags=["Sites"])
 async def create_site(site_data: SiteCreate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     new_site = Site(
         id=str(uuid.uuid4()),
@@ -171,7 +176,8 @@ async def create_site(site_data: SiteCreate, user_id: str = Depends(get_current_
     db.refresh(new_site)
     return new_site
 
-@api_router.patch("/sites/{site_id}", tags=["Sites"])
+@app.patch("/api/sites/{site_id}", tags=["Sites"])
+@app.patch("/sites/{site_id}", tags=["Sites"])
 async def update_site(site_id: str, site_data: SiteUpdate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     site = db.query(Site).filter(Site.id == site_id, Site.user_id == user_id).first()
     if not site:
@@ -184,7 +190,8 @@ async def update_site(site_id: str, site_data: SiteUpdate, user_id: str = Depend
     db.refresh(site)
     return site
 
-@api_router.delete("/sites/{site_id}", tags=["Sites"])
+@app.delete("/api/sites/{site_id}", tags=["Sites"])
+@app.delete("/sites/{site_id}", tags=["Sites"])
 async def delete_site(site_id: str, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     site = db.query(Site).filter(Site.id == site_id, Site.user_id == user_id).first()
     if not site:
@@ -195,12 +202,14 @@ async def delete_site(site_id: str, user_id: str = Depends(get_current_user), db
 
 # --- Credential Routes ---
 
-@api_router.get("/user-credentials", tags=["Credentials"])
+@app.get("/api/user-credentials", tags=["Credentials"])
+@app.get("/user-credentials", tags=["Credentials"])
 async def list_user_credentials(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     creds = db.query(UserCredential).filter(UserCredential.user_id == user_id).all()
     return creds
 
-@api_router.post("/user-credentials", tags=["Credentials"])
+@app.post("/api/user-credentials", tags=["Credentials"])
+@app.post("/user-credentials", tags=["Credentials"])
 async def update_user_credentials(cred_data: UserCredentialCreate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     existing = db.query(UserCredential).filter(
         UserCredential.user_id == user_id,
@@ -221,7 +230,8 @@ async def update_user_credentials(cred_data: UserCredentialCreate, user_id: str 
     db.commit()
     return {"success": True}
 
-@api_router.post("/site-credentials", tags=["Credentials"])
+@app.post("/api/site-credentials", tags=["Credentials"])
+@app.post("/site-credentials", tags=["Credentials"])
 async def update_site_credentials(cred_data: SiteCredentialCreate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     # Verify site ownership
     site = db.query(Site).filter(Site.id == cred_data.site_id, Site.user_id == user_id).first()
@@ -249,7 +259,8 @@ async def update_site_credentials(cred_data: SiteCredentialCreate, user_id: str 
 
 # --- Report Routes ---
 
-@api_router.post("/performance-report", tags=["Reports"])
+@app.post("/api/performance-report", tags=["Reports"])
+@app.post("/performance-report", tags=["Reports"])
 async def performance_report(
     req: ReportRequest,
     background_tasks: BackgroundTasks,
@@ -292,7 +303,8 @@ async def performance_report(
 
     return ReportResponse(success=True, report_id=report_id)
 
-@api_router.post("/seo-report", tags=["Reports"])
+@app.post("/api/seo-report", tags=["Reports"])
+@app.post("/seo-report", tags=["Reports"])
 async def seo_report(
     req: ReportRequest,
     background_tasks: BackgroundTasks,
@@ -335,7 +347,8 @@ async def seo_report(
 
     return ReportResponse(success=True, report_id=report_id)
 
-@api_router.post("/social-report", tags=["Reports"])
+@app.post("/api/social-report", tags=["Reports"])
+@app.post("/social-report", tags=["Reports"])
 async def social_report(
     req: ReportRequest,
     background_tasks: BackgroundTasks,
@@ -377,14 +390,16 @@ async def social_report(
 
     return ReportResponse(success=True, report_id=report_id)
 
-@api_router.get("/report-status/{report_id}", tags=["Reports"])
+@app.get("/api/report-status/{report_id}", tags=["Reports"])
+@app.get("/report-status/{report_id}", tags=["Reports"])
 async def get_report_status(report_id: str, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     status = db.query(ReportStatus).filter(ReportStatus.report_id == report_id).first()
     if not status:
         raise HTTPException(status_code=404, detail="Report status not found")
     return status
 
-@api_router.get("/processed-report/{report_id}", tags=["Reports"])
+@app.get("/api/processed-report/{report_id}", tags=["Reports"])
+@app.get("/processed-report/{report_id}", tags=["Reports"])
 async def get_processed_report(
     report_id: str,
     site_id: Optional[str] = None,
@@ -404,7 +419,8 @@ async def get_processed_report(
         raise HTTPException(status_code=404, detail="Report not found")
     return report
 
-@api_router.patch("/processed-report/{report_id}", tags=["Reports"])
+@app.patch("/api/processed-report/{report_id}", tags=["Reports"])
+@app.patch("/processed-report/{report_id}", tags=["Reports"])
 async def update_processed_report(
     report_id: str,
     update_data: Dict[str, Any],
@@ -423,7 +439,8 @@ async def update_processed_report(
     db.refresh(report)
     return report
 
-@api_router.post("/shared-reports", tags=["Reports"])
+@app.post("/api/shared-reports", tags=["Reports"])
+@app.post("/shared-reports", tags=["Reports"])
 async def create_shared_report(share_data: SharedReportCreate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     # Verify site ownership
     site = db.query(Site).filter(Site.id == share_data.site_id, Site.user_id == user_id).first()
@@ -439,7 +456,8 @@ async def create_shared_report(share_data: SharedReportCreate, user_id: str = De
     db.refresh(new_share)
     return new_share
 
-@api_router.get("/shared-report-info/{share_id}", tags=["Public"])
+@app.get("/api/shared-report-info/{share_id}", tags=["Public"])
+@app.get("/shared-report-info/{share_id}", tags=["Public"])
 async def get_shared_report_info(share_id: str, db: Session = Depends(get_db)):
     share = db.query(SharedReport).filter(SharedReport.id == share_id).first()
     if not share:
@@ -456,7 +474,8 @@ async def get_shared_report_info(share_id: str, db: Session = Depends(get_db)):
 
 # --- AI & Summarization ---
 
-@api_router.post("/summarize-advice", tags=["AI"])
+@app.post("/api/summarize-advice", tags=["AI"])
+@app.post("/summarize-advice", tags=["AI"])
 async def api_summarize_advice(
     req: AdviceSummarizeRequest,
     user_id: str = Depends(get_current_user),
@@ -475,7 +494,8 @@ async def api_summarize_advice(
 
 # --- File Upload ---
 
-@api_router.post("/upload", tags=["Uploads"])
+@app.post("/api/upload", tags=["Uploads"])
+@app.post("/upload", tags=["Uploads"])
 async def upload_file(file: UploadFile = File(...), user_id: str = Depends(get_current_user)):
     file_ext = file.filename.split(".")[-1]
     file_name = f"{uuid.uuid4()}.{file_ext}"
@@ -488,7 +508,8 @@ async def upload_file(file: UploadFile = File(...), user_id: str = Depends(get_c
 
 # --- System Health ---
 
-@api_router.get("/health", tags=["System"])
+@app.get("/api/health", tags=["System"])
+@app.get("/health", tags=["System"])
 async def health_check():
     return {
         "status": "online",
@@ -500,11 +521,13 @@ async def health_check():
 # DOCUMENTATION ROUTES
 # ============================================================
 
-@api_router.get("/openapi.json", include_in_schema=False)
+@app.get("/api/openapi.json", include_in_schema=False)
+@app.get("/openapi.json", include_in_schema=False)
 async def get_open_api_endpoint():
     return JSONResponse(app.openapi())
 
-@api_router.get("/docs", include_in_schema=False)
+@app.get("/api/docs", include_in_schema=False)
+@app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
     return get_swagger_ui_html(
         openapi_url="/api/openapi.json",
@@ -518,7 +541,8 @@ async def custom_swagger_ui_html():
         }
     )
 
-@api_router.get("/docs/oauth2-redirect", include_in_schema=False)
+@app.get("/api/docs/oauth2-redirect", include_in_schema=False)
+@app.get("/docs/oauth2-redirect", include_in_schema=False)
 async def swagger_oauth2_redirect():
     return get_swagger_ui_oauth2_redirect_html()
 
@@ -526,13 +550,12 @@ async def swagger_oauth2_redirect():
 # INCLUDE ROUTERS
 # ============================================================
 
-# Register the main api_router
-app.include_router(api_router, prefix="/api")
-
 # Include OAuth router
 try:
     from app.routes import oauth
+    # Support both /api/auth and /auth (for proxy stripping /api)
     app.include_router(oauth.router, prefix="/api")
+    app.include_router(oauth.router)
     print("---> OAuth router loaded successfully")
 except Exception as e:
     print(f"!!! OAuth router failed to load: {e}")

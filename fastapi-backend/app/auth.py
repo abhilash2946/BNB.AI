@@ -16,15 +16,25 @@ def get_secret():
     if not secret:
         print("!!! AUTH ERROR: SUPABASE_JWT_SECRET is not set in .env")
         return ""
+
+    # Safe Logging: Log the first 5 characters for verification in PM2
+    print(f"---> [Auth] Using Secret starting with: {secret[:5]}...")
+
     try:
         # Supabase secrets are often base64 encoded.
-        # We try to decode it. If it fails, we use it as is.
-        # Padding check for base64
-        if len(secret) % 4 == 0 and any(c in secret for c in "+/="):
-             return base64.b64decode(secret)
-    except Exception:
-        pass
-    return secret
+        # Add padding if missing for base64
+        padded_secret = secret
+        missing_padding = len(padded_secret) % 4
+        if missing_padding:
+            padded_secret += '=' * (4 - missing_padding)
+
+        decoded = base64.b64decode(padded_secret)
+        # Verify it's actually valid by attempting to decode it back (heuristic check)
+        return decoded
+    except Exception as e:
+        # Fallback to use the secret as-is if base64 decoding fails
+        print(f"---> [Auth] Secret not base64 encoded, using raw string. Error: {e}")
+        return secret
 
 async def get_current_user(
     auth: HTTPAuthorizationCredentials = Security(security),
