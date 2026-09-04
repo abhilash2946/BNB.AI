@@ -391,7 +391,7 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
         # Initialize results placeholders
         google_cur = google_prev = {}
         google_ads_details = {}
-        google_results = [None] * 16 # Ensure indexing works
+        google_results = [None] * 20 # Ensure indexing works
         auction_insights = []
         chart_data_overview = []
         meta_current = meta_previous = {}
@@ -399,6 +399,7 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
         meta_daily = []
         meta_adsets = []
         meta_devices = []
+        meta_details = {} # Added missing initialization
         gbp_details = {}
         ga4_totals = {}
         daily_ga4 = []
