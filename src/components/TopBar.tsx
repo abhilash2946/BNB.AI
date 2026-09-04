@@ -90,9 +90,16 @@ export default function TopBar({
     onChangeDateRange({ ...dateRange, end: e.target.value });
   };
 
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return "";
+    const [y, m, d] = dateStr.split("-");
+    return `${d}/${m}/${y}`;
+  };
+
   return (
     <header className={`${isFullscreen ? 'hidden' : 'sticky'} top-0 z-50 h-[60px] w-full border-b border-white/10 bg-[#000000] backdrop-blur-md flex items-center justify-between px-4 transition-all`}>
       <div className="flex items-center gap-3">
+        {/* ... (sidebar/logo part remains same) ... */}
         <button
           onClick={onToggleSidebar}
           className="p-1.5 rounded-lg border border-white/10 hover:border-white/40 bg-white/5 text-white/80 hover:text-white transition-all group relative"
@@ -162,21 +169,37 @@ export default function TopBar({
           <div className="text-white/40 px-1">
             <Calendar size={14} />
           </div>
-          <input
-            type="date"
-            value={dateRange.start}
-            onChange={handleStartDateChange}
-            disabled={isSharedMode}
-            className={`bg-transparent border-0 text-white font-mono text-[11px] focus:ring-0 max-w-[110px] focus:outline-none ${isSharedMode ? 'opacity-50' : ''}`}
-          />
+
+          <div className="relative flex items-center">
+            <span className="absolute left-0 pointer-events-none text-white font-mono text-[11px] px-1 bg-[#0c0c0c] min-w-[75px]">
+              {formatDateDisplay(dateRange.start)}
+            </span>
+            <input
+              type="date"
+              value={dateRange.start}
+              onChange={handleStartDateChange}
+              disabled={isSharedMode}
+              className={`bg-transparent border-0 text-transparent font-mono text-[11px] focus:ring-0 max-w-[85px] focus:outline-none opacity-0 absolute inset-0 z-10 cursor-pointer ${isSharedMode ? 'hidden' : ''}`}
+            />
+            <span className="text-white font-mono text-[11px] px-1 min-w-[75px] text-center">
+              {formatDateDisplay(dateRange.start)}
+            </span>
+          </div>
+
           <span className="text-white/30 text-[10px]">→</span>
-          <input
-            type="date"
-            value={dateRange.end}
-            onChange={handleEndDateChange}
-            disabled={isSharedMode}
-            className={`bg-transparent border-0 text-white font-mono text-[11px] focus:ring-0 max-w-[110px] focus:outline-none ${isSharedMode ? 'opacity-50' : ''}`}
-          />
+
+          <div className="relative flex items-center">
+            <input
+              type="date"
+              value={dateRange.end}
+              onChange={handleEndDateChange}
+              disabled={isSharedMode}
+              className={`bg-transparent border-0 text-transparent font-mono text-[11px] focus:ring-0 max-w-[85px] focus:outline-none opacity-0 absolute inset-0 z-10 cursor-pointer ${isSharedMode ? 'hidden' : ''}`}
+            />
+            <span className="text-white font-mono text-[11px] px-1 min-w-[75px] text-center">
+              {formatDateDisplay(dateRange.end)}
+            </span>
+          </div>
         </div>
 
         {/* PDF button removed to match reference image 2 */}

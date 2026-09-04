@@ -177,9 +177,10 @@ export default function CommandCenter({
     if (targetCategory) setCategory(targetCategory);
     if (targetSection) setSection(targetSection);
 
-    if (targetCategory && view !== 'cmd-center') {
-      fetchReportData(activeSite, { startDate: dateRange.start, endDate: dateRange.end }, targetCategory);
-    }
+    // Auto-fetch removed as per user request: "only activate the generate report when clicked on it"
+    // if (targetCategory && view !== 'cmd-center') {
+    //   fetchReportData(activeSite, { startDate: dateRange.start, endDate: dateRange.end }, targetCategory);
+    // }
   };
 
   const handleStudioTrigger = (targetCategory: CategoryType, viewId: string) => {
