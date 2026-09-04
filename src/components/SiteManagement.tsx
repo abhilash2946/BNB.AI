@@ -227,13 +227,11 @@ export default function SiteManagement({
     if (isSaving) return;
     setIsSaving(true);
     try {
-      const payload = {
+      const payload: any = {
         name: name.trim(),
         url: url.trim(),
         industry: industry === "Other" ? otherIndustry.trim() : industry,
         city: city.trim(),
-        phone: phone.trim(),
-        email: email.trim(),
         image_url: siteImageUrl,
         seo_settings: {
           ga4Id: ga4Id.trim(),
@@ -244,6 +242,11 @@ export default function SiteManagement({
           igBusId: igBusId.trim()
         }
       };
+
+      // Only add phone and email to payload if they are not empty
+      if (phone.trim()) payload.phone = phone.trim();
+      if (email.trim()) payload.email = email.trim();
+
       const siteQuery = editingSiteId ? supabase.from("sites").update(payload).eq("id", editingSiteId).select() : supabase.from("sites").insert({ user_id: user.id, ...payload }).select();
       const siteResp = await siteQuery;
       if (siteResp.error) throw siteResp.error;
