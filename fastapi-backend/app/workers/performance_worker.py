@@ -422,26 +422,26 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             if ga_customer_id:
                 print(f"---> Queueing Google Ads tasks for {ga_customer_id}...")
                 google_tasks = [
-                    fetch_google_ads_totals(user_id, ga_customer_id, start_date, end_date),
-                    fetch_google_ads_totals(user_id, ga_customer_id, prev_start, prev_end),
-                    fetch_google_ads_data(user_id, ga_customer_id, start_date, end_date),
-                    fetch_google_ads_campaigns(user_id, ga_customer_id, start_date, end_date),
-                    fetch_google_ads_campaigns(user_id, ga_customer_id, prev_start, prev_end),
-                    fetch_google_ads_keywords(user_id, ga_customer_id, start_date, end_date),
-                    fetch_google_ads_keywords(user_id, ga_customer_id, prev_start, prev_end),
-                    fetch_google_ads_search_terms(user_id, ga_customer_id, start_date, end_date),
-                    fetch_google_ads_search_terms(user_id, ga_customer_id, prev_start, prev_end),
-                    fetch_google_ads_devices(user_id, ga_customer_id, start_date, end_date),
-                    fetch_google_ads_devices(user_id, ga_customer_id, prev_start, prev_end),
-                    fetch_google_ads_demographics(user_id, ga_customer_id, start_date, end_date),
-                    fetch_google_ads_day_hour(user_id, ga_customer_id, start_date, end_date),
-                    fetch_google_ads_networks(user_id, ga_customer_id, start_date, end_date),
-                    fetch_google_ads_assets(user_id, ga_customer_id, start_date, end_date),
-                    fetch_google_ads_devices_daily(user_id, ga_customer_id, start_date, end_date),
-                    fetch_google_ads_demographics_daily(user_id, ga_customer_id, start_date, end_date),
-                    fetch_google_ads_search_terms_daily(user_id, ga_customer_id, start_date, end_date),
-                    fetch_google_ads_campaigns_daily(user_id, ga_customer_id, start_date, end_date),
-                    fetch_auction_insights(user_id, ga_customer_id, start_date, end_date)
+                    asyncio.create_task(fetch_google_ads_totals(user_id, ga_customer_id, start_date, end_date)),
+                    asyncio.create_task(fetch_google_ads_totals(user_id, ga_customer_id, prev_start, prev_end)),
+                    asyncio.create_task(fetch_google_ads_data(user_id, ga_customer_id, start_date, end_date)),
+                    asyncio.create_task(fetch_google_ads_campaigns(user_id, ga_customer_id, start_date, end_date)),
+                    asyncio.create_task(fetch_google_ads_campaigns(user_id, ga_customer_id, prev_start, prev_end)),
+                    asyncio.create_task(fetch_google_ads_keywords(user_id, ga_customer_id, start_date, end_date)),
+                    asyncio.create_task(fetch_google_ads_keywords(user_id, ga_customer_id, prev_start, prev_end)),
+                    asyncio.create_task(fetch_google_ads_search_terms(user_id, ga_customer_id, start_date, end_date)),
+                    asyncio.create_task(fetch_google_ads_search_terms(user_id, ga_customer_id, prev_start, prev_end)),
+                    asyncio.create_task(fetch_google_ads_devices(user_id, ga_customer_id, start_date, end_date)),
+                    asyncio.create_task(fetch_google_ads_devices(user_id, ga_customer_id, prev_start, prev_end)),
+                    asyncio.create_task(fetch_google_ads_demographics(user_id, ga_customer_id, start_date, end_date)),
+                    asyncio.create_task(fetch_google_ads_day_hour(user_id, ga_customer_id, start_date, end_date)),
+                    asyncio.create_task(fetch_google_ads_networks(user_id, ga_customer_id, start_date, end_date)),
+                    asyncio.create_task(fetch_google_ads_assets(user_id, ga_customer_id, start_date, end_date)),
+                    asyncio.create_task(fetch_google_ads_devices_daily(user_id, ga_customer_id, start_date, end_date)),
+                    asyncio.create_task(fetch_google_ads_demographics_daily(user_id, ga_customer_id, start_date, end_date)),
+                    asyncio.create_task(fetch_google_ads_search_terms_daily(user_id, ga_customer_id, start_date, end_date)),
+                    asyncio.create_task(fetch_google_ads_campaigns_daily(user_id, ga_customer_id, start_date, end_date)),
+                    asyncio.create_task(fetch_auction_insights(user_id, ga_customer_id, start_date, end_date))
                 ]
 
         if meta_creds:
