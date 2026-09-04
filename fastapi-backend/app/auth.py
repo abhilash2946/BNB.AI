@@ -23,12 +23,11 @@ def get_secret():
     try:
         # Supabase secrets are often base64 encoded.
         # Add padding if missing for base64
-        padded_secret = secret
-        missing_padding = len(padded_secret) % 4
+        missing_padding = len(secret) % 4
         if missing_padding:
-            padded_secret += '=' * (4 - missing_padding)
+            secret += "=" * (4 - missing_padding)
 
-        decoded = base64.b64decode(padded_secret)
+        decoded = base64.b64decode(secret)
         # Verify it's actually valid by attempting to decode it back (heuristic check)
         return decoded
     except Exception as e:
@@ -43,10 +42,11 @@ async def get_current_user(
     token = auth.credentials
     try:
         # Verify the Supabase JWT using the secret
+        print(f"DEBUG: Decoding JWT for token: {token[:10]}... with alg: {jwt.get_unverified_header(token).get('alg')}")
         payload = jwt.decode(
             token,
             get_secret(),
-            algorithms=["HS256", "HS384", "HS512"],
+            algorithms=["HS256", "HS384", "HS512", "RS256"],
             options={"verify_signature": True, "verify_aud": False, "verify_iat": True}
         )
 

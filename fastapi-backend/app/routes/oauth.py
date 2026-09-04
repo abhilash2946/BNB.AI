@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+print("---> Loading OAuth routes...")
 import hashlib
 import base64
 from fastapi import APIRouter, HTTPException, Request, Depends
