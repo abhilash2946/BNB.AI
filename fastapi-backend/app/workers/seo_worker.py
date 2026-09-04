@@ -94,8 +94,33 @@ EXCLUDED_DOMAINS = {
     "tripadvisor.in", "scribd.com", "yourstory.com",
     "whatsapp.com", "pinterest.com", "x.com", "reddit.com",
     "quora.com", "yelp.com", "yellowpages.com", "ind.5bestincity.com",
-    "threebestrated.in", "datagemba.com", "yappe.in", "cybo.com"
+    "threebestrated.in", "datagemba.com", "yappe.in", "cybo.com",
+    "wikipedia.org", "statista.com", "trade.gov", "ibef.org", "investopedia.com",
+    "forbes.com", "entrepreneur.com", "hbr.org", "businessinsider.com", "inc.com",
+    "medium.com", "amazon.com", "ebay.com", "flipkart.com", "glassdoor.com",
+    "naukri.com", "indeed.com", "crunchbase.com", "zoominfo.com",
+    "99acres.com", "magicbricks.com", "housing.com", "nobroker.in", "commonfloor.com",
+    "proptiger.com", "makaaniq.com", "squareyards.com", "ecommerceguide.com",
+    "clutch.co", "goodfirms.co", "sortlist.com", "g2.com", "capterra.com", "trustpilot.com"
 }
+
+def is_valid_competitor_domain(domain: str) -> bool:
+    """Filter out social media, informational platforms and invalid TLDs."""
+    d = domain.lower().replace("www.", "")
+    if d in EXCLUDED_DOMAINS:
+        return False
+    if any(d.endswith("." + ex) for ex in EXCLUDED_DOMAINS):
+        return False
+
+    invalid_keywords = ['instagram', 'facebook', 'twitter', 'linkedin', 'youtube', 'whatsapp', 'pinterest', 'google', 'apple', 'microsoft']
+    if any(ik in d for kw in invalid_keywords):
+        return False
+
+    parts = d.split('.')
+    if len(parts) < 2:
+        return False
+    tld = parts[-1]
+    return tld in ['com', 'in', 'co.in', 'org', 'net', 'co', 'io', 'travel', 'ai', 'agency', 'digital']
 
 def validate_competitor_relevance(content: str, industry: str, city: str, level: int = 1) -> bool:
     """
@@ -490,99 +515,82 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
         competitor_insights = []
         if site_city:
             print(f"---> Discovering competitors in {site_city} via SearchManager (Cache-First)...")
-            your_domain = site_info.get("url", "").replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "")
+            your_url = site_info.get("url", "")
+            your_domain = your_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "").lower()
+            your_brand_name = site_info.get("name", "").lower()
+
+            # --- NEW: Extract potential brands from own keywords ---
+            potential_brand_queries = []
+            for kw_row in top_keywords_full[:50]:
+                kw = kw_row["keyword"].lower()
+                # If it's not the user's brand and looks like a brand name (multi-word, low generic density)
+                if your_brand_name not in kw and len(kw.split()) >= 2:
+                    generics = ["agency", "company", "services", "hyderabad", "marketing", "ads", "real estate", "strategy", "best", "top", "consultant"]
+                    if not any(g in kw for g in generics):
+                         potential_brand_queries.append(kw)
+
             competitor_discovery_map = {} # domain -> discovery_query
 
             # A. Fetch Historical Competitors first
             try:
-                # Try fetching with the new column and source filter
                 history_data = get_db_competitor_insights(site_id, "seo")
-
                 if history_data:
                     for item in history_data:
                         h_url = item["competitor_url"]
                         h_query = item.get("discovery_query", "Historical Cache")
                         h_domain = h_url.replace("https://", "").replace("http://", "").split('/')[0].replace("www.", "").lower()
-                        if h_domain and h_domain != your_domain and h_domain not in EXCLUDED_DOMAINS:
-                            print(f"DEBUG: Including historical competitor from cache: {h_domain}")
+                        if h_domain and h_domain != your_domain and is_valid_competitor_domain(h_domain):
                             competitor_discovery_map[h_domain] = h_query
-            except Exception as e:
-                print(f"!!! Error fetching competitor history: {e}")
+            except Exception as e: print(f"!!! Error fetching competitor history: {e}")
 
-            # B. Try Live Discovery (Round-Robin Python)
-            discovery_kws = list(dict.fromkeys([k["keyword"] for k in top_keywords_full[:10] if k["keyword"]]))
-            if not discovery_kws and site_info.get("industry"):
-                discovery_kws = [site_info.get("industry")]
-                print(f"DEBUG: No top keywords found, falling back to industry: {discovery_kws}")
+            # B. Try Live Discovery
+            base_discovery_kws = list(dict.fromkeys([k["keyword"] for k in top_keywords_full[:10] if k["keyword"]]))
+            if not base_discovery_kws and site_info.get("industry"):
+                base_discovery_kws = [site_info.get("industry")]
 
-            print(f"DEBUG: Keywords for live discovery: {discovery_kws}")
+            discovery_kws = list(set(base_discovery_kws + potential_brand_queries[:5]))
+            print(f"DEBUG: Keywords for live discovery (including brand targets): {discovery_kws}")
 
             for kw in discovery_kws:
-                if len(competitor_discovery_map) >= 8: break # Reduced from 20 to 8 for speed
+                if len(competitor_discovery_map) >= 12: break
                 query = f"{kw} {site_city}"
-
                 try:
-                    # Use the new SearchManager (DDG -> Google -> Bing rotation)
                     results_list = await search_manager.get_results(query)
-                except Exception as e:
-                    print(f"!!! SearchManager failed for '{query}': {e}")
-                    continue
+                    if results_list:
+                        for res in results_list[:5]:
+                            link = res.get("url", "")
+                            if link:
+                                d = link.split("/")[2].lower().replace("www.", "")
+                                if d and d != your_domain and is_valid_competitor_domain(d) and d not in competitor_discovery_map:
+                                    competitor_discovery_map[d] = kw
+                                    if len(competitor_discovery_map) >= 15: break
+                except Exception as e: print(f"!!! SearchManager failed for '{query}': {e}")
 
-                # Process results if any were found
-                if results_list:
-                    print(f"✅ Found {len(results_list)} results for '{query}'")
-                    for res in results_list[:5]: # Only take top 5 from each query
-                        link = res.get("url", "")
-                        if link:
-                            domain = link.split("/")[2].lower().replace("www.", "")
-                            if not domain: continue
-
-                            if domain == your_domain:
-                                print(f"DEBUG: Skipping your domain: {domain}")
-                            elif domain in EXCLUDED_DOMAINS:
-                                print(f"DEBUG: Skipping excluded domain: {domain}")
-                            elif not is_valid_competitor_domain(domain):
-                                print(f"DEBUG: Skipping invalid domain: {domain}")
-                            else:
-                                if domain not in competitor_discovery_map:
-                                    print(f"DEBUG: Found new potential competitor: {domain}")
-                                    competitor_discovery_map[domain] = query
-                                    if len(competitor_discovery_map) >= 12: break
-
-            print(f"DEBUG: Total unique potential competitor domains (Cache + Live): {len(competitor_discovery_map)}")
-            # Try to get exactly 6 successfully processed competitors
             potential_domains = list(competitor_discovery_map.keys())
-
-            # 2-Week Freshness Threshold
             FRESHNESS_THRESHOLD_DAYS = 14
 
             async def process_domain(domain, level=1):
                 url = f"https://{domain}"
                 query = competitor_discovery_map.get(domain, "Local Search")
+                db_cached = get_db_competitor_insight(site_id, url, "seo")
 
-                print(f"DEBUG: Processing competitor: {domain} ({url}) at level {level}")
-                cached_data = get_db_competitor_insight(site_id, url, "seo")
-
-                if cached_data and cached_data.get("extracted_at"):
-                    last = safe_parse_iso(cached_data["extracted_at"])
+                if db_cached and db_cached.get("extracted_at"):
+                    last = safe_parse_iso(db_cached["extracted_at"])
                     if last and last > datetime.now(timezone.utc) - timedelta(days=FRESHNESS_THRESHOLD_DAYS):
-                        status = cached_data.get("full_text")
-                        if status not in ["ERROR_404", "ERROR_SITE_DOWN"]:
-                            if validate_competitor_relevance(status, site_info.get("industry", ""), site_info.get("city", ""), level=level):
-                                return {
-                                    "competitor_name": clean_domain(domain), "url": url,
-                                    "full_text": cached_data.get("full_text") or cached_data.get("raw_text_preview", ""),
-                                    "key_phrases": cached_data.get("key_phrases", []), "cta": cached_data.get("cta", []),
-                                    "entities": cached_data.get("entities", {}), "trust_signals": cached_data.get("trust_signals", []),
-                                    "discovery_query": cached_data.get("discovery_query") or query
-                                }
+                        text = db_cached.get("full_text") or ""
+                        if text not in ["ERROR_404", "ERROR_SITE_DOWN"] and validate_competitor_relevance(text, site_info.get("industry", ""), site_info.get("city", ""), level=level):
+                             return {
+                                "competitor_name": clean_domain(domain), "url": url,
+                                "full_text": text,
+                                "key_phrases": db_cached.get("key_phrases", []), "cta": db_cached.get("cta", []),
+                                "entities": db_cached.get("entities", {}), "trust_signals": db_cached.get("trust_signals", []),
+                                "discovery_query": db_cached.get("discovery_query") or query
+                            }
 
-                # Re-crawling
                 content = await extract_with_webclaw(url)
                 if content and len(content) > 100:
                     if not validate_competitor_relevance(content, site_info.get("industry", ""), site_info.get("city", ""), level=level):
                         return None
-
                     analysis = analyse_competitor_text(content)
                     full_text = content[:4000]
                     payload = {
@@ -592,10 +600,8 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                         "raw_text_preview": content[:500], "extracted_at": datetime.now(timezone.utc),
                         "discovery_query": query, "source_module": "seo"
                     }
-                    try:
-                        upsert_db_competitor_insight(payload)
+                    try: upsert_db_competitor_insight(payload)
                     except Exception: pass
-
                     return {
                         "competitor_name": clean_domain(domain), "url": url, "full_text": full_text,
                         "key_phrases": analysis["key_phrases"], "cta": analysis["cta"],
@@ -605,40 +611,33 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                 return None
 
             competitor_insights = []
-            # Phase 1: Strict Discovery (Local)
-            for d in potential_domains[:12]:
+            # Phase 1: Local
+            for d in potential_domains:
                 res = await process_domain(d, level=1)
                 if res: competitor_insights.append(res)
                 if len(competitor_insights) >= 6: break
 
-            # Phase 2: Relaxed Discovery (National)
+            # Phase 2: Relaxed
             if len(competitor_insights) < 4:
-                print("---> [COMPETITORS] Phase 2: National/Relaxed Search")
+                print("---> [COMPETITORS] Phase 2: Relaxed Filter Discovery")
+                for d in [d for d in potential_domains if d not in [c["url"].split("/")[2] for c in competitor_insights]]:
+                    res = await process_domain(d, level=2)
+                    if res: competitor_insights.append(res)
+                    if len(competitor_insights) >= 6: break
+
+            # Phase 3: Global Industry Fallback
+            if len(competitor_insights) < 4:
+                print("---> [COMPETITORS] Phase 3: Global Industry Search")
                 broad_query = f"{site_info.get('industry', 'Business')} India"
                 broad_results = await scrape_duckduckgo_fallback(broad_query)
                 for res in broad_results:
                     link = res.get("url", "")
                     if link:
                         d = link.split("/")[2].lower().replace("www.", "")
-                        if d and d != your_domain and d not in EXCLUDED_DOMAINS and d not in [c["url"].split("/")[2] for c in competitor_insights]:
+                        if d and d != your_domain and is_valid_competitor_domain(d) and d not in [c["url"].split("/")[2] for c in competitor_insights]:
                             res_comp = await process_domain(d, level=2)
                             if res_comp: competitor_insights.append(res_comp)
                             if len(competitor_insights) >= 6: break
-
-            # Phase 3: Generic Business Discovery
-            if len(competitor_insights) < 4:
-                print("---> [COMPETITORS] Phase 3: Generic Business Search")
-                for res in broad_results[5:15]:
-                    link = res.get("url", "")
-                    if link:
-                        d = link.split("/")[2].lower().replace("www.", "")
-                        if d and d != your_domain and d not in EXCLUDED_DOMAINS and d not in [c["url"].split("/")[2] for c in competitor_insights]:
-                            res_comp = await process_domain(d, level=3)
-                            if res_comp: competitor_insights.append(res_comp)
-                            if len(competitor_insights) >= 6: break
-
-            if len(competitor_insights) < 4:
-                print(f"!!! WARNING: Found only {len(competitor_insights)} competitors even after relaxation.")
 
             final_competitors = competitor_insights
             competitor_insights = final_competitors[:6]
