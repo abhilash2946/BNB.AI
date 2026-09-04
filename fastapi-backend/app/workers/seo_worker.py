@@ -432,8 +432,6 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
         print(f"DEBUG: Top Keywords count: {len(top_keywords_full)}")
         print(f"✅ Finished GSC Data mapping for {len(top_keywords_full)} keywords.")
 
-        supabase.table("report_status").update({"status": "fetching_cwv"}).eq("report_id", report_id).execute()
-
         # 4. GBP & CWV
         gbp_details = {}
         if gbp_creds:
@@ -450,8 +448,6 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
             cwv_data = await fetch_core_web_vitals(gsc_site_url)
         except Exception as e:
             print(f"!!! CWV Fetch Error: {e}")
-
-        supabase.table("report_status").update({"status": "detecting_seo_work"}).eq("report_id", report_id).execute()
 
         # 5. SEO Work Detection
         print("---> Detecting SEO Work...")
@@ -470,7 +466,6 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
 
         # 6. Analytics
         print("---> Running SEO Analytics...")
-        supabase.table("report_status").update({"status": "analyzing_competitors"}).eq("report_id", report_id).execute()
         page_analysis = analyse_page_titles(top_page_titles)
         keyword_analysis = analyse_top_keywords(top_keywords_full)
         event_analysis = analyse_events(events_by_event_name)
