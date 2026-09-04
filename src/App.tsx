@@ -444,11 +444,6 @@ export default function App() {
       isFetchingRef.current = false;
       lastFetchedUserIdRef.current = null;
     }
-  } finally {
-      clearTimeout(safetyTimeout);
-      isFetchingRef.current = false;
-      lastFetchedUserIdRef.current = null;
-    }
   }
 
 
