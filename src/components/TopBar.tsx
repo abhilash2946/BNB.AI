@@ -82,6 +82,9 @@ export default function TopBar({
     };
   }, []);
 
+  const startInputRef = useRef<HTMLInputElement>(null);
+  const endInputRef = useRef<HTMLInputElement>(null);
+
   const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChangeDateRange({ ...dateRange, start: e.target.value });
   };
@@ -90,10 +93,28 @@ export default function TopBar({
     onChangeDateRange({ ...dateRange, end: e.target.value });
   };
 
-  const formatDateDisplay = (dateStr: string) => {
-    if (!dateStr) return "";
-    const [y, m, d] = dateStr.split("-");
-    return `${d}/${m}/${y}`;
+  const openStartPicker = () => {
+    try {
+      if (startInputRef.current && 'showPicker' in startInputRef.current) {
+        (startInputRef.current as any).showPicker();
+      } else {
+        startInputRef.current?.focus();
+      }
+    } catch (e) {
+      startInputRef.current?.focus();
+    }
+  };
+
+  const openEndPicker = () => {
+    try {
+      if (endInputRef.current && 'showPicker' in endInputRef.current) {
+        (endInputRef.current as any).showPicker();
+      } else {
+        endInputRef.current?.focus();
+      }
+    } catch (e) {
+      endInputRef.current?.focus();
+    }
   };
 
   return (
@@ -166,40 +187,41 @@ export default function TopBar({
 
       <div className="flex items-center gap-2 md:gap-3">
         <div className="hidden sm:flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-1 text-xs">
-          <div className="text-white/40 px-1">
+          <button
+            onClick={openStartPicker}
+            className="text-white/40 px-1 hover:text-white transition-colors cursor-pointer"
+          >
             <Calendar size={14} />
-          </div>
+          </button>
 
-          <div className="relative flex items-center">
-            <span className="absolute left-0 pointer-events-none text-white font-mono text-[11px] px-1 bg-[#0c0c0c] min-w-[75px]">
-              {formatDateDisplay(dateRange.start)}
-            </span>
-            <input
-              type="date"
-              value={dateRange.start}
-              onChange={handleStartDateChange}
-              disabled={isSharedMode}
-              className={`bg-transparent border-0 text-transparent font-mono text-[11px] focus:ring-0 max-w-[85px] focus:outline-none opacity-0 absolute inset-0 z-10 cursor-pointer ${isSharedMode ? 'hidden' : ''}`}
-            />
-            <span className="text-white font-mono text-[11px] px-1 min-w-[75px] text-center">
-              {formatDateDisplay(dateRange.start)}
-            </span>
-          </div>
+          <input
+            ref={startInputRef}
+            type="date"
+            value={dateRange.start}
+            onChange={handleStartDateChange}
+            disabled={isSharedMode}
+            className={`bg-transparent border-0 text-white font-mono text-[11px] focus:ring-0 max-w-[125px] focus:outline-none ${isSharedMode ? 'opacity-50' : 'cursor-pointer'}`}
+            style={{ colorScheme: 'dark' }}
+          />
 
           <span className="text-white/30 text-[10px]">→</span>
 
-          <div className="relative flex items-center">
-            <input
-              type="date"
-              value={dateRange.end}
-              onChange={handleEndDateChange}
-              disabled={isSharedMode}
-              className={`bg-transparent border-0 text-transparent font-mono text-[11px] focus:ring-0 max-w-[85px] focus:outline-none opacity-0 absolute inset-0 z-10 cursor-pointer ${isSharedMode ? 'hidden' : ''}`}
-            />
-            <span className="text-white font-mono text-[11px] px-1 min-w-[75px] text-center">
-              {formatDateDisplay(dateRange.end)}
-            </span>
-          </div>
+          <input
+            ref={endInputRef}
+            type="date"
+            value={dateRange.end}
+            onChange={handleEndDateChange}
+            disabled={isSharedMode}
+            className={`bg-transparent border-0 text-white font-mono text-[11px] focus:ring-0 max-w-[125px] focus:outline-none ${isSharedMode ? 'opacity-50' : 'cursor-pointer'}`}
+            style={{ colorScheme: 'dark' }}
+          />
+
+          <button
+            onClick={openEndPicker}
+            className="text-white/40 px-1 hover:text-white transition-colors cursor-pointer"
+          >
+            <Calendar size={14} />
+          </button>
         </div>
 
         {/* PDF button removed to match reference image 2 */}

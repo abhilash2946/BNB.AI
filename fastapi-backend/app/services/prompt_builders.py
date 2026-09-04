@@ -207,27 +207,32 @@ def build_competitor_batch_prompt(site_info: dict, competitor_insights: list, si
     if site_data:
         site_context = f"OUR SITE DATA: {json.dumps(site_data, separators=(',', ':'))}\n"
 
+    competitor_instruction = "COMPETITORS: " + json.dumps(c_data, separators=(',', ':'))
+    if not competitor_insights:
+        competitor_instruction = "COMPETITORS: [No specific competitors identified in this scan. Perform a general industry landscape analysis for the region based on the business name and industry.]"
+
     gap_analysis_instruction = ""
     if site_data:
         gap_analysis_instruction = """
 3. "self_gap_analysis": {
-    "strengths": ["List 3 internal strengths vs these competitors. 1 sentence each, 15-18 words."],
-    "weaknesses": ["List 3 technical gaps vs these competitors. 1 sentence each, 15-18 words."],
-    "missed_opportunities": ["List 2 high-value niches competitors are winning. 1 sentence each, 15-18 words."],
-    "actionable_gaps": ["List 2 immediate tactical moves to close the gap. 1 sentence each, 15-18 words."]
+    "strengths": ["List 3 internal strengths. 1 sentence each, 15-18 words."],
+    "weaknesses": ["List 3 technical gaps. 1 sentence each, 15-18 words."],
+    "missed_opportunities": ["List 2 high-value industry niches. 1 sentence each, 15-18 words."],
+    "actionable_gaps": ["List 2 immediate tactical moves. 1 sentence each, 15-18 words."]
 }
 """
 
     return f"""
 {ANALYST_TONE}
 GENERATE COMPETITOR INTELLIGENCE (JSON)
-{site_context}COMPETITORS: {json.dumps(c_data, separators=(',', ':'))}
+{site_context}{competitor_instruction}
 
 STRICT RULES:
 1. For this section, be extremely concise to avoid truncation.
 2. Each observation (inferred_actions, strengths, weaknesses) MUST be exactly 2 technical sentences (not 3).
 3. If the provided competitor data indicates a '404 Error' or 'Site Down' state, EXCLUDE it from the analysis entirely and do not mention it.
 4. Ensure you process ALL valid competitors provided.
+5. If NO competitors are provided, focus solely on the 'self_gap_analysis' using general industry benchmarks for {site_info.get('industry', 'the sector')}.
 
 Return JSON with:
 1. "competitors": [
@@ -239,8 +244,8 @@ Return JSON with:
       "strengths": ["List 2 technical strengths. Each 15-18 words."],
       "weaknesses": ["List 2 specific gaps. Each 15-18 words."]
     }}
-]
-2. "overall_threat_summary": "Exactly 2 technical sentences naming the biggest threat. Each sentence 15-18 words."
+] (Empty list if no competitors provided)
+2. "overall_threat_summary": "Exactly 2 technical sentences naming the biggest industry threat. Each sentence 15-18 words."
 {gap_analysis_instruction}
 
 Return ONLY valid JSON.

@@ -18,6 +18,7 @@ beautifulsoup4
 lxml
 pandas
 numpy
+duckduckgo-search
 sqlalchemy
 pymysql
 python-multipart

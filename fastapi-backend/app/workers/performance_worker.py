@@ -115,60 +115,60 @@ EXCLUDED_DOMAINS = {
     "threebestrated.in", "datagemba.com", "yappe.in", "cybo.com"
 }
 
-def validate_competitor_relevance(content: str, industry: str, city: str) -> bool:
-    """Validate if the site is a business service provider in the same industry and city."""
+def validate_competitor_relevance(content: str, industry: str, city: str, level: int = 1) -> bool:
+    """
+    Validate if the site is a business service provider.
+    Level 1: Strict (Industry + City)
+    Level 2: Moderate (Industry only)
+    Level 3: Relaxed (Any Business service)
+    """
     if not content or len(content) < 300:
         return False
 
     content_lower = content.lower()
     industry_lower = industry.lower()
 
-    # 1. Social Profile Markers (Be careful not to block legit sites that mention social)
-    # Only block if it looks like a PURE profile page (X/Twitter pattern)
-    if ("followers" in content_lower and "following" in content_lower and "tweets" in content_lower):
-        print(f"DEBUG: Skipping as social profile (X/Twitter pattern)")
-        return False
-
-    social_markers = ["join for free", "karma", "reddit", "tweet", "following count", "followers count"]
-    if any(marker in content_lower for marker in social_markers):
-        print(f"DEBUG: Skipping as social profile (specific markers found)")
+    # 1. Social Profile/News Markers (Always block)
+    block_markers = ["join for free", "karma", "reddit", "tweet", "following count", "followers count", "breaking news", "headlines"]
+    if any(marker in content_lower for marker in block_markers):
         return False
 
     # 2. Industry Keywords (Expanded and Flexible)
     industry_keywords = {
         "travel": ["tour", "holiday", "package", "travel", "yatra", "itinerary", "booking", "hotel", "resort", "vacation", "agency", "trip", "destination"],
         "construction": ["builder", "architect", "civil", "renovation", "interior", "structural", "engineering", "housing", "project", "construction", "developer"],
+        "e-commerce": ["shop", "store", "buy", "product", "cart", "online", "retail", "commerce", "fashion", "brand", "delivery", "checkout", "shipping"],
+        "real estate": ["property", "flat", "apartment", "villa", "plot", "realestate", "realty", "residential", "commercial", "project", "builders"],
+        "marketing": ["agency", "ads", "digital", "branding", "marketing", "media", "strategy", "creative", "campaign", "social", "content"],
     }
 
-    # Determine which list to use based on industry name
     check_list = []
-    if "travel" in industry_lower:
-        check_list = industry_keywords["travel"]
-    elif "construction" in industry_lower or "build" in industry_lower:
-        check_list = industry_keywords["construction"]
+    if "travel" in industry_lower: check_list = industry_keywords["travel"]
+    elif "construction" in industry_lower or "build" in industry_lower: check_list = industry_keywords["construction"]
+    elif "commerce" in industry_lower or "retail" in industry_lower: check_list = industry_keywords["e-commerce"]
+    elif "estate" in industry_lower or "property" in industry_lower: check_list = industry_keywords["real estate"]
+    elif "marketing" in industry_lower: check_list = industry_keywords["marketing"]
     else:
-        # Fallback: just use the words in the industry name itself
         check_list = [w for w in re.split(r'\W+', industry_lower) if len(w) > 3]
 
-    if not check_list: check_list = [industry_lower]
-
-    # Count industry keyword matches
     found_kws = [kw for kw in check_list if kw in content_lower]
-    if not found_kws:
-        print(f"DEBUG: Skipping as industry mismatch (no keywords from {check_list} found for {industry})")
-        return False
 
-    # 3. City Match (Less strict if industry match is very strong)
-    if city:
-        city_lower = city.lower()
-        if city_lower not in content_lower:
-            # If we have 3+ industry keywords, we consider it a match even if city isn't on homepage
-            if len(found_kws) >= 3:
-                print(f"DEBUG: City mismatch for {city}, but strong industry match ({len(found_kws)} kws). Allowing.")
-                return True
-            else:
-                print(f"DEBUG: Skipping as city mismatch (city {city} not found and weak industry match)")
-                return False
+    # Logic based on strictness level
+    if level == 1:
+        # Must have Industry AND City (or 3+ industry kws)
+        if not found_kws: return False
+        if city and city.lower() in content_lower: return True
+        return len(found_kws) >= 3
+
+    if level == 2:
+        # Industry only
+        return len(found_kws) >= 1
+
+    if level == 3:
+        # Relaxed: Common business markers
+        common_business = ["contact", "about", "services", "copyright", "rights reserved", "solutions", "partners"]
+        business_matches = [w for w in common_business if w in content_lower]
+        return len(business_matches) >= 2 or len(found_kws) >= 1
 
     return True
 
@@ -707,44 +707,33 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             # 2-Week Freshness Threshold
             FRESHNESS_THRESHOLD_DAYS = 14
 
-            async def process_domain(domain):
+            async def process_domain(domain, level=1):
                 url = f"https://{domain}"
                 query = competitor_discovery_map.get(domain, "Local Search")
 
-                print(f"DEBUG: Processing competitor: {domain} ({url})")
+                print(f"DEBUG: Processing competitor: {domain} ({url}) at level {level}")
                 cached = get_db_competitor_insight(site_id, url, "performance")
 
                 if cached and cached.get("extracted_at"):
                     last = safe_parse_iso(cached["extracted_at"])
                     if last and last > datetime.now(timezone.utc) - timedelta(days=FRESHNESS_THRESHOLD_DAYS):
                         status = cached.get("full_text")
-                        if status in ["ERROR_404", "ERROR_SITE_DOWN"]:
-                            return None
+                        if status not in ["ERROR_404", "ERROR_SITE_DOWN"]:
+                             if validate_competitor_relevance(status, site_info.get("industry", ""), site_info.get("city", ""), level=level):
+                                return {
+                                    "competitor_name": clean_domain(domain), "url": url,
+                                    "full_text": cached.get("full_text") or cached.get("raw_text_preview", ""),
+                                    "key_phrases": cached.get("key_phrases", []),
+                                    "cta": cached.get("cta", []),
+                                    "entities": cached.get("entities", {}),
+                                    "trust_signals": cached.get("trust_signals", []),
+                                    "discovery_query": cached.get("discovery_query") or query
+                                }
 
-                        print(f"Using cached insights for {domain}")
-                        return {
-                            "competitor_name": clean_domain(domain), "url": url,
-                            "full_text": cached.get("full_text") or cached.get("raw_text_preview", ""),
-                            "key_phrases": cached.get("key_phrases", []),
-                            "cta": cached.get("cta", []),
-                            "entities": cached.get("entities", {}),
-                            "trust_signals": cached.get("trust_signals", []),
-                            "discovery_query": cached.get("discovery_query") or query
-                        }
-
-                # Re-crawling (Sequential as per user request to avoid IP flagging)
+                # Re-crawling
                 content = await extract_with_webclaw(url)
-                if content in ["ERROR_404", "ERROR_SITE_DOWN"]:
-                     payload = {
-                        "site_id": site_id, "competitor_url": url, "competitor_name": clean_domain(domain),
-                        "full_text": content, "extracted_at": datetime.now(timezone.utc).isoformat(),
-                        "source_module": "performance"
-                     }
-                     upsert_db_competitor_insight(payload)
-                     return None
-
                 if content and len(content) > 100:
-                    if not validate_competitor_relevance(content, site_info.get("industry", ""), site_info.get("city", "")):
+                    if not validate_competitor_relevance(content, site_info.get("industry", ""), site_info.get("city", ""), level=level):
                         return None
 
                     analysis = analyse_competitor_text(content)
@@ -769,18 +758,44 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
                 return None
 
             competitor_insights = []
-            # Sequential Processing loop
-            for d in potential_domains[:12]:
-                res = await process_domain(d)
-                if res:
-                    competitor_insights.append(res)
-                    if len(competitor_insights) >= 6: break
+            # Phase 1: Local Discovery
+            for d in potential_domains[:10]:
+                res = await process_domain(d, level=1)
+                if res: competitor_insights.append(res)
+                if len(competitor_insights) >= 6: break
 
-            # FALLBACK: Global search if still < 6
-            if len(competitor_insights) < 6:
-                print(f"!!! Still only have {len(competitor_insights)} competitors. Triggering global fallback search...")
-                broad_query = f"{top_kw[0] if top_kw else site_info.get('industry', 'Travel')} India"
+            # Phase 2: National/Relaxed Search
+            if len(competitor_insights) < 4:
+                print("---> [COMPETITORS] Phase 2: National/Relaxed Search")
+                broad_query = f"{site_info.get('industry', 'Business')} India"
                 broad_results = await scrape_duckduckgo_fallback(broad_query)
+                for res in broad_results:
+                    link = res.get("url", "")
+                    if link:
+                        d = link.split("/")[2].lower().replace("www.", "")
+                        if d and d != your_domain and d not in EXCLUDED_DOMAINS and d not in [c["url"].split("/")[2] for c in competitor_insights]:
+                            res_comp = await process_domain(d, level=2)
+                            if res_comp: competitor_insights.append(res_comp)
+                            if len(competitor_insights) >= 6: break
+
+            # Phase 3: Generic Business Fallback
+            if len(competitor_insights) < 4:
+                print("---> [COMPETITORS] Phase 3: Generic Business Fallback")
+                for res in broad_results[5:15]:
+                    link = res.get("url", "")
+                    if link:
+                        d = link.split("/")[2].lower().replace("www.", "")
+                        if d and d != your_domain and d not in EXCLUDED_DOMAINS and d not in [c["url"].split("/")[2] for c in competitor_insights]:
+                            res_comp = await process_domain(d, level=3)
+                            if res_comp: competitor_insights.append(res_comp)
+                            if len(competitor_insights) >= 6: break
+
+            if len(competitor_insights) < 4:
+                print(f"!!! WARNING: Found only {len(competitor_insights)} competitors.")
+
+            final_competitors = competitor_insights
+            competitor_insights = final_competitors[:6]
+            print(f"✅ Discovered {len(competitor_insights)} real-time competitors")
 
                 if broad_results:
                     for res in broad_results:
@@ -843,7 +858,8 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
         comp_batch1 = competitor_insights[:3]
         comp_batch2 = competitor_insights[3:6]
 
-        comp_prompt1 = build_competitor_batch_prompt(site_info, comp_batch1, site_data=site_data) if comp_batch1 else None
+        # ALWAYS generate comp_prompt1 to ensure self_gap_analysis is returned even with 0 competitors
+        comp_prompt1 = build_competitor_batch_prompt(site_info, comp_batch1, site_data=site_data)
         comp_prompt2 = build_competitor_batch_prompt(site_info, comp_batch2) if comp_batch2 else None
 
         # Execute the 5 calls in parallel (sequenced by semaphore)
@@ -851,12 +867,8 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             call_gemini(exec_prompt, normalize=True),        # 0
             call_gemini(advice_prompt, normalize=True),      # 1
             call_gemini(explanations_prompt, normalize=True), # 2
+            call_gemini(comp_prompt1, normalize=True),       # 3
         ]
-
-        if comp_prompt1:
-            tasks.append(call_gemini(comp_prompt1, normalize=True))  # 3
-        else:
-            tasks.append(asyncio.sleep(0, result={}))
 
         if comp_prompt2:
             tasks.append(call_gemini(comp_prompt2, normalize=True))  # 4
