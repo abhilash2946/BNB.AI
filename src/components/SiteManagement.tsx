@@ -265,7 +265,7 @@ export default function SiteManagement({
       if (phone.trim()) payload.phone = phone.trim();
       if (email.trim()) payload.email = email.trim();
 
-      const siteUrl = editingSiteId ? `${API_URL}/sites?id=eq.${editingSiteId}` : `${API_URL}/sites`;
+      const siteUrl = editingSiteId ? `${API_URL}/sites/${editingSiteId}` : `${API_URL}/sites`;
       const siteRes = await fetch(siteUrl, {
         method: editingSiteId ? "PATCH" : "POST",
         headers: {

@@ -1,12 +1,20 @@
 import jwt
+import base64
 from fastapi import HTTPException, Security, Depends
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.orm import Session
-from app.config import settings
-from app.database import get_db, Profile
-from datetime import datetime
+# ... (rest of imports)
 
 security = HTTPBearer()
+
+def get_secret():
+    secret = settings.supabase_jwt_secret
+    # Handle base64 encoded secret (common with Supabase)
+    try:
+        # Check if it looks like base64
+        if len(secret) % 4 == 0 and any(c in secret for c in "+/="):
+             return base64.b64decode(secret)
+    except Exception:
+        pass
+    return secret
 
 async def get_current_user(
     auth: HTTPAuthorizationCredentials = Security(security),
@@ -17,9 +25,9 @@ async def get_current_user(
         # Verify the Supabase JWT using the secret
         payload = jwt.decode(
             token,
-            settings.supabase_jwt_secret,
+            get_secret(),
             algorithms=["HS256"],
-            options={"verify_aud": False} # Supabase uses specific aud
+            options={"verify_aud": False}
         )
 
         user_id = payload.get("sub")
