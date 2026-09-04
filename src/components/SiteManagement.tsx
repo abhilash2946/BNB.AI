@@ -261,6 +261,8 @@ export default function SiteManagement({
           { platform: "meta_business_suite", data: { page_id: fbPageId.trim() } },
           { platform: "instagram", data: { instagram_business_id: igBusId.trim() } }
       ];
+      const siteId = siteResp.data?.[0].id;
+      const credTasks = perSiteCreds.filter(c => Object.values(c.data).some(v => v)).map(c => supabase.from("site_credentials").upsert({ site_id: siteId, platform: c.platform, credentials: c.data }, { onConflict: 'site_id,platform' }));
       await Promise.all(credTasks);
       setIsAddingNew(false); setEditingSiteId(null); resetFormState();
       onRefresh();
