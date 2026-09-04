@@ -113,7 +113,7 @@ def is_valid_competitor_domain(domain: str) -> bool:
         return False
 
     invalid_keywords = ['instagram', 'facebook', 'twitter', 'linkedin', 'youtube', 'whatsapp', 'pinterest', 'google', 'apple', 'microsoft']
-    if any(ik in d for kw in invalid_keywords):
+    if any(kw in d for kw in invalid_keywords):
         return False
 
     parts = d.split('.')
