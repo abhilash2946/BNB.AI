@@ -128,7 +128,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # API ROUTER (Prefix: /api)
 # ============================================================
 
-api_router = APIRouter(prefix="/api")
+api_router = APIRouter()
 
 # --- Profile Routes ---
 
@@ -527,7 +527,7 @@ async def swagger_oauth2_redirect():
 # ============================================================
 
 # Register the main api_router
-app.include_router(api_router)
+app.include_router(api_router, prefix="/api")
 
 # Include OAuth router
 try:
