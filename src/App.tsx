@@ -5,7 +5,7 @@ import { UserProfile, SiteProfile, UserCredentials } from "./types";
 import LandingPage from "./components/LandingPage";
 import SiteManagement from "./components/SiteManagement";
 import CommandCenter from "./components/CommandCenter";
-import { Toaster } from 'react-hot-toast';
+import { Toaster, toast } from 'react-hot-toast';
 import { Sparkles } from 'lucide-react';
 import { useTheme } from "./contexts/ThemeContext";
 
@@ -73,14 +73,10 @@ export default function App() {
     const success = urlParams.get('success');
     const error = urlParams.get('error');
     if (success) {
-      import('react-hot-toast').then(({ toast }) => {
-        toast.success("Authentication successful!");
-      });
+      toast.success("Authentication successful!");
     }
     if (error) {
-      import('react-hot-toast').then(({ toast }) => {
-        toast.error(`Authentication failed: ${error}`);
-      });
+      toast.error(`Authentication failed: ${error}`);
     }
 
     return () => {
@@ -296,10 +292,7 @@ export default function App() {
   }, []);
 
   async function fetchProfileData(userId: string, authUserFromSession?: any) {
-    if (lastFetchedUserIdRef.current === userId) {
-      console.log("Already fetching for this user, skipping");
-      return;
-    }
+    if (lastFetchedUserIdRef.current === userId) return;
     if (isFetchingRef.current) return;
 
     isFetchingRef.current = true;
@@ -317,19 +310,31 @@ export default function App() {
     }, 30000);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error("No session token available");
+      const getProfile = async (retry = true): Promise<any> => {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) throw new Error("No session token available");
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/profile`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+        const response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/profile`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.status === 401 && retry) {
+          console.warn("Profile fetch 401, attempting token refresh...");
+          const { error: refreshError } = await supabase.auth.refreshSession();
+          if (!refreshError) return getProfile(false);
         }
-      });
 
-      if (!response.ok) throw new Error(`Backend profile fetch failed: ${response.statusText}`);
-      const activeProfile = await response.json();
+        if (!response.ok) {
+          throw new Error(`Backend profile fetch failed: ${response.status}`);
+        }
+        return response.json();
+      };
+
+      const activeProfile = await getProfile();
 
       const userData: UserProfile = {
         id: userId,
@@ -343,7 +348,7 @@ export default function App() {
 
       setUser(userData);
       localStorage.setItem('bnb_user_profile', JSON.stringify(userData));
-      setIsLoading(false); // Only now we stop the initial loading spinner
+      setIsLoading(false);
 
       setView(current => {
         const protectedViews: ViewState[] = ["dashboard", "site_management"];
@@ -352,27 +357,22 @@ export default function App() {
         return (savedView && protectedViews.includes(savedView as ViewState)) ? (savedView as ViewState) : "dashboard";
       });
 
-      // 2. Background fetch sites & credentials (Local Server)
+      // 2. Background fetch sites & credentials
       void (async () => {
         const startTime = Date.now();
         try {
           const { data: { session } } = await supabase.auth.getSession();
           const token = session?.access_token;
-
           if (!token) return;
 
-          const headers = {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          };
-
+          const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
           const [credsRes, sitesRes] = await Promise.all([
             fetch(`${import.meta.env.VITE_API_URL || "/api"}/user-credentials`, { headers }),
             fetch(`${import.meta.env.VITE_API_URL || "/api"}/sites`, { headers })
           ]);
 
-          const credsData = await credsRes.json();
-          const sitesData = await sitesRes.json();
+          const credsData = await credsRes.json().catch(() => ({}));
+          const sitesData = await sitesRes.json().catch(() => []);
 
           if (Array.isArray(credsData)) {
             const creds: UserCredentials = {};
@@ -383,17 +383,14 @@ export default function App() {
                 creds.metaLongLivedToken = c.credentials.token;
                 creds.metaTokenExpiry = c.credentials.expires_at;
               }
-              if (c.platform === 'meta_app_creds') {
-                creds.metaAppCreds = c.credentials;
-              }
+              if (c.platform === 'meta_app_creds') creds.metaAppCreds = c.credentials;
             });
             setSharedCreds(creds);
             localStorage.setItem('bnb_shared_creds', JSON.stringify(creds));
           }
 
-          let mappedSites: SiteProfile[] = [];
           if (Array.isArray(sitesData)) {
-            mappedSites = sitesData.map((s: any) => ({
+            const mappedSites = sitesData.map((s: any) => ({
               id: s.id,
               name: s.name,
               url: s.url,
@@ -407,31 +404,20 @@ export default function App() {
             setSites(mappedSites);
             localStorage.setItem('bnb_sites', JSON.stringify(mappedSites));
 
-            let finalActive: SiteProfile | null = null;
             if (mappedSites.length > 0) {
               const lastSiteId = localStorage.getItem('bnb_active_site_id');
-              const restoredSite = mappedSites.find(s => s.id === lastSiteId);
-              finalActive = restoredSite || mappedSites[0];
+              const finalActive = mappedSites.find(s => s.id === lastSiteId) || mappedSites[0];
               setActiveSite(finalActive);
               localStorage.setItem('bnb_active_site', JSON.stringify(finalActive));
               localStorage.setItem('bnb_active_site_id', finalActive.id);
             } else {
-              // No sites → clear active site completely
               setActiveSite(null);
-              sessionStorage.removeItem('bnb_active_site');
               localStorage.removeItem('bnb_active_site_id');
             }
           }
 
-          // Minimum 2-second loading for UX (optional)
-          const minLoadTime = 2000;
           const elapsed = Date.now() - startTime;
-          if (elapsed < minLoadTime) {
-            await new Promise(r => setTimeout(r, minLoadTime - elapsed));
-          }
-
-          console.log("[fetchProfileData] Background sync complete.");
-
+          if (elapsed < 2000) await new Promise(r => setTimeout(r, 2000 - elapsed));
         } catch (bgErr) {
           console.error("[fetchProfileData] Background sync failed:", bgErr);
         } finally {
@@ -439,14 +425,26 @@ export default function App() {
         }
       })();
 
-    } catch (err) {
+    } catch (err: any) {
       console.error("[fetchProfileData] Fatal error:", err);
-      // If we are here after retries, show error state instead of empty workspace
+      const msg = err.message || "Backend fetch failed";
+      toast.error(msg);
+
       setIsLoading(false);
       setIsSyncing(false);
-      setAuthError("Failed to load your profile. Please refresh the page or contact support.");
-      setView("landing");
+
+      if (msg.includes("401")) {
+        setAuthError("Session expired. Please log in again.");
+        setView("landing");
+      } else {
+        setAuthError(msg);
+      }
     } finally {
+      clearTimeout(safetyTimeout);
+      isFetchingRef.current = false;
+      lastFetchedUserIdRef.current = null;
+    }
+  } finally {
       clearTimeout(safetyTimeout);
       isFetchingRef.current = false;
       lastFetchedUserIdRef.current = null;

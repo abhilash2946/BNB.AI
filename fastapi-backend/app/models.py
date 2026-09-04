@@ -26,6 +26,16 @@ class SiteCreate(BaseModel):
     email: Optional[str] = None
     image_url: Optional[str] = None
 
+class SiteUpdate(BaseModel):
+    name: Optional[str] = None
+    url: Optional[str] = None
+    industry: Optional[str] = None
+    city: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    image_url: Optional[str] = None
+    seo_settings: Optional[Dict[str, Any]] = None
+
 class UserCredentialCreate(BaseModel):
     platform: str
     credentials: Dict[str, Any]
