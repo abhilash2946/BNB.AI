@@ -1,3 +1,4 @@
+from sqlalchemy.orm import Session
 import logging
 from typing import Dict, Any, Optional
 from app.config import settings
