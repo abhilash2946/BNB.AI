@@ -1,4 +1,13 @@
-from app.supabase_client import supabase
+from app.utils.db_worker_helpers import (
+    update_db_report_status,
+    get_db_site_credentials,
+    get_db_site_info,
+    save_db_processed_report,
+    get_db_competitor_insights,
+    upsert_db_competitor_insight,
+    get_db_user_credentials,
+    get_db_competitor_insight
+)
 from app.services.google_ads import (
     fetch_google_ads_data,
     fetch_google_ads_totals,
@@ -372,12 +381,12 @@ async def scrape_bing_fallback(query: str) -> list:
 
 async def run_performance_report(user_id: str, site_id: str, start_date: str, end_date: str, report_id: str, bnb_mode: bool = False):
     print(f"---> Background Task Started for Performance report {report_id} (BnB Mode: {bnb_mode})")
-    supabase.table("report_status").update({"status": "fetching_data"}).eq("report_id", report_id).execute()
+    update_db_report_status(report_id, "fetching_data")
 
     try:
         # 1. Fetch site credentials for ads platforms
-        creds_resp = supabase.table("site_credentials").select("platform, credentials").eq("site_id", site_id).in_("platform", ["ga4", "google_ads", "meta_ads", "gbp", "google_business_profile"]).execute()
-        creds_map = {row["platform"]: row["credentials"] for row in creds_resp.data} if creds_resp and creds_resp.data else {}
+        creds_data = get_db_site_credentials(site_id, ["ga4", "google_ads", "meta_ads", "gbp", "google_business_profile"])
+        creds_map = {row["platform"]: row["credentials"] for row in creds_data}
         print(f"---> Available Platforms for Site: {list(creds_map.keys())}")
 
         google_creds = creds_map.get("google_ads")
@@ -451,9 +460,9 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             meta_token = meta_creds.get("access_token")
             if not meta_token:
                 try:
-                    user_creds = supabase.table("user_credentials").select("credentials").eq("user_id", user_id).eq("platform", "meta_long_lived_token").execute()
-                    if user_creds.data:
-                        meta_token = user_creds.data[0]["credentials"].get("token")
+                    cred_resp = get_db_user_credentials(user_id, "meta_long_lived_token")
+                    if cred_resp:
+                        meta_token = cred_resp.get("credentials", {}).get("token")
                 except Exception as e:
                     print(f"!!! Warning: Could not fetch Meta long lived token: {e}")
 
@@ -617,8 +626,7 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             idx += 1
 
         # 5. Site Info & AI Analysis
-        site_resp = supabase.table("sites").select("name, url, industry, city").eq("id", site_id).execute()
-        site_info = site_resp.data[0] if site_resp.data else {}
+        site_info = get_db_site_info(site_id)
 
         # 6. Perform Advanced Performance Analytics
         print("---> Running Performance Analytics...")
@@ -639,10 +647,10 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             # A. Fetch Historical Competitors first
             try:
                 # Try fetching with the new column and source filter
-                history = supabase.table("competitor_insights").select("competitor_url, discovery_query").eq("site_id", site_id).eq("source_module", "performance").execute()
+                history = get_db_competitor_insights(site_id, "performance")
 
-                if history and history.data:
-                    for item in history.data:
+                if history:
+                    for item in history:
                         h_url = item["competitor_url"]
                         h_query = item.get("discovery_query", "Historical Cache")
                         h_domain = h_url.replace("https://", "").replace("http://", "").split('/')[0].replace("www.", "").lower()
@@ -704,24 +712,24 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
                 query = competitor_discovery_map.get(domain, "Local Search")
 
                 print(f"DEBUG: Processing competitor: {domain} ({url})")
-                cached = supabase.table("competitor_insights").select("*").eq("site_id", site_id).eq("competitor_url", url).eq("source_module", "performance").execute()
+                cached = get_db_competitor_insight(site_id, url, "performance")
 
-                if cached.data and cached.data[0].get("extracted_at"):
-                    last = safe_parse_iso(cached.data[0]["extracted_at"])
+                if cached and cached.get("extracted_at"):
+                    last = safe_parse_iso(cached["extracted_at"])
                     if last and last > datetime.now(timezone.utc) - timedelta(days=FRESHNESS_THRESHOLD_DAYS):
-                        status = cached.data[0].get("full_text")
+                        status = cached.get("full_text")
                         if status in ["ERROR_404", "ERROR_SITE_DOWN"]:
                             return None
 
                         print(f"Using cached insights for {domain}")
                         return {
                             "competitor_name": clean_domain(domain), "url": url,
-                            "full_text": cached.data[0].get("full_text") or cached.data[0].get("raw_text_preview", ""),
-                            "key_phrases": cached.data[0].get("key_phrases", []),
-                            "cta": cached.data[0].get("cta", []),
-                            "entities": cached.data[0].get("entities", {}),
-                            "trust_signals": cached.data[0].get("trust_signals", []),
-                            "discovery_query": cached.data[0].get("discovery_query") or query
+                            "full_text": cached.get("full_text") or cached.get("raw_text_preview", ""),
+                            "key_phrases": cached.get("key_phrases", []),
+                            "cta": cached.get("cta", []),
+                            "entities": cached.get("entities", {}),
+                            "trust_signals": cached.get("trust_signals", []),
+                            "discovery_query": cached.get("discovery_query") or query
                         }
 
                 # Re-crawling (Sequential as per user request to avoid IP flagging)
@@ -732,7 +740,7 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
                         "full_text": content, "extracted_at": datetime.now(timezone.utc).isoformat(),
                         "source_module": "performance"
                      }
-                     supabase.table("competitor_insights").upsert(payload, on_conflict="site_id,competitor_url,source_module").execute()
+                     upsert_db_competitor_insight(payload)
                      return None
 
                 if content and len(content) > 100:
@@ -749,7 +757,7 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
                         "discovery_query": query, "source_module": "performance"
                     }
                     try:
-                        supabase.table("competitor_insights").upsert(payload, on_conflict="site_id,competitor_url,source_module").execute()
+                        upsert_db_competitor_insight(payload)
                     except Exception: pass
 
                     return {
@@ -809,7 +817,7 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
 
         # 8. Call Gemini (3 Efficient Tasks)
         print("---> Generating AI Analysis (3 Efficient Tasks)...")
-        supabase.table("report_status").update({"status": "generating_ai"}).eq("report_id", report_id).execute()
+        update_db_report_status(report_id, "generating_ai")
 
         # Build the prompts (Split Competitors into 2 batches to avoid truncation)
         exec_prompt = build_performance_exec_prompt(
@@ -1007,7 +1015,7 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
         top_keywords_array = google_ads_details.get("top_keywords", [])
         if not isinstance(top_keywords_array, list): top_keywords_array = []
 
-        supabase.table("processed_reports").insert({
+        save_db_processed_report({
             "report_id": report_id, "user_id": user_id, "site_id": site_id, "module": "performance",
             "start_date": start_date, "end_date": end_date,
             "kpi_summary": kpi_to_store,
@@ -1026,18 +1034,15 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             "meta_ads_kpi": {"current": meta_current, "previous": meta_previous},
             "meta_ads_details": {"top_campaigns": meta_campaigns, "prev_top_campaigns": meta_campaigns_prev, "top_adsets": meta_adsets, "prev_top_adsets": meta_adsets_prev, "devices": meta_devices, "prev_devices": meta_devices_prev},
             "meta_ads_charts": {"daily": meta_daily}
-        }).execute()
+        })
 
-        supabase.table("report_status").update({"status": "completed", "completed_at": datetime.now(timezone.utc).isoformat()}).eq("report_id", report_id).execute()
+        update_db_report_status(report_id, "completed")
         print(f"---> DONE: Performance report {report_id}")
 
     except Exception as e:
         print(f"!!! Error in run_performance_report: {e}")
         traceback.print_exc()
         try:
-            supabase.table("report_status").update({
-                "status": "failed",
-                "error_message": f"Worker Error: {str(e)}"
-            }).eq("report_id", report_id).execute()
+            update_db_report_status(report_id, "failed", error_message=f"Worker Error: {str(e)}")
         except Exception as db_e:
             print(f"!!! CRITICAL: Failed to update report status in DB: {db_e}")

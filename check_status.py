@@ -1,13 +1,15 @@
 import os
-from dotenv import load_dotenv
-from supabase import create_client
+import sys
 
-load_dotenv()
+# Add fastapi-backend to sys.path to import app.database
+sys.path.append(os.path.join(os.path.dirname(__file__), "fastapi-backend"))
 
-url = os.environ.get("SUPABASE_URL")
-key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-supabase = create_client(url, key)
+from app.database import SessionLocal, ReportStatus
 
-res = supabase.table("report_status").select("*").order("created_at", desc=True).limit(5).execute()
-for row in res.data:
-    print(f"ID: {row['report_id']}, Module: {row['module']}, Status: {row['status']}, Error: {row.get('error_message')}")
+db = SessionLocal()
+try:
+    reports = db.query(ReportStatus).order_by(ReportStatus.created_at.desc()).limit(5).all()
+    for row in reports:
+        print(f"ID: {row.report_id}, Module: {row.module}, Status: {row.status}, Error: {row.error_message}")
+finally:
+    db.close()

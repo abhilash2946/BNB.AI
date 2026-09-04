@@ -2,30 +2,32 @@ import asyncio
 import time
 from typing import List, Dict, Any
 from google.ads.googleads.client import GoogleAdsClient
-from app.supabase_client import supabase
 from app.config import settings
 from app.services.credential_service import get_user_google_creds
+from app.utils.db_worker_helpers import get_db_user_credentials
 
-async def get_google_ads_client(user_id: str, login_customer_id: str = None) -> GoogleAdsClient:
-    """Initialize the Google Ads Client using credentials from Supabase with retries."""
+from sqlalchemy.orm import Session
+
+async def get_google_ads_client(user_id: str, login_customer_id: str = None, db: Session = None) -> GoogleAdsClient:
+    """Initialize the Google Ads Client using credentials from database with retries."""
     max_retries = 3
     retry_delay = 2
 
     for attempt in range(max_retries):
         try:
-            resp = supabase.table("user_credentials").select("credentials").eq("user_id", user_id).eq("platform", "google_oauth").execute()
-            if not resp.data:
+            resp = get_db_user_credentials(user_id, "google_oauth", db=db)
+            if not resp or "credentials" not in resp:
                 raise Exception(f"No Google OAuth credentials found for user {user_id}")
-            refresh_token = resp.data[0]["credentials"].get("refresh_token")
+            refresh_token = resp["credentials"].get("refresh_token")
             if not refresh_token:
                 raise Exception(f"No refresh token found for user {user_id}")
 
-            dev_resp = supabase.table("user_credentials").select("credentials").eq("user_id", user_id).eq("platform", "google_developer_token").execute()
-            if not dev_resp.data:
+            dev_resp = get_db_user_credentials(user_id, "google_developer_token", db=db)
+            if not dev_resp or "credentials" not in dev_resp:
                 raise Exception("Google Ads Developer Token missing. Please set it in Agency Settings.")
-            developer_token = dev_resp.data[0]["credentials"]["developer_token"]
+            developer_token = dev_resp["credentials"]["developer_token"]
 
-            google_creds = get_user_google_creds(user_id)
+            google_creds = get_user_google_creds(user_id, db=db)
 
             credentials = {
                 "developer_token": developer_token,

@@ -799,16 +799,31 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
   const [pollingStatus, setPollingStatus] = useState("");
 
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const statusChannelRef = useRef<any>(null);
-  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     return () => {
-      if (statusChannelRef.current) statusChannelRef.current.unsubscribe();
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-      if (pollingTimeoutRef.current) clearTimeout(pollingTimeoutRef.current);
     };
   }, []);
+
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session?.access_token || ""}`,
+    };
+  };
+
+  const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
+    const headers = await getAuthHeaders();
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...headers,
+        ...options.headers,
+      },
+    });
+  };
 
   const normalizeDateRange = (range: DateRange) => {
     if (range.startDate && range.endDate && range.startDate > range.endDate)
@@ -820,75 +835,13 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
   const isCompletePerformanceDatabaseReport = (report: RawReport) => Boolean(report && (report.google_ads_details || report.meta_ads_kpi));
   const isCompleteCombinedDatabaseReport = (report: RawReport) => Boolean(report && (report.ga4_details || report.kpi_summary?.ga4) && (report.google_ads_details || report.meta_ads_kpi));
 
-  const fetchStoredReport = async (siteId: string, startDate: string, endDate: string, cat: string) => {
-    const moduleKey = cat === "SEO" ? "seo" : cat === "Performance Marketing" ? "performance" : cat === "Social Media Marketing" ? "social" : "combined";
-
-    if (moduleKey === "combined") {
-      // Combined reports are stored as separate SEO and Performance records
-      const [seo, perf] = await Promise.all([
-        supabase.from("processed_reports").select("*").eq("site_id", siteId).eq("module", "seo").eq("start_date", startDate).eq("end_date", endDate).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("processed_reports").select("*").eq("site_id", siteId).eq("module", "performance").eq("start_date", startDate).eq("end_date", endDate).order("created_at", { ascending: false }).limit(1).maybeSingle()
-      ]);
-
-      if (seo.data && perf.data) {
-        // Merge them into a single "RawReport" structure that buildCombinedReport expects
-        const mergedRaw: RawReport = {
-          ...seo.data,
-          report_id: `${seo.data.report_id}_${perf.data.report_id}`,
-          kpi_summary: { ...(safeJsonParse(seo.data.kpi_summary) || {}), ...(safeJsonParse(perf.data.kpi_summary) || {}) },
-          google_ads_details: perf.data.google_ads_details,
-          meta_ads_kpi: perf.data.meta_ads_kpi,
-          meta_ads_details: perf.data.meta_ads_details,
-          meta_ads_charts: perf.data.meta_ads_charts,
-          ai_recommendations: [...(normalizeList(seo.data.ai_recommendations)), ...(normalizeList(perf.data.ai_recommendations))],
-          ai_summary: {
-            seo_overview: safeJsonParse(seo.data.ai_summary)?.seo_overview || seo.data.ai_summary || "",
-            performance_overview: safeJsonParse(perf.data.ai_summary)?.performance_overview || perf.data.ai_summary || ""
-          },
-          // Merge lists
-          top_page_titles: [...(normalizeList(seo.data.top_page_titles)), ...(normalizeList(perf.data.top_page_titles))],
-          top_landing_pages: [...(normalizeList(seo.data.top_landing_pages)), ...(normalizeList(perf.data.top_landing_pages))],
-          sessions_by_channel: [...(normalizeList(seo.data.sessions_by_channel)), ...(normalizeList(perf.data.sessions_by_channel))],
-
-          ai_insights: {
-            branding: { ...(safeJsonParse(seo.data.ai_insights)?.branding || {}), ...(safeJsonParse(perf.data.ai_insights)?.branding || {}) },
-            cover: { ...(safeJsonParse(seo.data.ai_insights)?.cover || {}), ...(safeJsonParse(perf.data.ai_insights)?.cover || {}) },
-            conclusion: (safeJsonParse(seo.data.ai_insights)?.conclusion || "") + " " + (safeJsonParse(perf.data.ai_insights)?.conclusion || ""),
-            slides: {
-              ...(safeJsonParse(seo.data.ai_insights)?.slides || {}),
-              ...(safeJsonParse(perf.data.ai_insights)?.slides || {})
-            }
-          },
-          radar_self: { ...(safeJsonParse(seo.data.radar_self) || {}), ...(safeJsonParse(perf.data.radar_self) || {}) }
-        };
-        return buildCombinedReport(mergedRaw, startDate, endDate);
-      }
-      return null;
-    }
-
-    const { data: report, error } = await supabase.from("processed_reports").select("*").eq("site_id", siteId).eq("module", moduleKey).eq("start_date", startDate).eq("end_date", endDate).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (error || !report) {
-      return null;
-    }
-    if (cat === "SEO" && !isCompleteSeoDatabaseReport(report)) return null;
-    if (cat === "Performance Marketing" && !isCompletePerformanceDatabaseReport(report)) return null;
-    if (cat === "Combined Intelligence" && !isCompleteCombinedDatabaseReport(report)) return null;
-    return buildReportFromRow(report, cat, startDate, endDate);
-  };
-
-  const checkSiteCredentials = async () => {
-    const { data, error } = await supabase.from("site_credentials").select("platform").eq("site_id", activeSite.id);
-    if (error || !data?.length) { setErrorMsg(`No credentials found for ${activeSite.name}.`); return false; }
-    return true;
-  };
-
   const loadCompletedReport = async (report_id: string, cat: string, nd: { startDate: string, endDate: string }) => {
     try {
       console.log(`[useReportData] Loading completed report ${report_id}...`);
       for (let attempt = 0; attempt < REPORT_COMPLETION_RETRIES; attempt++) {
-        const { data: report, error } = await supabase.from("processed_reports").select("*").eq("report_id", report_id).maybeSingle();
-        if (error) throw error;
-        if (report) {
+        const response = await fetchWithAuth(`${API_URL}/processed-report/${report_id}`);
+        if (response.ok) {
+          const report = await response.json();
           setReportData(buildReportFromRow(report, cat, nd.startDate, nd.endDate));
           setIsLoading(false);
           return true;
@@ -915,58 +868,52 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
       if (reportIdToQuery.includes('_')) {
         // Handle combined ID format: seoID_perfID
         const [seo_id, perf_id] = reportIdToQuery.split('_');
-        const [seo, perf] = await Promise.all([
-          supabase.from("processed_reports").select("*").eq("report_id", seo_id).maybeSingle(),
-          supabase.from("processed_reports").select("*").eq("report_id", perf_id).maybeSingle()
+        const [seoRes, perfRes] = await Promise.all([
+          fetchWithAuth(`${API_URL}/processed-report/${seo_id}`),
+          fetchWithAuth(`${API_URL}/processed-report/${perf_id}`)
         ]);
 
-        if (seo.data && perf.data) {
+        if (seoRes.ok && perfRes.ok) {
+          const seoData = await seoRes.json();
+          const perfData = await perfRes.json();
           // Use the combined builder
           const mergedRaw: RawReport = {
-            ...seo.data,
+            ...seoData,
             report_id: reportIdToQuery,
-            kpi_summary: { ...(safeJsonParse(seo.data.kpi_summary) || {}), ...(safeJsonParse(perf.data.kpi_summary) || {}) },
-            google_ads_details: perf.data.google_ads_details,
-            meta_ads_kpi: perf.data.meta_ads_kpi,
-            meta_ads_details: perf.data.meta_ads_details,
-            meta_ads_charts: perf.data.meta_ads_charts,
-            ai_recommendations: [...(normalizeList(seo.data.ai_recommendations)), ...(normalizeList(perf.data.ai_recommendations))],
+            kpi_summary: { ...(safeJsonParse(seoData.kpi_summary) || {}), ...(safeJsonParse(perfData.kpi_summary) || {}) },
+            google_ads_details: perfData.google_ads_details,
+            meta_ads_kpi: perfData.meta_ads_kpi,
+            meta_ads_details: perfData.meta_ads_details,
+            meta_ads_charts: perfData.meta_ads_charts,
+            ai_recommendations: [...(normalizeList(seoData.ai_recommendations)), ...(normalizeList(perfData.ai_recommendations))],
             ai_summary: {
-              seo_overview: safeJsonParse(seo.data.ai_summary)?.seo_overview || seo.data.ai_summary || "",
-              performance_overview: safeJsonParse(perf.data.ai_summary)?.performance_overview || perf.data.ai_summary || ""
+              seo_overview: safeJsonParse(seoData.ai_summary)?.seo_overview || seoData.ai_summary || "",
+              performance_overview: safeJsonParse(perfData.ai_summary)?.performance_overview || perfData.ai_summary || ""
             },
-            top_page_titles: [...(normalizeList(seo.data.top_page_titles)), ...(normalizeList(perf.data.top_page_titles))],
-            top_landing_pages: [...(normalizeList(seo.data.top_landing_pages)), ...(normalizeList(perf.data.top_landing_pages))],
-            sessions_by_channel: [...(normalizeList(seo.data.sessions_by_channel)), ...(normalizeList(perf.data.sessions_by_channel))],
+            top_page_titles: [...(normalizeList(seoData.top_page_titles)), ...(normalizeList(perfData.top_page_titles))],
+            top_landing_pages: [...(normalizeList(seoData.top_landing_pages)), ...(normalizeList(perfData.top_landing_pages))],
+            sessions_by_channel: [...(normalizeList(seoData.sessions_by_channel)), ...(normalizeList(perfData.sessions_by_channel))],
             ai_insights: {
-              branding: { ...(safeJsonParse(seo.data.ai_insights)?.branding || {}), ...(safeJsonParse(perf.data.ai_insights)?.branding || {}) },
-              cover: { ...(safeJsonParse(seo.data.ai_insights)?.cover || {}), ...(safeJsonParse(perf.data.ai_insights)?.cover || {}) },
-              conclusion: (safeJsonParse(seo.data.ai_insights)?.conclusion || "") + " " + (safeJsonParse(perf.data.ai_insights)?.conclusion || ""),
-              slides: { ...(safeJsonParse(seo.data.ai_insights)?.slides || {}), ...(safeJsonParse(perf.data.ai_insights)?.slides || {}) }
+              branding: { ...(safeJsonParse(seoData.ai_insights)?.branding || {}), ...(safeJsonParse(perfData.ai_insights)?.branding || {}) },
+              cover: { ...(safeJsonParse(seoData.ai_insights)?.cover || {}), ...(safeJsonParse(perfData.ai_insights)?.cover || {}) },
+              conclusion: (safeJsonParse(seoData.ai_insights)?.conclusion || "") + " " + (safeJsonParse(perfData.ai_insights)?.conclusion || ""),
+              slides: { ...(safeJsonParse(seoData.ai_insights)?.slides || {}), ...(safeJsonParse(perfData.ai_insights)?.slides || {}) }
             },
-            radar_self: { ...(safeJsonParse(seo.data.radar_self) || {}), ...(safeJsonParse(perf.data.radar_self) || {}) }
+            radar_self: { ...(safeJsonParse(seoData.radar_self) || {}), ...(safeJsonParse(perfData.radar_self) || {}) }
           };
           setReportData(buildCombinedReport(mergedRaw, nd.startDate, nd.endDate));
           setIsLoading(false);
           return;
         }
       } else {
-        const { data: report } = await supabase.from("processed_reports").select("*").eq("report_id", reportIdToQuery).maybeSingle();
-        if (report) {
+        const response = await fetchWithAuth(`${API_URL}/processed-report/${reportIdToQuery}`);
+        if (response.ok) {
+          const report = await response.json();
           setReportData(buildReportFromRow(report, cat, nd.startDate, nd.endDate));
           setIsLoading(false);
           return;
         }
       }
-    }
-
-    // 2. Fallback to searching by site/date/module
-    const cached = await fetchStoredReport(siteToQuery.id, nd.startDate, nd.endDate, cat);
-    if (cached) {
-      setReportData(cached);
-      setIsLoading(false);
-      toast.success('Report loaded from intelligence cache');
-      return;
     }
 
     // Shared Mode Enforcement: Guest users cannot trigger new reports or check credentials
@@ -976,21 +923,16 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
       return;
     }
 
-    const hasCredentials = await checkSiteCredentials();
-    if (!hasCredentials) { setIsLoading(false); return; }
-
     if (cat === "Combined Intelligence") {
       try {
         setPollingStatus("Synchronizing Client PPT...");
         const [seoRes, perfRes] = await Promise.all([
-          fetch(`${API_URL}/seo-report`, {
+          fetchWithAuth(`${API_URL}/seo-report`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ user_id: user.id, site_id: siteToQuery.id, start_date: nd.startDate, end_date: nd.endDate, bnb_mode: (cat === 'BnB Report') })
           }),
-          fetch(`${API_URL}/performance-report`, {
+          fetchWithAuth(`${API_URL}/performance-report`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ user_id: user.id, site_id: siteToQuery.id, start_date: nd.startDate, end_date: nd.endDate, bnb_mode: (cat === 'BnB Report') })
           })
         ]);
@@ -1011,9 +953,8 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
 
     const webhookPath = cat === "SEO" ? "seo-report" : cat === "Performance Marketing" ? "performance-report" : cat === "Social Media Marketing" ? "social-report" : "combined-report";
     try {
-      const response = await fetch(`${API_URL}/${webhookPath}`, {
+      const response = await fetchWithAuth(`${API_URL}/${webhookPath}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: user.id, site_id: siteToQuery.id, start_date: nd.startDate, end_date: nd.endDate, bnb_mode: (cat === 'BnB Report') })
       });
       if (!response.ok) throw new Error(`API error ${response.status}`);
@@ -1035,20 +976,26 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
 
       return new Promise((resolve, reject) => {
         const interval = setInterval(async () => {
-          const { data: statusData } = await supabase.from("report_status").select("status, error_message").eq("report_id", rid).maybeSingle();
-          if (statusData) {
-            setPollingStatus(`[${label}] ${statusMap[statusData.status] || statusData.status}`);
-            if (statusData.status === "failed") {
-              clearInterval(interval);
-              reject(new Error(`${label} Failed: ${statusData.error_message || "Unknown error"}`));
-              return;
+          try {
+            const statusRes = await fetchWithAuth(`${API_URL}/report-status/${rid}`);
+            if (statusRes.ok) {
+              const statusData = await statusRes.json();
+              setPollingStatus(`[${label}] ${statusMap[statusData.status] || statusData.status}`);
+              if (statusData.status === "failed") {
+                clearInterval(interval);
+                reject(new Error(`${label} Failed: ${statusData.error_message || "Unknown error"}`));
+                return;
+              }
             }
-          }
 
-          const { data } = await supabase.from("processed_reports").select("*").eq("report_id", rid).maybeSingle();
-          if (data) {
-            clearInterval(interval);
-            resolve(data);
+            const reportRes = await fetchWithAuth(`${API_URL}/processed-report/${rid}`);
+            if (reportRes.ok) {
+              const data = await reportRes.json();
+              clearInterval(interval);
+              resolve(data);
+            }
+          } catch (pollingErr) {
+            console.error(`[useReportData] Polling error for ${label}:`, pollingErr);
           }
         }, REPORT_POLL_INTERVAL_MS);
 
@@ -1133,69 +1080,40 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates:
     const statusMap: Record<string, string> = { 'pending': 'Queuing...', 'fetching_credentials': 'Credentials...', 'fetching_ga4': 'GA4...', 'fetching_gsc': 'GSC...', 'fetching_gads': 'Google Ads...', 'fetching_meta': 'Meta...', 'fetching_data': 'Data...', 'processing': 'Aggregating...', 'generating_ai': 'Consulting AI...', 'completed': 'Finalizing...' };
 
     // Initial check
-    const { data: initialStatus } = await supabase.from("report_status").select("status").eq("report_id", report_id).maybeSingle();
-    if (initialStatus?.status === "completed") {
-      console.log(`[useReportData] Report ${report_id} already completed on first check`);
-      await loadCompletedReport(report_id, cat, nd);
-      return;
-    }
-
-    if (statusChannelRef.current) { statusChannelRef.current.unsubscribe(); statusChannelRef.current = null; }
-    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
-    if (pollingTimeoutRef.current) { clearTimeout(pollingTimeoutRef.current); pollingTimeoutRef.current = null; }
-
-    pollingTimeoutRef.current = setTimeout(() => {
-      pollingTimeoutRef.current = null;
-      if (!pollIntervalRef.current) {
-        console.log(`[useReportData] Realtime fallback triggered for ${report_id}`);
-        pollIntervalRef.current = setInterval(async () => {
-          try {
-            const { data, error } = await supabase.from("report_status").select("status, error_message").eq("report_id", report_id).maybeSingle();
-            if (error) {
-              console.error("[useReportData] Polling status error:", error);
-              return;
-            }
-            if (data) {
-              setPollingStatus(statusMap[data.status] || data.status);
-              if (data.status === "completed") {
-                if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
-                await loadCompletedReport(report_id, cat, nd);
-                toast.success('Neural sync complete (fallback)');
-              } else if (data.status === "failed") {
-                if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
-                setIsLoading(false); setErrorMsg(data.error_message || "Failed.");
-                toast.error('Neural link failed (fallback)');
-              }
-            }
-          } catch (pollingErr) {
-            console.error("[useReportData] Polling interval exception:", pollingErr);
-          }
-        }, REPORT_POLL_INTERVAL_MS);
-      }
-    }, POLLING_FALLBACK_DELAY_MS);
-
-    statusChannelRef.current = supabase.channel(`report-status-${report_id}`).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'report_status', filter: `report_id=eq.${report_id}` }, async (payload: { new: { status: string; error_message?: string } }) => {
-      const newStatus = payload.new.status;
-      console.log(`[useReportData] Realtime status update: ${newStatus}`);
-      setPollingStatus(statusMap[newStatus] || newStatus);
-      if (newStatus === "completed" || newStatus === "failed") {
-        if (statusChannelRef.current) { statusChannelRef.current.unsubscribe(); statusChannelRef.current = null; }
-        if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
-        if (pollingTimeoutRef.current) { clearTimeout(pollingTimeoutRef.current); pollingTimeoutRef.current = null; }
-
-        if (newStatus === "completed") {
+    try {
+      const initialRes = await fetchWithAuth(`${API_URL}/report-status/${report_id}`);
+      if (initialRes.ok) {
+        const initialStatus = await initialRes.json();
+        if (initialStatus?.status === "completed") {
+          console.log(`[useReportData] Report ${report_id} already completed on first check`);
           await loadCompletedReport(report_id, cat, nd);
-          toast.success('Neural sync complete');
-        } else {
-          setIsLoading(false); setErrorMsg(payload.new.error_message || "Failed.");
-          toast.error('Neural link failed');
+          return;
         }
       }
-    }).subscribe((status) => {
-      if (status !== 'SUBSCRIBED') {
-        console.warn(`[useReportData] Subscription status: ${status}`);
+    } catch (e) {}
+
+    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
+
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetchWithAuth(`${API_URL}/report-status/${report_id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        setPollingStatus(statusMap[data.status] || data.status);
+        if (data.status === "completed") {
+          if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
+          await loadCompletedReport(report_id, cat, nd);
+          toast.success('Neural sync complete');
+        } else if (data.status === "failed") {
+          if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
+          setIsLoading(false); setErrorMsg(data.error_message || "Failed.");
+          toast.error('Neural link failed');
+        }
+      } catch (pollingErr) {
+        console.error("[useReportData] Polling interval exception:", pollingErr);
       }
-    });
+    }, REPORT_POLL_INTERVAL_MS);
   };
 
   return { reportData, setReportData, isLoading, errorMsg, setErrorMsg, pollingStatus, fetchReportData };

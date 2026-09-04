@@ -179,11 +179,25 @@ export default function SiteManagement({
     e.preventDefault();
     setActiveSettingsModal(null);
     try {
+      const token = (await (supabase.auth.getSession())).data.session?.access_token;
       const tasks: Promise<any>[] = [];
+
+      const callApi = async (path: string, body: any) => {
+        const res = await fetch(`${API_URL}${path}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      };
 
       // Save Google Protocol
       if (googleClientId || googleClientSecret) {
-        tasks.push(supabase.from("user_credentials").upsert({
+        tasks.push(callApi("/user-credentials", {
           user_id: user.id,
           platform: "google_oauth",
           credentials: {
@@ -197,7 +211,7 @@ export default function SiteManagement({
 
       // Save Meta Protocol
       if (metaAppId || metaAppSecret) {
-        tasks.push(supabase.from("user_credentials").upsert({
+        tasks.push(callApi("/user-credentials", {
           user_id: user.id,
           platform: "meta_app_creds",
           credentials: {
@@ -208,7 +222,7 @@ export default function SiteManagement({
         }));
       }
 
-      if (googleAdsDevToken) tasks.push(supabase.from("user_credentials").upsert({ user_id: user.id, platform: "google_developer_token", credentials: { developer_token: googleAdsDevToken } }));
+      if (googleAdsDevToken) tasks.push(callApi("/user-credentials", { user_id: user.id, platform: "google_developer_token", credentials: { developer_token: googleAdsDevToken } }));
       if (metaToken) {
         if (metaToken !== sharedCreds.metaLongLivedToken) {
           tasks.push((async () => {
@@ -217,7 +231,7 @@ export default function SiteManagement({
             const d = await res.json();
             setMetaTokenExpiry(d.expires_at);
           })());
-        } else tasks.push(supabase.from("user_credentials").upsert({ user_id: user.id, platform: "meta_long_lived_token", credentials: { token: metaToken, expires_at: metaTokenExpiry } }));
+        } else tasks.push(callApi("/user-credentials", { user_id: user.id, platform: "meta_long_lived_token", credentials: { token: metaToken, expires_at: metaTokenExpiry } }));
       }
       await Promise.all(tasks);
       onRefresh();
@@ -229,6 +243,7 @@ export default function SiteManagement({
     if (isSaving) return;
     setIsSaving(true);
     try {
+      const token = (await (supabase.auth.getSession())).data.session?.access_token;
       const payload: any = {
         name: name.trim(),
         url: url.trim(),
@@ -250,9 +265,19 @@ export default function SiteManagement({
       if (phone.trim()) payload.phone = phone.trim();
       if (email.trim()) payload.email = email.trim();
 
-      const siteQuery = editingSiteId ? supabase.from("sites").update(payload).eq("id", editingSiteId).select() : supabase.from("sites").insert({ user_id: user.id, ...payload }).select();
-      const siteResp = await siteQuery;
-      if (siteResp.error) throw siteResp.error;
+      const siteUrl = editingSiteId ? `${API_URL}/sites?id=eq.${editingSiteId}` : `${API_URL}/sites`;
+      const siteRes = await fetch(siteUrl, {
+        method: editingSiteId ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+          "Prefer": "return=representation"
+        },
+        body: JSON.stringify(editingSiteId ? payload : { user_id: user.id, ...payload })
+      });
+      if (!siteRes.ok) throw new Error(await siteRes.text());
+      const siteData = await siteRes.json();
+
       const perSiteCreds = [
           { platform: "ga4", data: { property_id: ga4Id.trim() } },
           { platform: "google_search_console", data: { site_url: gscUrl.trim() } },
@@ -261,8 +286,19 @@ export default function SiteManagement({
           { platform: "meta_business_suite", data: { page_id: fbPageId.trim() } },
           { platform: "instagram", data: { instagram_business_id: igBusId.trim() } }
       ];
-      const siteId = siteResp.data?.[0].id;
-      const credTasks = perSiteCreds.filter(c => Object.values(c.data).some(v => v)).map(c => supabase.from("site_credentials").upsert({ site_id: siteId, platform: c.platform, credentials: c.data }, { onConflict: 'site_id,platform' }));
+
+      const siteId = Array.isArray(siteData) ? siteData[0].id : siteData.id;
+      const credTasks = perSiteCreds.filter(c => Object.values(c.data).some(v => v)).map(async (c) => {
+        const res = await fetch(`${API_URL}/site-credentials`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ site_id: siteId, platform: c.platform, credentials: c.data })
+        });
+        if (!res.ok) throw new Error(await res.text());
+      });
       await Promise.all(credTasks);
       setIsAddingNew(false); setEditingSiteId(null); resetFormState();
       onRefresh();
@@ -304,15 +340,20 @@ export default function SiteManagement({
     if (!profileName.trim() || !profileAgencyName.trim()) return;
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch(`${API_URL}/profile`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
           name: profileName.trim(),
           agency_name: profileAgencyName.trim()
         })
-        .eq("id", user.id);
+      });
 
-      if (error) throw error;
+      if (!res.ok) throw new Error(await res.text());
       setIsEditingProfile(false);
       onRefresh();
     } catch (err: any) {
@@ -328,28 +369,33 @@ export default function SiteManagement({
 
     setIsUploading(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${user.id}/${Math.random()}.${fileExt}`;
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const formData = new FormData();
+      formData.append("file", file);
 
-      // 1. Upload to storage
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file);
+      // 1. Upload to FastAPI backend
+      const uploadRes = await fetch(`${API_URL}/upload`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        },
+        body: formData
+      });
 
-      if (uploadError) throw uploadError;
+      if (!uploadRes.ok) throw new Error(await uploadRes.text());
+      const { url } = await uploadRes.json();
 
-      // 2. Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+      // 2. Update profile with returned URL
+      const updateRes = await fetch(`${API_URL}/profile`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ avatar_url: url })
+      });
 
-      // 3. Update profile
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', user.id);
-
-      if (updateError) throw updateError;
+      if (!updateRes.ok) throw new Error(await updateRes.text());
 
       onRefresh();
     } catch (err: any) {
@@ -365,20 +411,36 @@ export default function SiteManagement({
 
     setIsUploadingSiteImage(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${user.id}/${Math.random()}.${fileExt}`;
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const formData = new FormData();
+      formData.append("file", file);
 
-      const { error: uploadError } = await supabase.storage
-        .from('site-images')
-        .upload(filePath, file);
+      const res = await fetch(`${API_URL}/upload`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        },
+        body: formData
+      });
 
-      if (uploadError) throw uploadError;
+      if (!res.ok) throw new Error(await res.text());
+      const { url } = await res.json();
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('site-images')
-        .getPublicUrl(filePath);
+      setSiteImageUrl(url);
 
-      setSiteImageUrl(publicUrl);
+      // If editing an existing site, update it immediately
+      if (editingSiteId) {
+        const updateRes = await fetch(`${API_URL}/sites/${editingSiteId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ image_url: url })
+        });
+        if (!updateRes.ok) throw new Error(await updateRes.text());
+        onRefresh();
+      }
     } catch (err: any) {
       alert("Error uploading site image: " + err.message);
     } finally {

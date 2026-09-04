@@ -1,27 +1,26 @@
-import os
 import requests
-from supabase import create_client
-from dotenv import load_dotenv
-
-# Use the path to your .env file
-load_dotenv(".env")
-
-url = os.getenv("SUPABASE_URL")
-key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-supabase = create_client(url, key)
+from app.database import SessionLocal, UserCredential
 
 # The user ID from your logs
 user_id = "72a88dd1-4d07-4fdb-b5f1-a441a392c762"
 
 print(f"--- Google Token Diagnostic for User: {user_id} ---")
 
-res = supabase.table("user_credentials").select("*").eq("user_id", user_id).eq("platform", "google_oauth").execute()
+db = SessionLocal()
+try:
+    res = db.query(UserCredential).filter(
+        UserCredential.user_id == user_id,
+        UserCredential.platform == "google_oauth"
+    ).first()
 
-if not res.data:
-    print("❌ ERROR: No Google credentials found in Supabase.")
-    exit()
+    if not res:
+        print("❌ ERROR: No Google credentials found in MySQL database.")
+        exit()
 
-creds = res.data[0]['credentials']
+    creds = res.credentials
+finally:
+    db.close()
+
 refresh_token = creds.get('refresh_token')
 client_id = creds.get('client_id')
 client_secret = creds.get('client_secret')

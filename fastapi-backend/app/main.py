@@ -9,7 +9,10 @@ import os
 # Disable PKCE for Google Auth to ensure compatibility with all environments
 os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
 
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, BackgroundTasks, HTTPException, File, UploadFile
+import shutil
+
+# ... existing imports
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.openapi.docs import (
@@ -17,6 +20,13 @@ from fastapi.openapi.docs import (
     get_swagger_ui_oauth2_redirect_html,
 )
 from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+import os
+
+# Create static directory if not exists
+os.makedirs("static/uploads", exist_ok=True)
+
+# ...
 
 from app.models import (
     ReportRequest,
@@ -24,8 +34,15 @@ from app.models import (
     AdviceSummarizeRequest,
 )
 
-from app.supabase_client import supabase
 from app.config import settings
+from app.database import SessionLocal, ProcessedReport, ReportStatus, Site, UserCredential, SiteCredential, Profile, SharedReport
+from app.auth import get_current_user
+from sqlalchemy import desc
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from app.database import get_db
+from datetime import datetime
+from typing import List, Dict, Any, Optional
 
 
 # ============================================================
@@ -38,13 +55,9 @@ print("============================================================")
 print("---> Starting BNB.AI API Server...")
 
 try:
-    print(
-        "---> Configured Supabase URL: "
-        + settings.supabase_url[:20]
-        + "..."
-    )
+    print("---> MySQL Database configured")
 except Exception:
-    print("---> Supabase URL configured")
+    print("---> Database configuration error")
 
 
 # ============================================================
@@ -64,29 +77,21 @@ except Exception:
 
 app = FastAPI(
     title="BNB.AI Marketing Intelligences API",
-    description="""
-BNB.AI Marketing Intelligence API.
-
-Available services:
-
-- Google OAuth
-- Meta OAuth
-- Performance reports
-- SEO reports
-- Social reports
-- AI advice summarization
-- Supabase integration
-""",
-    version="0.1.0",
-
-    # Public URL is /api/...
-    root_path="/api",
-
-    # IMPORTANT
-    docs_url=None,
-    redoc_url=None,
-    openapi_url=None,
+    # ...
 )
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.post("/upload", tags=["Management"])
+async def upload_file(file: UploadFile = File(...), user_id: str = Depends(get_current_user)):
+    file_ext = file.filename.split(".")[-1]
+    file_name = f"{uuid.uuid4()}.{file_ext}"
+    file_path = os.path.join("static/uploads", file_name)
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    return {"url": f"{settings.api_url}/static/uploads/{file_name}"}
 
 
 # ============================================================
@@ -149,7 +154,196 @@ def create_openapi_schema():
         }
     ]
 
-    # ========================================================
+    return schema
+
+app.openapi_schema = create_openapi_schema()
+
+
+# ============================================================
+# SITE & CREDENTIAL MANAGEMENT (Local DB)
+# ============================================================
+
+from app.models import SiteCreate, UserCredentialCreate, SiteCredentialCreate, ProfileUpdate, SharedReportCreate
+
+@app.get("/profile", tags=["Management"])
+async def get_profile(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    profile = db.query(Profile).filter(Profile.id == user_id).first()
+    return profile
+
+@app.patch("/profile", tags=["Management"])
+async def update_profile(profile_data: ProfileUpdate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    profile = db.query(Profile).filter(Profile.id == user_id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    for key, value in profile_data.model_dump(exclude_unset=True).items():
+        setattr(profile, key, value)
+
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+@app.get("/sites", tags=["Management"])
+async def list_sites(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    sites = db.query(Site).filter(Site.user_id == user_id).all()
+    return sites
+
+@app.get("/shared-report-info/{share_id}", tags=["Public"])
+async def get_shared_report_info(share_id: str, db: Session = Depends(get_db)):
+    share = db.query(SharedReport).filter(SharedReport.id == share_id).first()
+    if not share:
+        raise HTTPException(status_code=404, detail="Shared report not found")
+
+    # Also fetch site info for branding
+    site = db.query(Site).filter(Site.id == share.site_id).first()
+
+    return {
+        "share": share,
+        "site": {
+            "name": site.name if site else "Unknown",
+            "image_url": site.image_url if site else None
+        }
+    }
+
+@app.post("/shared-reports", tags=["Management"])
+async def create_shared_report(share_data: SharedReportCreate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Verify site ownership
+    site = db.query(Site).filter(Site.id == share_data.site_id, Site.user_id == user_id).first()
+    if not site:
+        raise HTTPException(status_code=403, detail="Not authorized for this site")
+
+    new_share = SharedReport(
+        id=str(uuid.uuid4()),
+        **share_data.model_dump()
+    )
+    db.add(new_share)
+    db.commit()
+    db.refresh(new_share)
+    return new_share
+
+@app.post("/sites", tags=["Management"])
+async def create_site(site_data: SiteCreate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    new_site = Site(
+        id=str(uuid.uuid4()),
+        user_id=user_id,
+        **site_data.model_dump()
+    )
+    db.add(new_site)
+    db.commit()
+    db.refresh(new_site)
+    return new_site
+
+@app.patch("/sites/{site_id}", tags=["Management"])
+async def update_site(site_id: str, site_data: SiteCreate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    site = db.query(Site).filter(Site.id == site_id, Site.user_id == user_id).first()
+    if not site:
+        raise HTTPException(status_code=404, detail="Site not found")
+
+    for key, value in site_data.model_dump(exclude_unset=True).items():
+        setattr(site, key, value)
+
+    db.commit()
+    db.refresh(site)
+    return site
+
+@app.delete("/sites/{site_id}", tags=["Management"])
+async def delete_site(site_id: str, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    site = db.query(Site).filter(Site.id == site_id, Site.user_id == user_id).first()
+    if not site:
+        raise HTTPException(status_code=404, detail="Site not found")
+    db.delete(site)
+    db.commit()
+    return {"success": True}
+
+@app.get("/user-credentials", tags=["Management"])
+async def list_user_credentials(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    creds = db.query(UserCredential).filter(UserCredential.user_id == user_id).all()
+    return creds
+
+@app.post("/user-credentials", tags=["Management"])
+async def update_user_credentials(cred_data: UserCredentialCreate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    existing = db.query(UserCredential).filter(UserCredential.user_id == user_id, UserCredential.platform == cred_data.platform).first()
+    if existing:
+        existing.credentials = cred_data.credentials
+        existing.updated_at = datetime.utcnow()
+    else:
+        new_cred = UserCredential(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            platform=cred_data.platform,
+            credentials=cred_data.credentials
+        )
+        db.add(new_cred)
+    db.commit()
+    return {"success": True}
+
+@app.post("/site-credentials", tags=["Management"])
+async def update_site_credentials(cred_data: SiteCredentialCreate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Verify site ownership
+    site = db.query(Site).filter(Site.id == cred_data.site_id, Site.user_id == user_id).first()
+    if not site:
+        raise HTTPException(status_code=404, detail="Site not found")
+
+    existing = db.query(SiteCredential).filter(SiteCredential.site_id == cred_data.site_id, SiteCredential.platform == cred_data.platform).first()
+    if existing:
+        existing.credentials = cred_data.credentials
+        existing.updated_at = datetime.utcnow()
+    else:
+        new_cred = SiteCredential(
+            id=str(uuid.uuid4()),
+            site_id=cred_data.site_id,
+            platform=cred_data.platform,
+            credentials=cred_data.credentials
+        )
+        db.add(new_cred)
+    db.commit()
+    return {"success": True}
+
+@app.get("/report-status/{report_id}", tags=["Reports"])
+async def get_report_status(report_id: str, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    status = db.query(ReportStatus).filter(ReportStatus.report_id == report_id).first()
+    if not status:
+        raise HTTPException(status_code=404, detail="Report status not found")
+    return status
+
+@app.get("/processed-report/{report_id}", tags=["Reports"])
+async def get_processed_report(
+    report_id: str,
+    site_id: Optional[str] = None,
+    module: Optional[str] = None,
+    user_id: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if report_id == "latest" and site_id and module:
+        report = db.query(ProcessedReport).filter(
+            ProcessedReport.site_id == site_id,
+            ProcessedReport.module == module
+        ).order_by(desc(ProcessedReport.created_at)).first()
+    else:
+        report = db.query(ProcessedReport).filter(ProcessedReport.report_id == report_id).first()
+
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return report
+
+@app.patch("/processed-report/{report_id}", tags=["Reports"])
+async def update_processed_report(
+    report_id: str,
+    update_data: Dict[str, Any],
+    user_id: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    report = db.query(ProcessedReport).filter(ProcessedReport.report_id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    for key, value in update_data.items():
+        if hasattr(report, key):
+            setattr(report, key, value)
+
+    db.commit()
+    db.refresh(report)
+    return report
     # INFO
     # ========================================================
 
@@ -334,7 +528,7 @@ async def root_page():
                     <li>SEO Reports</li>
                     <li>Social Reports</li>
                     <li>AI Advice Summarization</li>
-                    <li>Supabase Integration</li>
+                    <li>Local MySQL Integration</li>
                 </ul>
 
                 <a href="/api/docs">Open API Documentation</a>
@@ -359,9 +553,7 @@ async def health_check():
 
     return {
         "status": "online",
-        "supabase_connected": bool(
-            settings.supabase_url
-        ),
+        "database_connected": True
     }
 
 
@@ -395,41 +587,23 @@ def check_existing_report(
     start_date: str,
     end_date: str,
 ):
-
+    db = SessionLocal()
     try:
+        existing = db.query(ProcessedReport).filter(
+            ProcessedReport.site_id == site_id,
+            ProcessedReport.module == module,
+            ProcessedReport.start_date == start_date,
+            ProcessedReport.end_date == end_date
+        ).order_by(desc(ProcessedReport.created_at)).first()
 
-        result = (
-            supabase
-            .table("processed_reports")
-            .select("report_id")
-            .eq("site_id", site_id)
-            .eq("module", module)
-            .eq("start_date", start_date)
-            .eq("end_date", end_date)
-            .order(
-                "created_at",
-                desc=True,
-            )
-            .limit(1)
-            .execute()
-        )
-
-        if result.data:
-
-            report_id = result.data[0]["report_id"]
-
-            print(
-                f"---> Existing {module} report: "
-                f"{report_id}"
-            )
-
-            return report_id
+        if existing:
+            print(f"---> Existing {module} report: {existing.report_id}")
+            return existing.report_id
 
     except Exception as e:
-
-        print(
-            f"---> Cache check failed: {e}"
-        )
+        print(f"---> Cache check failed: {e}")
+    finally:
+        db.close()
 
     return None
 
@@ -446,10 +620,11 @@ def check_existing_report(
 async def performance_report(
     req: ReportRequest,
     background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
 ):
 
     print(
-        f"---> Received Performance report request "
+        f"---> Received performance report request "
         f"for site: {req.site_id}"
     )
 
@@ -474,47 +649,28 @@ async def performance_report(
         )
 
     # --------------------------------------------------------
-    # CACHE
+    # CACHE (Local MySQL)
     # --------------------------------------------------------
 
     try:
+        existing = db.query(ProcessedReport).filter(
+            ProcessedReport.site_id == req.site_id,
+            ProcessedReport.module == "performance",
+            ProcessedReport.start_date == req.start_date,
+            ProcessedReport.end_date == req.end_date
+        ).order_by(desc(ProcessedReport.created_at)).first()
 
-        result = (
-            supabase
-            .table("processed_reports")
-            .select("*")
-            .eq("site_id", req.site_id)
-            .eq("module", "performance")
-            .eq("start_date", req.start_date)
-            .eq("end_date", req.end_date)
-            .order(
-                "created_at",
-                desc=True,
-            )
-            .limit(1)
-            .execute()
-        )
-
-        if result.data:
-
-            existing = result.data[0]
-
-            print(
-                "---> Found cached performance report: "
-                f"{existing['report_id']}"
-            )
-
+        if existing:
+            print(f"---> Found cached performance report: {existing.report_id}")
+            # Convert SQLAlchemy object to dict for response if needed
             return {
                 "success": True,
-                "report_id": existing["report_id"],
-                "data": existing,
+                "report_id": existing.report_id,
+                "data": {c.name: getattr(existing, c.name) for c in existing.__table__.columns},
             }
 
     except Exception as e:
-
-        print(
-            f"---> Performance cache check failed: {e}"
-        )
+        print(f"---> Performance cache check failed: {e}")
 
     # --------------------------------------------------------
     # NEW REPORT
@@ -523,36 +679,23 @@ async def performance_report(
     report_id = str(uuid.uuid4())
 
     try:
-
-        supabase.table(
-            "report_status"
-        ).insert(
-            {
-                "report_id": report_id,
-                "user_id": req.user_id,
-                "site_id": req.site_id,
-                "module": "performance",
-                "status": "pending",
-            }
-        ).execute()
-
-        print(
-            "---> Performance status created: "
-            f"{report_id}"
+        new_status = ReportStatus(
+            report_id=report_id,
+            user_id=req.user_id,
+            site_id=req.site_id,
+            module="performance",
+            status="pending"
         )
+        db.add(new_status)
+        db.commit()
+
+        print(f"---> Performance status created in Local DB: {report_id}")
 
     except Exception as e:
-
-        print(
-            f"!!! Performance database error: {e}"
-        )
-
+        print(f"!!! Performance database error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=(
-                "Database Error: "
-                f"{str(e)}"
-            ),
+            detail=f"Local Database Error: {str(e)}",
         )
 
     background_tasks.add_task(
@@ -583,6 +726,7 @@ async def performance_report(
 async def seo_report(
     req: ReportRequest,
     background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
 ):
 
     print(
@@ -611,47 +755,26 @@ async def seo_report(
         )
 
     # --------------------------------------------------------
-    # CACHE
+    # CACHE (Local MySQL)
     # --------------------------------------------------------
 
     try:
+        existing = db.query(ProcessedReport).filter(
+            ProcessedReport.site_id == req.site_id,
+            ProcessedReport.module == "seo",
+            ProcessedReport.start_date == req.start_date,
+            ProcessedReport.end_date == req.end_date
+        ).order_by(desc(ProcessedReport.created_at)).first()
 
-        result = (
-            supabase
-            .table("processed_reports")
-            .select("*")
-            .eq("site_id", req.site_id)
-            .eq("module", "seo")
-            .eq("start_date", req.start_date)
-            .eq("end_date", req.end_date)
-            .order(
-                "created_at",
-                desc=True,
-            )
-            .limit(1)
-            .execute()
-        )
-
-        if result.data:
-
-            existing = result.data[0]
-
-            print(
-                "---> Found cached SEO report: "
-                f"{existing['report_id']}"
-            )
-
+        if existing:
+            print(f"---> Found cached SEO report: {existing.report_id}")
             return {
                 "success": True,
-                "report_id": existing["report_id"],
-                "data": existing,
+                "report_id": existing.report_id,
+                "data": {c.name: getattr(existing, c.name) for c in existing.__table__.columns},
             }
-
     except Exception as e:
-
-        print(
-            f"---> SEO cache check failed: {e}"
-        )
+        print(f"---> SEO cache check failed: {e}")
 
     # --------------------------------------------------------
     # NEW REPORT
@@ -660,36 +783,23 @@ async def seo_report(
     report_id = str(uuid.uuid4())
 
     try:
-
-        supabase.table(
-            "report_status"
-        ).insert(
-            {
-                "report_id": report_id,
-                "user_id": req.user_id,
-                "site_id": req.site_id,
-                "module": "seo",
-                "status": "pending",
-            }
-        ).execute()
-
-        print(
-            "---> SEO status created: "
-            f"{report_id}"
+        new_status = ReportStatus(
+            report_id=report_id,
+            user_id=req.user_id,
+            site_id=req.site_id,
+            module="seo",
+            status="pending"
         )
+        db.add(new_status)
+        db.commit()
+
+        print(f"---> SEO status created in Local DB: {report_id}")
 
     except Exception as e:
-
-        print(
-            f"!!! SEO database error: {e}"
-        )
-
+        print(f"!!! SEO database error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=(
-                "Database Error: "
-                f"{str(e)}"
-            ),
+            detail=f"Local Database Error: {str(e)}",
         )
 
     background_tasks.add_task(
@@ -720,6 +830,7 @@ async def seo_report(
 async def social_report(
     req: ReportRequest,
     background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
 ):
 
     print(
@@ -748,47 +859,26 @@ async def social_report(
         )
 
     # --------------------------------------------------------
-    # CACHE
+    # CACHE (Local MySQL)
     # --------------------------------------------------------
 
     try:
+        existing = db.query(ProcessedReport).filter(
+            ProcessedReport.site_id == req.site_id,
+            ProcessedReport.module == "social",
+            ProcessedReport.start_date == req.start_date,
+            ProcessedReport.end_date == req.end_date
+        ).order_by(desc(ProcessedReport.created_at)).first()
 
-        result = (
-            supabase
-            .table("processed_reports")
-            .select("*")
-            .eq("site_id", req.site_id)
-            .eq("module", "social")
-            .eq("start_date", req.start_date)
-            .eq("end_date", req.end_date)
-            .order(
-                "created_at",
-                desc=True,
-            )
-            .limit(1)
-            .execute()
-        )
-
-        if result.data:
-
-            existing = result.data[0]
-
-            print(
-                "---> Found cached social report: "
-                f"{existing['report_id']}"
-            )
-
+        if existing:
+            print(f"---> Found cached social report: {existing.report_id}")
             return {
                 "success": True,
-                "report_id": existing["report_id"],
-                "data": existing,
+                "report_id": existing.report_id,
+                "data": {c.name: getattr(existing, c.name) for c in existing.__table__.columns},
             }
-
     except Exception as e:
-
-        print(
-            f"---> Social cache check failed: {e}"
-        )
+        print(f"---> Social cache check failed: {e}")
 
     # --------------------------------------------------------
     # NEW REPORT
@@ -797,36 +887,23 @@ async def social_report(
     report_id = str(uuid.uuid4())
 
     try:
-
-        supabase.table(
-            "report_status"
-        ).insert(
-            {
-                "report_id": report_id,
-                "user_id": req.user_id,
-                "site_id": req.site_id,
-                "module": "social",
-                "status": "pending",
-            }
-        ).execute()
-
-        print(
-            "---> Social status created: "
-            f"{report_id}"
+        new_status = ReportStatus(
+            report_id=report_id,
+            user_id=req.user_id,
+            site_id=req.site_id,
+            module="social",
+            status="pending"
         )
+        db.add(new_status)
+        db.commit()
+
+        print(f"---> Social status created in Local DB: {report_id}")
 
     except Exception as e:
-
-        print(
-            f"!!! Social database error: {e}"
-        )
-
+        print(f"!!! Social database error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=(
-                "Database Error: "
-                f"{str(e)}"
-            ),
+            detail=f"Local Database Error: {str(e)}",
         )
 
     background_tasks.add_task(
@@ -855,6 +932,7 @@ async def social_report(
 )
 async def api_summarize_advice(
     req: AdviceSummarizeRequest,
+    db: Session = Depends(get_db)
 ):
 
     print(
@@ -888,21 +966,10 @@ async def api_summarize_advice(
             req.advice_list
         )
 
-        (
-            supabase
-            .table("processed_reports")
-            .update(
-                {
-                    "ai_recommendations_summarized":
-                        summarized
-                }
-            )
-            .eq(
-                "report_id",
-                req.report_id,
-            )
-            .execute()
-        )
+        report = db.query(ProcessedReport).filter(ProcessedReport.report_id == req.report_id).first()
+        if report:
+            report.ai_recommendations_summarized = summarized
+            db.commit()
 
         return {
             "success": True,

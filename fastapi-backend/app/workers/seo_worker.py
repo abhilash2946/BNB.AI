@@ -1,4 +1,12 @@
-from app.supabase_client import supabase
+from app.utils.db_worker_helpers import (
+    update_db_report_status,
+    get_db_site_credentials,
+    get_db_site_info,
+    save_db_processed_report,
+    get_db_competitor_insights,
+    upsert_db_competitor_insight,
+    get_db_competitor_insight
+)
 from app.services.ga4 import (
     get_ga4_token,
     fetch_ga4_totals,
@@ -342,12 +350,12 @@ async def scrape_bing_fallback(query: str) -> list:
 
 async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: str, report_id: str, bnb_mode: bool = False):
     print(f"---> Background Task Started for SEO report {report_id} (BnB Mode: {bnb_mode})")
-    supabase.table("report_status").update({"status": "fetching_data"}).eq("report_id", report_id).execute()
+    update_db_report_status(report_id, "fetching_data")
 
     try:
         # 1. Fetch Credentials
-        creds_resp = supabase.table("site_credentials").select("platform, credentials").eq("site_id", site_id).in_("platform", ["ga4", "google_search_console", "gbp", "google_business_profile"]).execute()
-        creds_map = {row["platform"]: row["credentials"] for row in creds_resp.data} if creds_resp and creds_resp.data else {}
+        creds_list = get_db_site_credentials(site_id, ["ga4", "google_search_console", "gbp", "google_business_profile"])
+        creds_map = {row["platform"]: row["credentials"] for row in creds_list}
         print(f"---> Available Platforms for Site: {list(creds_map.keys())}")
 
         ga4_creds = creds_map.get("ga4")
@@ -475,8 +483,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
         self_radar = compute_self_radar_scores(ga4_totals, gsc_agg, events_by_event_name, sessions_by_channel)
 
         # 7. Competitors
-        site_resp = supabase.table("sites").select("name, url, industry, city").eq("id", site_id).execute()
-        site_info = site_resp.data[0] if site_resp.data else {}
+        site_info = get_db_site_info(site_id)
         site_city = site_info.get("city")
         competitor_insights = []
         if site_city:
@@ -487,10 +494,10 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
             # A. Fetch Historical Competitors first
             try:
                 # Try fetching with the new column and source filter
-                history = supabase.table("competitor_insights").select("competitor_url, discovery_query").eq("site_id", site_id).eq("source_module", "seo").execute()
+                history_data = get_db_competitor_insights(site_id, "seo")
 
-                if history and history.data:
-                    for item in history.data:
+                if history_data:
+                    for item in history_data:
                         h_url = item["competitor_url"]
                         h_query = item.get("discovery_query", "Historical Cache")
                         h_domain = h_url.replace("https://", "").replace("http://", "").split('/')[0].replace("www.", "").lower()
@@ -552,22 +559,22 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                 query = competitor_discovery_map.get(domain, "Local Search")
 
                 print(f"DEBUG: Processing competitor: {domain} ({url})")
-                cached = supabase.table("competitor_insights").select("*").eq("site_id", site_id).eq("competitor_url", url).eq("source_module", "seo").execute()
+                cached_data = get_db_competitor_insight(site_id, url, "seo")
 
-                if cached.data and cached.data[0].get("extracted_at"):
-                    last = safe_parse_iso(cached.data[0]["extracted_at"])
+                if cached_data and cached_data.get("extracted_at"):
+                    last = safe_parse_iso(cached_data["extracted_at"])
                     if last and last > datetime.now(timezone.utc) - timedelta(days=FRESHNESS_THRESHOLD_DAYS):
-                        status = cached.data[0].get("full_text")
+                        status = cached_data.get("full_text")
                         if status in ["ERROR_404", "ERROR_SITE_DOWN"]:
                             return None
 
                         print(f"Using cached insights for {domain}")
                         return {
                             "competitor_name": clean_domain(domain), "url": url,
-                            "full_text": cached.data[0].get("full_text") or cached.data[0].get("raw_text_preview", ""),
-                            "key_phrases": cached.data[0].get("key_phrases", []), "cta": cached.data[0].get("cta", []),
-                            "entities": cached.data[0].get("entities", {}), "trust_signals": cached.data[0].get("trust_signals", []),
-                            "discovery_query": cached.data[0].get("discovery_query") or query
+                            "full_text": cached_data.get("full_text") or cached_data.get("raw_text_preview", ""),
+                            "key_phrases": cached_data.get("key_phrases", []), "cta": cached_data.get("cta", []),
+                            "entities": cached_data.get("entities", {}), "trust_signals": cached_data.get("trust_signals", []),
+                            "discovery_query": cached_data.get("discovery_query") or query
                         }
 
                 # Re-crawling (Sequential as per user request to avoid IP flagging)
@@ -578,7 +585,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                         "full_text": content, "extracted_at": datetime.now(timezone.utc).isoformat(),
                         "source_module": "seo"
                      }
-                     supabase.table("competitor_insights").upsert(payload, on_conflict="site_id,competitor_url,source_module").execute()
+                     upsert_db_competitor_insight(payload)
                      return None
 
                 if content and len(content) > 100:
@@ -595,7 +602,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                         "discovery_query": query, "source_module": "seo"
                     }
                     try:
-                        supabase.table("competitor_insights").upsert(payload, on_conflict="site_id,competitor_url,source_module").execute()
+                        upsert_db_competitor_insight(payload)
                     except Exception: pass
 
                     return {
@@ -655,7 +662,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
 
         # 8. Call Gemini (3 Efficient Tasks)
         print("---> Generating AI Analysis (3 Efficient Tasks)...")
-        supabase.table("report_status").update({"status": "generating_ai"}).eq("report_id", report_id).execute()
+        update_db_report_status(report_id, "generating_ai")
 
         # Build the 4 consolidated prompts (Split Competitors into 2 batches to avoid truncation)
         site_data = {
@@ -825,7 +832,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
         # 10. Store to Database
         chart_data = [{"label": d["date"], "valueA": d["users"], "valueB": max(0, d["users"]-d["newUsers"]), "valueC": 0} for d in daily_ga4]
 
-        supabase.table("processed_reports").insert({
+        save_db_processed_report({
             "report_id": report_id, "user_id": user_id, "site_id": site_id, "module": "seo",
             "start_date": start_date, "end_date": end_date,
             "kpi_summary": {"ga4": ga4_totals, "gsc": gsc_agg, "gsc_prev": gsc_agg_prev, "cwv": cwv_data},
@@ -856,18 +863,15 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
             "improvement_roadmap": ai_result.get("improvement_roadmap"), "competitor_intelligence": {"competitors": competitor_breakdown, "overall_threat_summary": overall_threat_summary},
             "section_advice": section_advice, "ai_slide_descriptions": ai_result.get("slide_descriptions", {}),
             "seo_work_details": seo_work_details, "gbp_details": gbp_details
-        }).execute()
+        })
 
-        supabase.table("report_status").update({"status": "completed", "completed_at": datetime.now(timezone.utc).isoformat()}).eq("report_id", report_id).execute()
+        update_db_report_status(report_id, "completed")
         print(f"---> DONE: SEO report {report_id}")
 
     except Exception as e:
         print(f"!!! Error in run_seo_report: {e}")
         traceback.print_exc()
         try:
-            supabase.table("report_status").update({
-                "status": "failed",
-                "error_message": f"Worker Error: {str(e)}"
-            }).eq("report_id", report_id).execute()
+            update_db_report_status(report_id, "failed", error_message=f"Worker Error: {str(e)}")
         except Exception as db_e:
             print(f"!!! CRITICAL: Failed to update report status in DB: {db_e}")

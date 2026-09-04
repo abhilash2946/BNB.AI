@@ -16,6 +16,9 @@ else:
 class Settings(BaseSettings):
     supabase_url: str = os.getenv("SUPABASE_URL", "")
     supabase_service_role_key: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    supabase_jwt_secret: str = os.getenv("SUPABASE_JWT_SECRET", "")
+    database_url: str = os.getenv("DATABASE_URL", "mysql+pymysql://reportsAdmin:Bvr0nsvFL0orlpJA9voB@127.0.0.1:3306/reportsData")
+
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
     pagespeed_api_key: str = os.getenv("PAGESPEED_API_KEY", "")
 

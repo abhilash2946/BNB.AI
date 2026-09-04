@@ -929,6 +929,10 @@ export default function ClientReports({ report, siteId, category, setCategory, i
           if (!targetSiteId) return;
 
           try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            const baseUrl = import.meta.env.VITE_API_URL || '/api';
+
             // Helper to process fetched analysis
             const processCompData = (analysis: any) => {
                if (!analysis) return null;
@@ -939,28 +943,18 @@ export default function ClientReports({ report, siteId, category, setCategory, i
                };
             };
 
-            // Fetch SEO Competitors
-            const { data: seoRow } = await supabase
-              .from('processed_reports')
-              .select('ai_competitor_analysis')
-              .eq('site_id', targetSiteId)
-              .eq('module', 'seo')
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
+            const fetchLatest = async (module: string) => {
+               const res = await fetch(`${baseUrl}/processed-report/latest?site_id=${targetSiteId}&module=${module}`, {
+                  headers: { 'Authorization': `Bearer ${token}` }
+               });
+               if (res.ok) return await res.json();
+               return null;
+            };
+
+            const seoRow = await fetchLatest('seo');
+            const perfRow = await fetchLatest('performance');
 
             const seoData = processCompData(seoRow?.ai_competitor_analysis);
-
-            // Fetch Performance Competitors
-            const { data: perfRow } = await supabase
-              .from('processed_reports')
-              .select('ai_competitor_analysis')
-              .eq('site_id', targetSiteId)
-              .eq('module', 'performance')
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-
             const perfData = processCompData(perfRow?.ai_competitor_analysis);
 
             if (seoData || perfData) {
@@ -1098,17 +1092,25 @@ export default function ClientReports({ report, siteId, category, setCategory, i
     if (!report?.id) return;
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from('processed_reports')
-        .update({
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const baseUrl = import.meta.env.VITE_API_URL || '/api';
+
+      const response = await fetch(`${baseUrl}/processed-report/${report.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           ai_insights: {
             ...report.ai_insights,
             ppt_slides: slides
           }
         })
-        .eq('report_id', report.id);
+      });
 
-      if (error) throw error;
+      if (!response.ok) throw new Error('Failed to save presentation');
       toast.success('Presentation saved to database');
     } catch (err: any) {
       alert("Error saving edits: " + err.message);

@@ -1,17 +1,18 @@
 import hashlib
 import base64
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import RedirectResponse, JSONResponse
+from sqlalchemy.orm import Session
 import requests
 from google_auth_oauthlib.flow import Flow
 from app.config import settings
-from app.supabase_client import supabase
+from app.database import get_db, UserCredential
 from app.services.credential_service import get_user_google_creds, get_user_meta_creds
 
 router = APIRouter(prefix="/auth", tags=["oauth"])
 
-def get_pkce_verifier(user_id: str) -> str:
-    google_creds = get_user_google_creds(user_id)
+def get_pkce_verifier(user_id: str, db: Session = None) -> str:
+    google_creds = get_user_google_creds(user_id, db=db)
     raw = f"{user_id}:{google_creds['client_secret']}"
     return base64.urlsafe_b64encode(hashlib.sha256(raw.encode()).digest()).decode('utf-8').rstrip('=')
 
@@ -19,8 +20,8 @@ def get_pkce_challenge(verifier: str) -> str:
     return base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode('utf-8').rstrip('=')
 
 @router.get("/google/url")
-async def get_google_auth_url(user_id: str, site_id: str = None):
-    google_creds = get_user_google_creds(user_id)
+async def get_google_auth_url(user_id: str, site_id: str = None, db: Session = Depends(get_db)):
+    google_creds = get_user_google_creds(user_id, db=db)
     state = f"{user_id}:{site_id or ''}"
 
     # MANUALLY construct the URL to ensure NO PKCE parameters are included
@@ -39,7 +40,7 @@ async def get_google_auth_url(user_id: str, site_id: str = None):
     return {"url": auth_url}
 
 @router.get("/google/callback")
-async def google_callback(request: Request, code: str = None, state: str = None):
+async def google_callback(request: Request, code: str = None, state: str = None, db: Session = Depends(get_db)):
     try:
         if not code:
             raise HTTPException(status_code=400, detail="Missing code")
@@ -48,7 +49,7 @@ async def google_callback(request: Request, code: str = None, state: str = None)
         site_id = parts[1] if len(parts) > 1 else None
 
         # Get User specific Google creds
-        google_creds = get_user_google_creds(user_id)
+        google_creds = get_user_google_creds(user_id, db=db)
 
         flow = Flow.from_client_config(
             {
@@ -92,16 +93,29 @@ async def google_callback(request: Request, code: str = None, state: str = None)
         refresh_token = token_data.get("refresh_token")
         granted_scopes = token_data.get("scope", "")
 
-        # Store refresh token in Supabase (using on_conflict to handle existing records)
-        supabase.table("user_credentials").upsert({
-            "user_id": user_id,
-            "platform": "google_oauth",
-            "credentials": {
-                **google_creds,
-                "refresh_token": refresh_token,
-                "granted_scopes": granted_scopes
-            }
-        }, on_conflict="user_id, platform").execute()
+        # Store refresh token in Database
+        existing_cred = db.query(UserCredential).filter(
+            UserCredential.user_id == user_id,
+            UserCredential.platform == "google_oauth"
+        ).first()
+
+        new_creds_data = {
+            **google_creds,
+            "refresh_token": refresh_token,
+            "granted_scopes": granted_scopes
+        }
+
+        if existing_cred:
+            existing_cred.credentials = new_creds_data
+        else:
+            new_cred = UserCredential(
+                user_id=user_id,
+                platform="google_oauth",
+                credentials=new_creds_data
+            )
+            db.add(new_cred)
+
+        db.commit()
 
         redirect_url = f"{settings.frontend_url}/site-management?success=true"
         if site_id:
@@ -120,13 +134,13 @@ async def google_callback(request: Request, code: str = None, state: str = None)
         return RedirectResponse(url=redirect_url)
 
 @router.get("/google/verify-token")
-async def verify_google_token(user_id: str):
+async def verify_google_token(user_id: str, db: Session = Depends(get_db)):
     """
     Verifies if the stored refresh token is valid and what scopes it has.
     Updates the database with the findings.
     """
     try:
-        google_creds = get_user_google_creds(user_id)
+        google_creds = get_user_google_creds(user_id, db=db)
         refresh_token = google_creds.get("refresh_token")
 
         if not refresh_token:
@@ -158,14 +172,25 @@ async def verify_google_token(user_id: str):
         granted_scopes = info_resp.json().get("scope", "")
 
         # 3. Update the database with the current scopes
-        supabase.table("user_credentials").upsert({
-            "user_id": user_id,
-            "platform": "google_oauth",
-            "credentials": {
-                **google_creds,
-                "granted_scopes": granted_scopes
-            }
-        }, on_conflict="user_id, platform").execute()
+        existing_cred = db.query(UserCredential).filter(
+            UserCredential.user_id == user_id,
+            UserCredential.platform == "google_oauth"
+        ).first()
+
+        if existing_cred:
+            updated_creds = dict(existing_cred.credentials)
+            updated_creds["granted_scopes"] = granted_scopes
+            existing_cred.credentials = updated_creds
+            db.commit()
+        else:
+            # This shouldn't really happen if we're verifying a token
+            new_cred = UserCredential(
+                user_id=user_id,
+                platform="google_oauth",
+                credentials={**google_creds, "granted_scopes": granted_scopes}
+            )
+            db.add(new_cred)
+            db.commit()
 
         return {
             "valid": True,
@@ -175,8 +200,8 @@ async def verify_google_token(user_id: str):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @router.get("/meta/url")
-async def get_meta_auth_url(user_id: str):
-    meta_creds = get_user_meta_creds(user_id)
+async def get_meta_auth_url(user_id: str, db: Session = Depends(get_db)):
+    meta_creds = get_user_meta_creds(user_id, db=db)
     app_id = meta_creds.get("app_id")
     if not app_id:
         raise HTTPException(status_code=400, detail="Meta App ID not configured")
@@ -195,13 +220,13 @@ async def get_meta_auth_url(user_id: str):
     return {"url": auth_url}
 
 @router.get("/meta/callback")
-async def meta_callback(request: Request, code: str = None, state: str = None):
+async def meta_callback(request: Request, code: str = None, state: str = None, db: Session = Depends(get_db)):
     if not code:
         raise HTTPException(status_code=400, detail="Missing code")
     user_id = state
 
     # Get User specific Meta creds
-    meta_creds = get_user_meta_creds(user_id)
+    meta_creds = get_user_meta_creds(user_id, db=db)
     app_id = meta_creds.get("app_id")
     app_secret = meta_creds.get("app_secret")
     redirect_uri = f"{settings.api_url}/auth/meta/callback"
@@ -243,15 +268,28 @@ async def meta_callback(request: Request, code: str = None, state: str = None):
         expires_in = data.get("expires_in", 5184000)
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
-    # Store in user_credentials
-    supabase.table("user_credentials").upsert({
-        "user_id": user_id,
-        "platform": "meta_long_lived_token",
-        "credentials": {
-            "token": long_token,
-            "expires_at": expires_at.isoformat()
-        }
-    }, on_conflict="user_id, platform").execute()
+    # Store in user_credentials using database
+    existing_cred = db.query(UserCredential).filter(
+        UserCredential.user_id == user_id,
+        UserCredential.platform == "meta_long_lived_token"
+    ).first()
+
+    new_creds_data = {
+        "token": long_token,
+        "expires_at": expires_at.isoformat()
+    }
+
+    if existing_cred:
+        existing_cred.credentials = new_creds_data
+    else:
+        new_cred = UserCredential(
+            user_id=user_id,
+            platform="meta_long_lived_token",
+            credentials=new_creds_data
+        )
+        db.add(new_cred)
+
+    db.commit()
 
     return RedirectResponse(url=f"{settings.frontend_url}/site-management?success=true")
 
@@ -264,12 +302,12 @@ class MetaTokenRequest(BaseModel):
     user_id: str
 
 @router.post("/meta/exchange")
-async def exchange_meta_token(req: MetaTokenRequest):
+async def exchange_meta_token(req: MetaTokenRequest, db: Session = Depends(get_db)):
     # Trim the token and ensure we have credentials
     token = req.short_token.strip()
 
     # Get User specific Meta App Creds
-    meta_creds = get_user_meta_creds(req.user_id)
+    meta_creds = get_user_meta_creds(req.user_id, db=db)
     app_id = meta_creds["app_id"].strip()
     app_secret = meta_creds["app_secret"].strip()
 
@@ -303,15 +341,28 @@ async def exchange_meta_token(req: MetaTokenRequest):
         expires_in = data.get("expires_in", 5184000)  # seconds (default 60 days)
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
-    # Store in user_credentials
-    supabase.table("user_credentials").upsert({
-        "user_id": req.user_id,
-        "platform": "meta_long_lived_token",
-        "credentials": {
-            "token": long_token,
-            "expires_at": expires_at.isoformat()
-        }
-    }, on_conflict="user_id, platform").execute()
+    # Store in user_credentials using database
+    existing_cred = db.query(UserCredential).filter(
+        UserCredential.user_id == req.user_id,
+        UserCredential.platform == "meta_long_lived_token"
+    ).first()
+
+    new_creds_data = {
+        "token": long_token,
+        "expires_at": expires_at.isoformat()
+    }
+
+    if existing_cred:
+        existing_cred.credentials = new_creds_data
+    else:
+        new_cred = UserCredential(
+            user_id=req.user_id,
+            platform="meta_long_lived_token",
+            credentials=new_creds_data
+        )
+        db.add(new_cred)
+
+    db.commit()
 
     return {
         "success": True,

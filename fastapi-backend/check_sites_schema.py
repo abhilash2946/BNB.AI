@@ -1,18 +1,19 @@
-import os
-from dotenv import load_dotenv
-from supabase import create_client
+from app.database import SessionLocal, Site
 
-load_dotenv()
-
-url = os.environ.get("SUPABASE_URL")
-key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-supabase = create_client(url, key)
-
+db = SessionLocal()
 try:
-    res = supabase.table("sites").select("*").limit(1).execute()
-    if res.data:
-        print(f"Columns: {list(res.data[0].keys())}")
+    # Use SQLAlchemy table definition to get columns
+    columns = [column.name for column in Site.__table__.columns]
+
+    # Check if there is data
+    res = db.query(Site).first()
+    if res:
+        print(f"Columns: {columns}")
     else:
         print("No data in sites to check columns.")
+        # Optional: still show schema even if empty
+        print(f"Schema (from Model): {columns}")
 except Exception as e:
     print(f"Error: {e}")
+finally:
+    db.close()

@@ -1,14 +1,10 @@
-import os
-from dotenv import load_dotenv
-from supabase import create_client
+from app.database import SessionLocal, ProcessedReport
 
-load_dotenv()
-
-url = os.environ.get("SUPABASE_URL")
-key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-supabase = create_client(url, key)
-
-res = supabase.table("processed_reports").select("report_id").limit(5).execute()
-print(f"Processed reports count: {len(res.data)}")
-for row in res.data:
-    print(f"Report ID: {row['report_id']}")
+db = SessionLocal()
+try:
+    reports = db.query(ProcessedReport).limit(5).all()
+    print(f"Processed reports count: {len(reports)}")
+    for report in reports:
+        print(f"Report ID: {report.report_id}")
+finally:
+    db.close()

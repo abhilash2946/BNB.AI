@@ -142,16 +142,11 @@ export default function App() {
         const shareId = path.split('/')[2];
         if (shareId) {
           try {
-            const { data, error } = await supabase
-              .from('shared_reports')
-              .select('*')
-              .eq('id', shareId)
-              .maybeSingle();
+            const res = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/shared-report-info/${shareId}`);
 
-            if (data && !error && mounted) {
-              // 1. Fetch site info
-              const { data: site } = await supabase.from('sites').select('*').eq('id', data.site_id).maybeSingle();
-              if (site) {
+            if (res.ok && mounted) {
+              const { share, site } = await res.json();
+              if (share && site) {
                 const mappedSite = {
                   id: site.id,
                   name: site.name,
@@ -167,10 +162,10 @@ export default function App() {
                 setActiveSite(mappedSite);
                 setSites([mappedSite]);
                 setSharedMode(true);
-                setSharedConfig(data);
+                setSharedConfig(share);
 
                 setUser({
-                  id: 'guest_' + data.id,
+                  id: 'guest_' + share.id,
                   name: 'Client Guest',
                   agencyName: 'Black and Bold',
                   email: '',
@@ -300,17 +295,12 @@ export default function App() {
     };
   }, []);
 
-  async function fetchProfileData(userId: string, authUserFromSession?: any, retryCount = 0) {
-    // retryCount is currently unused – we use a simple loop with fixed delay inside.
-    // Kept for potential future exponential backoff.
-    const MAX_RETRIES = 2;
-    const RETRY_DELAY = 2000; // 2 seconds
-
-    if (lastFetchedUserIdRef.current === userId && retryCount === 0) {
+  async function fetchProfileData(userId: string, authUserFromSession?: any) {
+    if (lastFetchedUserIdRef.current === userId) {
       console.log("Already fetching for this user, skipping");
       return;
     }
-    if (isFetchingRef.current && retryCount === 0) return;
+    if (isFetchingRef.current) return;
 
     isFetchingRef.current = true;
     lastFetchedUserIdRef.current = userId;
@@ -324,57 +314,31 @@ export default function App() {
         isFetchingRef.current = false;
         lastFetchedUserIdRef.current = null;
       }
-    }, 30000); // Increased to 30s
+    }, 30000);
 
     try {
-      const sessionEmail = authUserFromSession?.email || sessionUserMetadata?.email || "";
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("No session token available");
 
-      // 1. Fetch profile with retry
-      let profile;
-      let profileError;
-      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-        const result = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userId)
-          .maybeSingle();
-        profile = result.data;
-        profileError = result.error;
-        if (!profileError && profile) break;
-        if (attempt < MAX_RETRIES) {
-          console.log(`Profile fetch attempt ${attempt + 1} failed, retrying in ${RETRY_DELAY}ms...`);
-          await new Promise(r => setTimeout(r, RETRY_DELAY));
+      const response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-      }
-      if (profileError) throw new Error(`Profile fetch failed after ${MAX_RETRIES + 1} attempts: ${profileError.message}`);
+      });
 
-      let activeProfile = profile;
-      if (!activeProfile) {
-        const email = authUserFromSession?.email || sessionUserMetadata?.email || sessionEmail || "";
-        const { data: created, error: createError } = await supabase
-          .from("profiles")
-          .insert({
-            id: userId,
-            name: authUserFromSession?.user_metadata?.full_name || "User",
-            agency_name: "My Agency",
-            email: email,
-            role: "Member",
-            tier: "Standard"
-          })
-          .select()
-          .single();
-        if (createError) throw createError;
-        activeProfile = created;
-      }
+      if (!response.ok) throw new Error(`Backend profile fetch failed: ${response.statusText}`);
+      const activeProfile = await response.json();
 
       const userData: UserProfile = {
         id: userId,
-        name: activeProfile?.name || authUserFromSession?.user_metadata?.full_name || "User",
-        agencyName: activeProfile?.agency_name || "Enterprise Workspace",
-        email: activeProfile?.email || authUserFromSession?.email || sessionEmail || "",
-        role: activeProfile?.role || "Member",
-        avatarUrl: activeProfile?.avatar_url || undefined,
-        tier: (activeProfile?.tier as any) || "Standard"
+        name: activeProfile.name || authUserFromSession?.user_metadata?.full_name || "User",
+        agencyName: activeProfile.agency_name || "Enterprise Workspace",
+        email: activeProfile.email || authUserFromSession?.email || "",
+        role: activeProfile.role || "Member",
+        avatarUrl: activeProfile.avatar_url || undefined,
+        tier: (activeProfile.tier as any) || "Standard"
       };
 
       setUser(userData);
@@ -388,18 +352,31 @@ export default function App() {
         return (savedView && protectedViews.includes(savedView as ViewState)) ? (savedView as ViewState) : "dashboard";
       });
 
-      // 2. Background fetch sites & credentials
+      // 2. Background fetch sites & credentials (Local Server)
       void (async () => {
         const startTime = Date.now();
         try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const token = session?.access_token;
+
+          if (!token) return;
+
+          const headers = {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          };
+
           const [credsRes, sitesRes] = await Promise.all([
-            supabase.from("user_credentials").select("*").eq("user_id", userId),
-            supabase.from("sites").select("*").eq("user_id", userId)
+            fetch(`${import.meta.env.VITE_API_URL || "/api"}/user-credentials`, { headers }),
+            fetch(`${import.meta.env.VITE_API_URL || "/api"}/sites`, { headers })
           ]);
 
-          if (credsRes.data) {
+          const credsData = await credsRes.json();
+          const sitesData = await sitesRes.json();
+
+          if (Array.isArray(credsData)) {
             const creds: UserCredentials = {};
-            credsRes.data.forEach((c: any) => {
+            credsData.forEach((c: any) => {
               if (c.platform === 'google_oauth') creds.googleOAuth = c.credentials;
               if (c.platform === 'google_developer_token') creds.googleAdsDeveloperToken = c.credentials.developer_token;
               if (c.platform === 'meta_long_lived_token') {
@@ -415,8 +392,8 @@ export default function App() {
           }
 
           let mappedSites: SiteProfile[] = [];
-          if (sitesRes.data) {
-            mappedSites = sitesRes.data.map((s: any) => ({
+          if (Array.isArray(sitesData)) {
+            mappedSites = sitesData.map((s: any) => ({
               id: s.id,
               name: s.name,
               url: s.url,

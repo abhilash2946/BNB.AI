@@ -1,4 +1,8 @@
-from app.supabase_client import supabase
+from app.utils.db_worker_helpers import (
+    update_db_report_status,
+    get_db_site_credentials,
+    save_db_processed_report
+)
 from app.services.social import fetch_fb_insights, fetch_ig_insights
 from app.services.gemini import call_gemini, summarize_advice
 from app.utils.date_utils import compute_previous_period
@@ -7,12 +11,12 @@ import asyncio
 
 async def run_social_report(user_id: str, site_id: str, start_date: str, end_date: str, report_id: str):
     print(f"---> Background Task Started for Social report {report_id}")
-    supabase.table("report_status").update({"status": "fetching_data"}).eq("report_id", report_id).execute()
+    update_db_report_status(report_id, "fetching_data")
 
     try:
         # 1. Fetch credentials
-        creds_resp = supabase.table("site_credentials").select("platform, credentials").eq("site_id", site_id).in_("platform", ["meta_business_suite", "instagram"]).execute()
-        creds_map = {row["platform"]: row["credentials"] for row in creds_resp.data}
+        creds_list = get_db_site_credentials(site_id, ["meta_business_suite", "instagram"])
+        creds_map = {row["platform"]: row["credentials"] for row in creds_list}
         fb_creds = creds_map.get("meta_business_suite")
         ig_creds = creds_map.get("instagram")
 
@@ -22,7 +26,7 @@ async def run_social_report(user_id: str, site_id: str, start_date: str, end_dat
         prev_start, prev_end = compute_previous_period(start_date, end_date)
 
         # 2. Fetch Data
-        supabase.table("report_status").update({"status": "fetching_meta"}).eq("report_id", report_id).execute()
+        update_db_report_status(report_id, "fetching_meta")
         print("---> Fetching Facebook & Instagram insights...")
         fb_cur = await fetch_fb_insights(fb_creds["page_id"], fb_creds["access_token"], start_date, end_date)
         fb_prev = await fetch_fb_insights(fb_creds["page_id"], fb_creds["access_token"], prev_start, prev_end)
@@ -64,7 +68,7 @@ async def run_social_report(user_id: str, site_id: str, start_date: str, end_dat
 
         # 5. Call Gemini with split prompts
         print("---> Generating AI Analysis (Split Prompt)...")
-        supabase.table("report_status").update({"status": "generating_ai"}).eq("report_id", report_id).execute()
+        update_db_report_status(report_id, "generating_ai")
 
         prompt_main = f"""Generate a Social Media performance report strategy.
         Business Industry: General
@@ -175,7 +179,7 @@ async def run_social_report(user_id: str, site_id: str, start_date: str, end_dat
             ai_result["summary"] = "Social performance overview could not be generated."
 
         # 6. Store Result
-        supabase.table("processed_reports").insert({
+        save_db_processed_report({
             "report_id": report_id,
             "user_id": user_id,
             "site_id": site_id,
@@ -194,9 +198,9 @@ async def run_social_report(user_id: str, site_id: str, start_date: str, end_dat
             "ai_table_explanations": ai_result.get("table_explanations", {}),
             "ai_top_keywords_overview": ai_result.get("top_keywords_overview", ""),
             "section_advice": ai_result.get("section_specific_advice", {}),
-        }).execute()
+        })
 
-        supabase.table("report_status").update({"status": "completed", "completed_at": datetime.now(timezone.utc).isoformat()}).eq("report_id", report_id).execute()
+        update_db_report_status(report_id, "completed")
 
     except Exception as e:
-        supabase.table("report_status").update({"status": "failed", "error_message": str(e)}).eq("report_id", report_id).execute()
+        update_db_report_status(report_id, "failed", error_message=str(e))

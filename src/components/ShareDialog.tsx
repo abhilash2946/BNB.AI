@@ -5,6 +5,8 @@ import { GlassCard } from './GlassCard';
 import { supabase } from '../lib/supabaseClient';
 import { toast } from 'react-hot-toast';
 
+const API_URL = import.meta.env.VITE_API_URL || "/api";
+
 interface ShareDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -32,37 +34,29 @@ export default function ShareDialog({ isOpen, onClose, siteId, reportId, dateRan
         return;
       }
 
-      // Check for existing identical share configuration to avoid redundancy
-      // Note: Supabase array equality uses '{val1,val2}' format
-      const { data: existing } = await supabase
-        .from('shared_reports')
-        .select('id')
-        .eq('site_id', siteId)
-        .eq('access_type', accessType)
-        .contains('date_range', dateRange)
-        .eq('report_id', reportId || null)
-        .filter('shared_pages', 'eq', `{${sharedPages.join(',')}}`)
-        .limit(1)
-        .maybeSingle();
+      const { data: { session } } = await supabase.auth.getSession();
 
-      let shareId = existing?.id;
+      const response = await fetch(`${API_URL}/shared-reports`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({
+          site_id: siteId,
+          report_id: reportId,
+          date_range: dateRange,
+          access_type: accessType,
+          shared_pages: sharedPages
+        })
+      });
 
-      if (!shareId) {
-        const { data, error } = await supabase
-          .from('shared_reports')
-          .insert({
-            site_id: siteId,
-            report_id: reportId,
-            date_range: dateRange,
-            access_type: accessType,
-            shared_pages: sharedPages
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-        shareId = data.id;
+      if (!response.ok) {
+        throw new Error('Failed to generate share link');
       }
+
+      const data = await response.json();
+      const shareId = data.id;
 
       const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
       const shareUrl = `${baseUrl.replace(/\/$/, '')}/shared/${shareId}`;
