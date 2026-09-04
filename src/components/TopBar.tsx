@@ -85,11 +85,51 @@ export default function TopBar({
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
 
-  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Local state for the text input to allow typing in DD/MM/YYYY
+  const [startText, setStartText] = useState('');
+  const [endText, setEndText] = useState('');
+
+  // Helper: yyyy-mm-dd -> dd/mm/yyyy
+  const toDisplay = (iso: string) => {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  };
+
+  // Helper: dd/mm/yyyy -> yyyy-mm-dd
+  const toIso = (display: string) => {
+    const parts = display.split('/');
+    if (parts.length !== 3) return null;
+    const [d, m, y] = parts;
+    if (d.length !== 2 || m.length !== 2 || y.length !== 4) return null;
+    return `${y}-${m}-${d}`;
+  };
+
+  // Sync local text state when dateRange prop changes
+  useEffect(() => {
+    setStartText(toDisplay(dateRange.start));
+    setEndText(toDisplay(dateRange.end));
+  }, [dateRange]);
+
+  const handleStartTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setStartText(val);
+    const iso = toIso(val);
+    if (iso) onChangeDateRange({ ...dateRange, start: iso });
+  };
+
+  const handleEndTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setEndText(val);
+    const iso = toIso(val);
+    if (iso) onChangeDateRange({ ...dateRange, end: iso });
+  };
+
+  const handleNativeStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChangeDateRange({ ...dateRange, start: e.target.value });
   };
 
-  const handleEndDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNativeEndChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChangeDateRange({ ...dateRange, end: e.target.value });
   };
 
@@ -187,41 +227,61 @@ export default function TopBar({
 
       <div className="flex items-center gap-2 md:gap-3">
         <div className="hidden sm:flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-1 text-xs">
-          <button
-            onClick={openStartPicker}
-            className="text-white/40 px-1 hover:text-white transition-colors cursor-pointer"
-          >
-            <Calendar size={14} />
-          </button>
-
-          <input
-            ref={startInputRef}
-            type="date"
-            value={dateRange.start}
-            onChange={handleStartDateChange}
-            disabled={isSharedMode}
-            className={`bg-transparent border-0 text-white font-mono text-[11px] focus:ring-0 max-w-[125px] focus:outline-none ${isSharedMode ? 'opacity-50' : 'cursor-pointer'}`}
-            style={{ colorScheme: 'dark' }}
-          />
+          {/* Start Date */}
+          <div className="flex items-center relative">
+            <button
+              onClick={openStartPicker}
+              className="text-white/40 px-1 hover:text-white transition-colors cursor-pointer"
+            >
+              <Calendar size={14} />
+            </button>
+            <input
+              type="text"
+              value={startText}
+              onChange={handleStartTextChange}
+              placeholder="DD/MM/YYYY"
+              disabled={isSharedMode}
+              className={`bg-transparent border-0 text-white font-mono text-[11px] focus:ring-0 max-w-[85px] focus:outline-none ${isSharedMode ? 'opacity-50' : ''}`}
+            />
+            {/* Hidden native picker */}
+            <input
+              ref={startInputRef}
+              type="date"
+              value={dateRange.start}
+              onChange={handleNativeStartChange}
+              className="absolute opacity-0 pointer-events-none -z-10 bottom-0 left-0 w-0 h-0"
+              style={{ colorScheme: 'dark' }}
+            />
+          </div>
 
           <span className="text-white/30 text-[10px]">→</span>
 
-          <input
-            ref={endInputRef}
-            type="date"
-            value={dateRange.end}
-            onChange={handleEndDateChange}
-            disabled={isSharedMode}
-            className={`bg-transparent border-0 text-white font-mono text-[11px] focus:ring-0 max-w-[125px] focus:outline-none ${isSharedMode ? 'opacity-50' : 'cursor-pointer'}`}
-            style={{ colorScheme: 'dark' }}
-          />
-
-          <button
-            onClick={openEndPicker}
-            className="text-white/40 px-1 hover:text-white transition-colors cursor-pointer"
-          >
-            <Calendar size={14} />
-          </button>
+          {/* End Date */}
+          <div className="flex items-center relative">
+            <input
+              type="text"
+              value={endText}
+              onChange={handleEndTextChange}
+              placeholder="DD/MM/YYYY"
+              disabled={isSharedMode}
+              className={`bg-transparent border-0 text-white font-mono text-[11px] focus:ring-0 max-w-[85px] focus:outline-none text-right ${isSharedMode ? 'opacity-50' : ''}`}
+            />
+            <button
+              onClick={openEndPicker}
+              className="text-white/40 px-1 hover:text-white transition-colors cursor-pointer"
+            >
+              <Calendar size={14} />
+            </button>
+            {/* Hidden native picker */}
+            <input
+              ref={endInputRef}
+              type="date"
+              value={dateRange.end}
+              onChange={handleNativeEndChange}
+              className="absolute opacity-0 pointer-events-none -z-10 bottom-0 right-0 w-0 h-0"
+              style={{ colorScheme: 'dark' }}
+            />
+          </div>
         </div>
 
         {/* PDF button removed to match reference image 2 */}
