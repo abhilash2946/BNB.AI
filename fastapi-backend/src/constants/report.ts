@@ -1,0 +1,7 @@
+export const POLLING_FALLBACK_DELAY_MS = 10000; // 10 seconds
+export const REPORT_POLL_INTERVAL_MS = 5000;
+export const REPORT_COMPLETION_RETRIES = 8;
+export const REPORT_RETRY_DELAY_MS = 2000;
+export const PROFILE_FETCH_RETRIES = 2;
+export const PROFILE_FETCH_DELAY_MS = 2000;
+export const MIN_LOAD_TIME_MS = 2000;

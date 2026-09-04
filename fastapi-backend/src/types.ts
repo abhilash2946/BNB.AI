@@ -23,8 +23,6 @@ export interface SiteProfile {
   industry: string;
   city?: string;
   imageUrl?: string;
-  phone?: string;
-  email?: string;
   seoSettings?: {
     ga4Id?: string;
     gscUrl?: string;

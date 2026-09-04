@@ -1,0 +1,33 @@
+# Logs
+*.log
+logs.txt
+fastapi-backend/logs.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# Node
+node_modules/
+dist/
+.npm-cache/
+
+# IDEs
+.idea/
+.vscode/
+
+# Environment variables
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Misc
+requirements_new.txt
+.artifacts/

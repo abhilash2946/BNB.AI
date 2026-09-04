@@ -159,8 +159,6 @@ export default function App() {
                   industry: site.industry,
                   city: site.city || undefined,
                   imageUrl: site.image_url || undefined,
-                  phone: site.phone || undefined,
-                  email: site.email || undefined,
                   seoSettings: site.seo_settings || undefined,
                 };
 
@@ -423,8 +421,6 @@ export default function App() {
               industry: s.industry,
               city: s.city || undefined,
               imageUrl: s.image_url || undefined,
-              phone: s.phone || undefined,
-              email: s.email || undefined,
               seoSettings: s.seo_settings || undefined,
             }));
             setSites(mappedSites);

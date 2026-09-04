@@ -1,0 +1,6 @@
+{
+  "name": "AI Marketing Intelligence Platform",
+  "description": "An enterprise-grade marketing intelligence dashboard aggregating SEO, PPC, and Social analytics with real-time AI-generated strategic reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

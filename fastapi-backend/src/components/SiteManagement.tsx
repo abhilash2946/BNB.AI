@@ -44,9 +44,6 @@ export default function SiteManagement({
   const [name, setName] = useState(() => getSavedState('name', ""));
   const [url, setUrl] = useState(() => getSavedState('url', ""));
   const [industry, setIndustry] = useState(() => getSavedState('industry', "Travel & Leisure"));
-  const [otherIndustry, setOtherIndustry] = useState(() => getSavedState('otherIndustry', ""));
-  const [phone, setPhone] = useState(() => getSavedState('phone', ""));
-  const [email, setEmail] = useState(() => getSavedState('email', ""));
   const [city, setCity] = useState(() => getSavedState('city', ""));
   const [siteImageUrl, setSiteImageUrl] = useState<string | null>(() => getSavedState('siteImageUrl', null));
   const siteFileInputRef = React.useRef<HTMLInputElement>(null);
@@ -96,13 +93,13 @@ export default function SiteManagement({
 
   useEffect(() => {
     const state = {
-      isAddingNew, editingSiteId, activeSettingsModal, name, url, industry, otherIndustry, phone, email, city, siteImageUrl,
+      isAddingNew, editingSiteId, activeSettingsModal, name, url, industry, city,
       googleAdsDevToken, metaToken, metaTokenExpiry, ga4Id, gscUrl, googleAdsId,
       metaAdsId, fbPageId, igBusId,
       googleClientId, googleClientSecret, metaAppId, metaAppSecret
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [isAddingNew, editingSiteId, activeSettingsModal, name, url, industry, otherIndustry, phone, email, city, siteImageUrl, googleAdsDevToken, metaToken, metaTokenExpiry, ga4Id, gscUrl, googleAdsId, metaAdsId, fbPageId, igBusId, googleClientId, googleClientSecret, metaAppId, metaAppSecret, STORAGE_KEY]);
+  }, [isAddingNew, editingSiteId, activeSettingsModal, name, url, industry, city, googleAdsDevToken, metaToken, metaTokenExpiry, ga4Id, gscUrl, googleAdsId, metaAdsId, fbPageId, igBusId, googleClientId, googleClientSecret, metaAppId, metaAppSecret, STORAGE_KEY]);
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -169,7 +166,7 @@ export default function SiteManagement({
   }, []);
 
   const resetFormState = () => {
-    setName(""); setUrl(""); setIndustry("Travel & Leisure"); setOtherIndustry(""); setPhone(""); setEmail(""); setCity(""); setSiteImageUrl(null);
+    setName(""); setUrl(""); setIndustry("Travel & Leisure"); setCity(""); setSiteImageUrl(null);
     setGa4Id(""); setGscUrl(""); setGoogleAdsId(""); setMetaAdsId(""); setFbPageId(""); setIgBusId("");
   };
 
@@ -230,10 +227,8 @@ export default function SiteManagement({
       const payload = {
         name: name.trim(),
         url: url.trim(),
-        industry: industry === "Other" ? otherIndustry.trim() : industry,
+        industry,
         city: city.trim(),
-        phone: phone.trim(),
-        email: email.trim(),
         image_url: siteImageUrl,
         seo_settings: {
           ga4Id: ga4Id.trim(),
@@ -258,21 +253,7 @@ export default function SiteManagement({
   };
 
   const startEdit = async (site: SiteProfile) => {
-    const predefinedIndustries = ["Travel & Leisure", "E-Commerce"];
-    const isOther = !predefinedIndustries.includes(site.industry);
-
-    setEditingSiteId(site.id);
-    setName(site.name);
-    setUrl(site.url);
-    if (isOther) {
-      setIndustry("Other");
-      setOtherIndustry(site.industry);
-    } else {
-      setIndustry(site.industry);
-      setOtherIndustry("");
-    }
-    setPhone(site.phone || "");
-    setEmail(site.email || "");
+    setEditingSiteId(site.id); setName(site.name); setUrl(site.url); setIndustry(site.industry);
     setCity(site.city || "");
     setSiteImageUrl(site.imageUrl || null);
     const seo = site.seoSettings;
@@ -561,18 +542,15 @@ export default function SiteManagement({
                                 <Sparkles className="animate-spin text-white" size={20} />
                               </div>
                             )}
-
-                            <button
-                              type="button"
-                              onClick={() => siteFileInputRef.current?.click()}
-                              className="absolute inset-0 w-full h-full bg-black/40 opacity-0 group-hover/site-img:opacity-100 flex items-center justify-center transition-all"
-                              title="Upload Site Logo"
-                            >
-                              <div className="p-2 bg-white text-black rounded-xl shadow-xl">
-                                <Camera size={18} />
-                              </div>
-                            </button>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => siteFileInputRef.current?.click()}
+                            className="absolute -bottom-2 -right-2 p-2 bg-white text-black hover:bg-gray-200 rounded-xl shadow-xl transition-all"
+                            title="Upload Site Logo"
+                          >
+                            <Camera size={14} />
+                          </button>
                           <input
                             type="file"
                             ref={siteFileInputRef}
@@ -583,7 +561,7 @@ export default function SiteManagement({
                         </div>
 
                         <div className="flex-1 grid md:grid-cols-2 gap-6">
-                          <div>
+                          <div className="md:col-span-2">
                             <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2 block">Site Name</label>
                             <input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-white" />
                           </div>
@@ -593,35 +571,14 @@ export default function SiteManagement({
                           </div>
                           <div>
                             <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2 block">Industry</label>
-                            <div className="space-y-3">
-                              <select value={industry} onChange={e => setIndustry(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-white appearance-none">
-                                <option value="Travel & Leisure" className="bg-[#111827]">Travel & Leisure</option>
-                                <option value="E-Commerce" className="bg-[#111827]">E-Commerce</option>
-                                <option value="Other" className="bg-[#111827]">Other</option>
-                              </select>
-                              {industry === "Other" && (
-                                <input
-                                  type="text"
-                                  placeholder="Enter industry type"
-                                  value={otherIndustry}
-                                  onChange={e => setOtherIndustry(e.target.value)}
-                                  className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-white animate-in fade-in slide-in-from-top-1"
-                                  required
-                                />
-                              )}
-                            </div>
+                            <select value={industry} onChange={e => setIndustry(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-white appearance-none">
+                              <option value="Travel & Leisure" className="bg-[#111827]">Travel & Leisure</option>
+                              <option value="E-Commerce" className="bg-[#111827]">E-Commerce</option>
+                            </select>
                           </div>
                           <div>
                             <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2 block">City (for competitor search)</label>
                             <input type="text" placeholder="e.g. Hyderabad" value={city} onChange={e => setCity(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-white" />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2 block">Phone No.</label>
-                            <input type="tel" placeholder="e.g. +91 9876543210" value={phone} onChange={e => setPhone(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-white" />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2 block">Email ID</label>
-                            <input type="email" placeholder="e.g. contact@site.com" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl outline-none focus:ring-1 focus:ring-white" />
                           </div>
                         </div>
                       </div>
