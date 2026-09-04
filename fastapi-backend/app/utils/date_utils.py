@@ -1,40 +1,33 @@
 from datetime import datetime, timedelta, timezone
 import re
 
-def safe_parse_iso(dt_str: str):
+def safe_parse_iso(dt_str: any):
     """
-    Robust ISO date parsing for strings from Supabase/PostgreSQL.
-    Handles varying microsecond precision which can break datetime.fromisoformat
-    in Python versions older than 3.11.
+    Robust ISO date parsing. Always returns a timezone-aware UTC datetime.
     """
     if not dt_str:
         return None
 
+    if isinstance(dt_str, datetime):
+        if dt_str.tzinfo is None:
+            return dt_str.replace(tzinfo=timezone.utc)
+        return dt_str
+
     # Standardize UTC indicator
-    dt_str = dt_str.replace('Z', '+00:00')
+    dt_str = str(dt_str).replace('Z', '+00:00')
 
     try:
-        return datetime.fromisoformat(dt_str)
+        dt = datetime.fromisoformat(dt_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
     except ValueError:
-        # Normalize microsecond precision to 6 digits if present
-        # e.g., 2026-08-19T06:37:10.12887+00:00 -> 2026-08-19T06:37:10.128870+00:00
-        match = re.search(r'\.(\d+)([+-])', dt_str)
-        if match:
-            ms = match.group(1)
-            offset_sign = match.group(2)
-            if len(ms) != 6:
-                new_ms = ms.ljust(6, '0')[:6]
-                dt_str = dt_str.replace(f".{ms}{offset_sign}", f".{new_ms}{offset_sign}")
-
+        # Final fallback: strip microsecond part and try again
         try:
-            return datetime.fromisoformat(dt_str)
-        except ValueError:
-            # Final fallback: strip microsecond part and try again
-            try:
-                # Try simple format if regex normalization failed
-                return datetime.strptime(dt_str.split('+')[0].split('.')[0], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
-            except:
-                return None
+            dt = datetime.strptime(dt_str.split('+')[0].split('.')[0], "%Y-%m-%dT%H:%M:%S")
+            return dt.replace(tzinfo=timezone.utc)
+        except:
+            return None
 
 def compute_previous_period(start_date: str, end_date: str):
     """

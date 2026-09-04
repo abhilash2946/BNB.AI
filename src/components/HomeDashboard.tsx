@@ -52,7 +52,10 @@ export default function HomeDashboard({
   siteName
 }: HomeDashboardProps) {
 
-  if (!report) {
+  // Check if report has ACTUAL data or is just a skeleton
+  const hasRealData = report && report.kpis && report.kpis.length > 0 && report.kpis[0].value !== "3,18,420";
+
+  if (!hasRealData) {
     return (
       <div className="glass-panel p-12 text-center rounded-2xl max-w-xl mx-auto my-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
         <div className="p-3 bg-white/5 text-[#00d4ff] rounded-full inline-block mb-4 hover:scale-105 transition-transform">
@@ -66,6 +69,7 @@ export default function HomeDashboard({
           onClick={onTriggerSync}
           className="px-5 py-2.5 bg-gradient-to-r from-[#00d4ff] to-[#7c3aed] text-white text-xs font-semibold rounded-xl hover:shadow-[0_0_15px_rgba(0,212,255,0.2)] transition-transform hover:scale-105 inline-flex items-center gap-2"
         >
+          <Icons.RefreshCw size={14} />
           Trigger Neural Sync
         </button>
       </div>

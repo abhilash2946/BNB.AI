@@ -101,7 +101,8 @@ EXCLUDED_DOMAINS = {
     "naukri.com", "indeed.com", "crunchbase.com", "zoominfo.com",
     "99acres.com", "magicbricks.com", "housing.com", "nobroker.in", "commonfloor.com",
     "proptiger.com", "makaaniq.com", "squareyards.com", "ecommerceguide.com",
-    "clutch.co", "goodfirms.co", "sortlist.com", "g2.com", "capterra.com", "trustpilot.com"
+    "clutch.co", "goodfirms.co", "sortlist.com", "g2.com", "capterra.com", "trustpilot.com",
+    "moneycontrol.com", "indiatimes.com", "ndtv.com", "thehindu.com", "timesofindia.com"
 }
 
 def is_valid_competitor_domain(domain: str) -> bool:
@@ -519,11 +520,10 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
             your_domain = your_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "").lower()
             your_brand_name = site_info.get("name", "").lower()
 
-            # --- NEW: Extract potential brands from own keywords ---
+            # --- BRAND TARGETS: Extract potential brands from own keywords ---
             potential_brand_queries = []
             for kw_row in top_keywords_full[:50]:
                 kw = kw_row["keyword"].lower()
-                # If it's not the user's brand and looks like a brand name (multi-word, low generic density)
                 if your_brand_name not in kw and len(kw.split()) >= 2:
                     generics = ["agency", "company", "services", "hyderabad", "marketing", "ads", "real estate", "strategy", "best", "top", "consultant"]
                     if not any(g in kw for g in generics):
@@ -543,7 +543,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                             competitor_discovery_map[h_domain] = h_query
             except Exception as e: print(f"!!! Error fetching competitor history: {e}")
 
-            # B. Try Live Discovery
+            # B. Live Discovery via Seed Keywords
             base_discovery_kws = list(dict.fromkeys([k["keyword"] for k in top_keywords_full[:10] if k["keyword"]]))
             if not base_discovery_kws and site_info.get("industry"):
                 base_discovery_kws = [site_info.get("industry")]
@@ -552,7 +552,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
             print(f"DEBUG: Keywords for live discovery (including brand targets): {discovery_kws}")
 
             for kw in discovery_kws:
-                if len(competitor_discovery_map) >= 12: break
+                if len(competitor_discovery_map) >= 15: break
                 query = f"{kw} {site_city}"
                 try:
                     results_list = await search_manager.get_results(query)
@@ -575,6 +575,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                 db_cached = get_db_competitor_insight(site_id, url, "seo")
 
                 if db_cached and db_cached.get("extracted_at"):
+                    # Use safe_parse_iso which now always returns aware datetime
                     last = safe_parse_iso(db_cached["extracted_at"])
                     if last and last > datetime.now(timezone.utc) - timedelta(days=FRESHNESS_THRESHOLD_DAYS):
                         text = db_cached.get("full_text") or ""
@@ -611,23 +612,24 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                 return None
 
             competitor_insights = []
-            # Phase 1: Local
+            # Phase 1: Local + Strict Discovery
+            print("---> [COMPETITORS] Phase 1: Local/Strict Search")
             for d in potential_domains:
                 res = await process_domain(d, level=1)
                 if res: competitor_insights.append(res)
                 if len(competitor_insights) >= 6: break
 
-            # Phase 2: Relaxed
+            # Phase 2: Relaxed Discovery (Lift filter)
             if len(competitor_insights) < 4:
-                print("---> [COMPETITORS] Phase 2: Relaxed Filter Discovery")
+                print("---> [COMPETITORS] Phase 2: Relaxed Search")
                 for d in [d for d in potential_domains if d not in [c["url"].split("/")[2] for c in competitor_insights]]:
                     res = await process_domain(d, level=2)
                     if res: competitor_insights.append(res)
                     if len(competitor_insights) >= 6: break
 
-            # Phase 3: Global Industry Fallback
+            # Phase 3: Global Industry Search
             if len(competitor_insights) < 4:
-                print("---> [COMPETITORS] Phase 3: Global Industry Search")
+                print("---> [COMPETITORS] Phase 3: Global/Relaxed Search")
                 broad_query = f"{site_info.get('industry', 'Business')} India"
                 broad_results = await scrape_duckduckgo_fallback(broad_query)
                 for res in broad_results:

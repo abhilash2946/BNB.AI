@@ -670,7 +670,7 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             your_domain = your_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "").lower()
             your_brand_name = site_info.get("name", "").lower()
 
-            # --- NEW: Extract potential brands from own keywords ---
+            # --- BRAND TARGETS: Extract potential brands from own keywords ---
             potential_brand_queries = []
             all_kws = (google_ads_details.get('top_keywords', []) if google_ads_details else [])
             for kw_row in all_kws[:50]:
@@ -777,7 +777,7 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
                     if res: competitor_insights.append(res)
                     if len(competitor_insights) >= 6: break
 
-            # Phase 3: Global Industry Search
+            # Phase 3: Global Search Fallback
             if len(competitor_insights) < 4:
                 print("---> [COMPETITORS] Phase 3: Global Search Fallback")
                 broad_query = f"{site_info.get('industry', 'Business')} India"
