@@ -23,6 +23,7 @@ interface HomeDashboardProps {
   report: MarketingReport | null;
   onNavigateToCategory: (category: string) => void;
   onTriggerSync: () => void;
+  siteName?: string;
 }
 
 const DynamicIcon = ({ name, size = 18, className = '' }: { name: string; size?: number; className?: string }) => {
@@ -48,21 +49,32 @@ export default function HomeDashboard({
   report,
   onNavigateToCategory,
   onTriggerSync,
+  siteName
 }: HomeDashboardProps) {
 
-  const kpis = report?.kpis || [
-    { label: "TRAFFIC", value: "3,18,420", change: 14.2, isPositive: true, icon: "TrendingUp" },
-    { label: "LEADS", value: "14,860", change: 8.7, isPositive: true, icon: "Users" },
-    { label: "REVENUE", value: "₹4,12,950", change: 19.1, isPositive: true, icon: "DollarSign" },
-    { label: "CONVERSIONS", value: "4,612", change: 12.4, isPositive: true, icon: "Target" },
-    { label: "ROAS", value: "4.82x", change: 5.1, isPositive: true, icon: "Activity" },
-    { label: "ENGAGEMENT", value: "18.4K", change: -2.3, isPositive: false, icon: "Zap" }
-  ];
+  if (!report) {
+    return (
+      <div className="glass-panel p-12 text-center rounded-2xl max-w-xl mx-auto my-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="p-3 bg-white/5 text-[#00d4ff] rounded-full inline-block mb-4 hover:scale-105 transition-transform">
+          <Icons.Sparkles size={32} className="animate-pulse" />
+        </div>
+        <h3 className="font-display font-medium text-lg text-white mb-2">No Intel Generated</h3>
+        <p className="text-xs text-white/60 leading-relaxed mb-6 font-sans">
+          Active systems are resting safely. Trigger a neural intelligence sync on the {siteName || "workspace"} node to analyze this division's report curves.
+        </p>
+        <button
+          onClick={onTriggerSync}
+          className="px-5 py-2.5 bg-gradient-to-r from-[#00d4ff] to-[#7c3aed] text-white text-xs font-semibold rounded-xl hover:shadow-[0_0_15px_rgba(0,212,255,0.2)] transition-transform hover:scale-105 inline-flex items-center gap-2"
+        >
+          Trigger Neural Sync
+        </button>
+      </div>
+    );
+  }
 
-  const executiveSummary = report?.executiveSummary ||
-    "Global marketing strength holds high velocity. Organic search keyword ranking expansion scales steadily, whilst high-acquisition prospecting drags Facebook averages.";
-
-  const radarData = report?.radarData || [];
+  const kpis = report.kpis;
+  const executiveSummary = report.executiveSummary;
+  const radarData = report.radarData || [];
 
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -84,7 +96,7 @@ export default function HomeDashboard({
 
           <p className="text-gray-400 text-lg leading-relaxed max-w-2xl font-sans">
             Continuous analytical parsing of organic content performance, advertising acquisition nodes, and
-            relative competitor growth multipliers for <span className="text-white font-semibold">{report?.siteName || "Apex Athletics"}</span>.
+            relative competitor growth multipliers for <span className="text-white font-semibold">{report.siteName || siteName}</span>.
           </p>
 
           <div className="flex flex-wrap gap-12 pt-4">
@@ -219,7 +231,7 @@ export default function HomeDashboard({
                     AI Executive Briefings
                   </h2>
                </div>
-               <span className="text-[9px] font-mono text-gray-500 uppercase">{report?.siteName || "Apex Athletics"} Analytics Synced</span>
+               <span className="text-[9px] font-mono text-gray-500 uppercase">{report.siteName || siteName} Analytics Synced</span>
             </div>
 
             <p className="text-gray-300 font-sans text-xl leading-relaxed antialiased">

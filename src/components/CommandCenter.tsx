@@ -310,6 +310,7 @@ export default function CommandCenter({
           ) : activeView === 'cmd-center' ? (
             <HomeDashboard
               report={marketingReport}
+              siteName={activeSite.name}
               onNavigateToCategory={(cat) => {
                 const viewId = cat === 'SEO' ? 'seo-intel' : cat === 'Performance Marketing' ? 'perf-intel' : 'social-intel';
                 handleNavigate(viewId, cat as CategoryType, 'Reports');
