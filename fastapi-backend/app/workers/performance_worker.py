@@ -44,7 +44,7 @@ from app.services.meta_ads import (
 from app.analytics.performance_analytics import *
 from app.analytics.radar_builder import build_dynamic_radar
 from app.config import settings
-from app.services.search_service import search_manager
+from app.services.competitor_intelligence import competitor_service
 import requests
 from app.services.gemini import call_gemini
 from app.services.prompt_builders import build_performance_exec_prompt, build_competitor_batch_prompt, build_performance_advice_prompt, build_performance_explanations_prompt
@@ -662,138 +662,85 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
         self_radar = compute_performance_self_radar(google_cur, meta_current, ga4_totals)
 
         # 7. Competitor Discovery
+        site_info = get_db_site_info(site_id)
         site_city = site_info.get("city")
         competitor_insights = []
+
         if site_city:
-            print(f"---> Discovering competitors in {site_city} via SearchManager (Cache-First)...")
-            your_url = site_info.get("url", "")
-            your_domain = your_url.replace("https://", "").replace("http://", "").split("/")[0].replace("www.", "").lower()
-            your_brand_name = site_info.get("name", "").lower()
+            print(f"---> [COMPETITOR_ENGINE] Starting Robust Discovery for {site_info.get('name')} in {site_city}...")
 
-            # --- BRAND TARGETS: Extract potential brands from own keywords ---
-            potential_brand_queries = []
-            all_kws = (google_ads_details.get('top_keywords', []) if google_ads_details else [])
-            for kw_row in all_kws[:50]:
-                kw = kw_row.get("keyword", "").lower()
-                if kw and your_brand_name not in kw and len(kw.split()) >= 2:
-                    generics = ["agency", "company", "services", "hyderabad", "marketing", "ads", "real estate", "strategy", "best", "top", "consultant"]
-                    if not any(g in kw for g in generics):
-                         potential_brand_queries.append(kw)
+            # Define core services
+            services = [site_info.get("industry", "Business")]
+            # Extract top 3 high-spend keywords from Google Ads
+            all_kws = google_ads_details.get('top_keywords', [])
+            if all_kws:
+                services.extend([k.get("keyword") for k in all_kws[:3] if k.get("keyword")])
 
-            competitor_discovery_map = {} # domain -> discovery_query
+            # 1. Discover and Score Candidates
+            candidates = await competitor_service.discover_competitors(
+                industry=site_info.get("industry", ""),
+                city=site_city,
+                services=list(set(services))
+            )
 
-            # A. Fetch Historical Competitors first
-            try:
-                history = get_db_competitor_insights(site_id, "performance")
-                if history:
-                    for item in history:
-                        h_url = item["competitor_url"]
-                        h_query = item.get("discovery_query", "Historical Cache")
-                        h_domain = h_url.replace("https://", "").replace("http://", "").split('/')[0].replace("www.", "").lower()
-                        if h_domain and h_domain != your_domain and is_valid_competitor_domain(h_domain):
-                            competitor_discovery_map[h_domain] = h_query
-            except Exception as e: print(f"!!! Error fetching competitor history: {e}")
+            print(f"DEBUG: Discovered {len(candidates)} raw candidates via SERP Mining.")
 
-            # B. Live Discovery
-            top_kw = list(dict.fromkeys([k.get('keyword') for k in google_ads_details.get('top_keywords', [])[:10] if k.get('keyword')]))
-            if not top_kw and site_info.get("industry"):
-                top_kw = [site_info.get("industry")]
+            # 2. Integrate Auction Insights (Boost domains found in Auction Insights)
+            auction_domains = {a.get("domain", "").lower().replace("www.", "") for a in auction_insights if a.get("domain")}
+            for cand in candidates:
+                if cand["domain"] in auction_domains:
+                    cand["score"] += 15 # Boost score for domains confirmed in Ads Auction
+                    print(f"DEBUG: Boosting {cand['domain']} due to Auction Insight match.")
 
-            discovery_kws = list(set(top_kw[:5] + ["real estate marketing agency", site_info.get("industry", "Business")] + potential_brand_queries[:5]))
-            print(f"DEBUG: Keywords for live discovery (including brand targets): {discovery_kws}")
+            candidates = sorted(candidates, key=lambda x: x["score"], reverse=True)
 
-            for kw in discovery_kws:
-                if len(competitor_discovery_map) >= 8: break # Reduced for speed
-                query = f"{kw} {site_city}"
-                try:
-                    results_list = await search_manager.get_results(query)
-                    if results_list:
-                        for res in results_list[:5]:
-                            link = res.get("url", "")
-                            if link:
-                                d = link.split("/")[2].lower().replace("www.", "")
-                                if d and d != your_domain and is_valid_competitor_domain(d) and d not in competitor_discovery_map:
-                                    competitor_discovery_map[d] = kw
-                                    if len(competitor_discovery_map) >= 15: break
-                except Exception as e: print(f"!!! SearchManager failed for '{query}': {e}")
-
-            potential_domains = list(competitor_discovery_map.keys())
+            # 3. Extract and Validate Top Candidates
             FRESHNESS_THRESHOLD_DAYS = 14
+            for cand in candidates[:10]:
+                if len(competitor_insights) >= 6: break
 
-            async def process_domain(domain, level=1):
-                url = f"https://{domain}"
-                query = competitor_discovery_map.get(domain, "Local Search")
+                domain = cand["domain"]
+                url = cand["representative_url"]
                 db_cached = get_db_competitor_insight(site_id, url, "performance")
 
+                valid_content = None
                 if db_cached and db_cached.get("extracted_at"):
                     last = safe_parse_iso(db_cached["extracted_at"])
                     if last and last > datetime.now(timezone.utc) - timedelta(days=FRESHNESS_THRESHOLD_DAYS):
-                        text = db_cached.get("full_text") or ""
-                        if text not in ["ERROR_404", "ERROR_SITE_DOWN"] and validate_competitor_relevance(text, site_info.get("industry", ""), site_info.get("city", ""), level=level):
-                             return {
-                                "competitor_name": clean_domain(domain), "url": url,
-                                "full_text": text,
-                                "key_phrases": db_cached.get("key_phrases", []), "cta": db_cached.get("cta", []),
-                                "entities": db_cached.get("entities", {}), "trust_signals": db_cached.get("trust_signals", []),
-                                "discovery_query": db_cached.get("discovery_query") or query
-                            }
+                        valid_content = db_cached.get("full_text")
 
-                # Re-crawling
-                content = await extract_with_webclaw(url)
-                if content and len(content) > 100:
-                    if not validate_competitor_relevance(content, site_info.get("industry", ""), site_info.get("city", ""), level=level):
-                        return None
-                    analysis = analyse_competitor_text(content)
-                    full_text = content[:4000]
-                    payload = {
-                        "site_id": site_id, "competitor_url": url, "competitor_name": clean_domain(domain),
-                        "full_text": full_text, "key_phrases": analysis["key_phrases"], "cta": analysis["cta"],
-                        "entities": analysis["entities"], "trust_signals": analysis["trust_signals"],
-                        "raw_text_preview": content[:500], "extracted_at": datetime.now(timezone.utc),
-                        "discovery_query": query, "source_module": "performance"
-                    }
-                    try: upsert_db_competitor_insight(payload)
-                    except Exception: pass
-                    return {
-                        "competitor_name": clean_domain(domain), "url": url, "full_text": full_text,
-                        "key_phrases": analysis["key_phrases"], "cta": analysis["cta"],
-                        "entities": analysis["entities"], "trust_signals": analysis["trust_signals"],
-                        "discovery_query": query
-                    }
-                return None
+                if not valid_content:
+                    print(f"DEBUG: Extracting content for {domain}...")
+                    content = await extract_with_webclaw(url)
+                    if content and len(content) > 300:
+                        if validate_competitor_relevance(content, site_info.get("industry", ""), site_city, level=1):
+                            valid_content = content
+                            analysis = analyse_competitor_text(content)
+                            upsert_db_competitor_insight({
+                                "site_id": site_id, "competitor_url": url, "competitor_name": clean_domain(domain),
+                                "full_text": content[:4000], "key_phrases": analysis["key_phrases"],
+                                "cta": analysis["cta"], "entities": analysis["entities"],
+                                "trust_signals": analysis["trust_signals"], "raw_text_preview": content[:500],
+                                "extracted_at": datetime.now(timezone.utc), "discovery_query": cand.get("discovery_query", "SERP Engine"),
+                                "source_module": "performance"
+                            })
 
-            competitor_insights = []
-            # Phase 1: Local
-            for d in potential_domains:
-                res = await process_domain(d, level=1)
-                if res: competitor_insights.append(res)
-                if len(competitor_insights) >= 6: break
+                if valid_content:
+                    analysis = analyse_competitor_text(valid_content)
+                    competitor_insights.append({
+                        "competitor_name": clean_domain(domain),
+                        "url": url,
+                        "full_text": valid_content[:4000],
+                        "key_phrases": analysis["key_phrases"],
+                        "cta": analysis["cta"],
+                        "entities": analysis["entities"],
+                        "trust_signals": analysis["trust_signals"],
+                        "discovery_query": cand.get("discovery_query", "Direct Competitor")
+                    })
 
-            # Phase 2: Relaxed
-            if len(competitor_insights) < 4:
-                print("---> [COMPETITORS] Phase 2: Relaxed Filter Discovery")
-                for d in [d for d in potential_domains if d not in [c["url"].split("/")[2] for c in competitor_insights]]:
-                    res = await process_domain(d, level=2)
-                    if res: competitor_insights.append(res)
-                    if len(competitor_insights) >= 6: break
+            print(f"✅ [COMPETITOR_ENGINE] Final Validated Competitors: {len(competitor_insights)}")
 
-            # Phase 3: Global Search Fallback
-            if len(competitor_insights) < 4:
-                print("---> [COMPETITORS] Phase 3: Global Search Fallback")
-                broad_query = f"{site_info.get('industry', 'Business')} India"
-                broad_results = await scrape_duckduckgo_fallback(broad_query)
-                for res in broad_results:
-                    link = res.get("url", "")
-                    if link:
-                        d = link.split("/")[2].lower().replace("www.", "")
-                        if d and d != your_domain and is_valid_competitor_domain(d) and d not in [c["url"].split("/")[2] for c in competitor_insights]:
-                            res_comp = await process_domain(d, level=2)
-                            if res_comp: competitor_insights.append(res_comp)
-                            if len(competitor_insights) >= 6: break
-
-            final_competitors = competitor_insights
-            competitor_insights = final_competitors[:6]
-            print(f"✅ Discovered {len(competitor_insights)} real-time competitors")
+        competitor_names = [c["competitor_name"] for c in competitor_insights]
 
         competitor_names = [c["competitor_name"] for c in competitor_insights]
         radar_data = build_dynamic_radar(self_radar, competitor_names)
