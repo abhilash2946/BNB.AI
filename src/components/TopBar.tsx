@@ -96,40 +96,85 @@ export default function TopBar({
     return `${d}/${m}/${y}`;
   };
 
-  // Convert DD/MM/YYYY (Display) back to YYYY-MM-DD (ISO)
-  const toIso = (display: string) => {
-    const parts = display.split('/');
-    if (parts.length !== 3) return null;
-    const [d, m, y] = parts;
-    if (d.length < 1 || m.length < 1 || y.length < 4) return null;
-    // Basic validation
-    const dd = d.padStart(2, '0');
-    const mm = m.padStart(2, '0');
-    return `${y}-${mm}-${dd}`;
-  };
-
   // Keep display text in sync with external dateRange prop
   useEffect(() => {
     setStartText(toDisplay(dateRange.start));
     setEndText(toDisplay(dateRange.end));
   }, [dateRange]);
 
-  const handleStartTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setStartText(val);
-    const iso = toIso(val);
-    if (iso && !isNaN(Date.parse(iso))) {
-      onChangeDateRange({ ...dateRange, start: iso });
+  const validateAndFormatDate = (value: string): { formatted: string, iso: string | null } => {
+    // 1. Logic for typing '/' - pad current segment
+    let input = value;
+    if (value.endsWith('/')) {
+      const parts = value.split('/');
+      // If user typed "3/", convert to "03/"
+      if (parts[parts.length - 2]?.length === 1) {
+        const lastIndex = value.lastIndexOf('/');
+        input = value.slice(0, lastIndex - 1) + '0' + value.slice(lastIndex - 1);
+      }
     }
+
+    // 2. Remove all non-digits for logic
+    let clean = input.replace(/\D/g, '');
+    clean = clean.slice(0, 8);
+
+    let d = clean.slice(0, 2);
+    let m = clean.slice(2, 4);
+    let y = clean.slice(4, 8);
+
+    // 3. Auto-padding for first digits > 3 (days) or > 1 (months)
+    // If typing '4' as first digit of day, make it '04'
+    if (d.length === 1 && parseInt(d) > 3) d = '0' + d;
+    // If typing '2' as first digit of month, make it '02'
+    if (m.length === 1 && parseInt(m) > 1) m = '0' + m;
+
+    // 4. Month validation: 1-12. If typing '13', convert to '01'.
+    if (m.length === 2) {
+      let month = parseInt(m);
+      if (month > 12) m = '01';
+      else if (month === 0) m = '01';
+    }
+
+    // 5. Day validation: 1-31. If month is set, check month-specific max.
+    if (d.length === 2) {
+      let day = parseInt(d);
+      if (day === 0) d = '01';
+      else if (day > 31) d = '31';
+
+      if (m.length === 2) {
+        const monthVal = parseInt(m);
+        const yearVal = y.length === 4 ? parseInt(y) : 2024;
+        const maxDays = new Date(yearVal, monthVal, 0).getDate();
+        if (day > maxDays) d = maxDays.toString().padStart(2, '0');
+      }
+    }
+
+    // 6. Auto-formatting (adding slashes)
+    let display = d;
+    if (m.length > 0 || clean.length > 2) display += '/' + m;
+    if (y.length > 0 || clean.length > 4) display += '/' + y;
+
+    // ISO generation when full
+    if (d.length === 2 && m.length === 2 && y.length === 4) {
+      return {
+        formatted: display,
+        iso: `${y}-${m}-${d}`
+      };
+    }
+
+    return { formatted: display, iso: null };
+  };
+
+  const handleStartTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { formatted, iso } = validateAndFormatDate(e.target.value);
+    setStartText(formatted);
+    if (iso) onChangeDateRange({ ...dateRange, start: iso });
   };
 
   const handleEndTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setEndText(val);
-    const iso = toIso(val);
-    if (iso && !isNaN(Date.parse(iso))) {
-      onChangeDateRange({ ...dateRange, end: iso });
-    }
+    const { formatted, iso } = validateAndFormatDate(e.target.value);
+    setEndText(formatted);
+    if (iso) onChangeDateRange({ ...dateRange, end: iso });
   };
 
   const handleNativeStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
