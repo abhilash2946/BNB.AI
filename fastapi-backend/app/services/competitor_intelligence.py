@@ -115,19 +115,38 @@ class CompetitorScorer:
         if not content or len(content) < 300: return False
         content_lower = content.lower()
 
-        # 0. Dynamic Anti-Marker Check
+        # 0. Dynamic Anti-Marker Check (Strict)
         if profile and profile.get("anti_markers"):
+            # Use a higher threshold for complex multi-type profiling
             anti_hits = sum(1 for m in profile["anti_markers"] if m in content_lower)
-            if anti_hits >= 2:
-                print(f"DEBUG: Rejecting candidate due to dynamic anti-markers ({anti_hits})")
+            # If we are an Agency, we are VERY strict about not being a Retail store
+            if profile.get("is_agency") and anti_hits >= 2:
+                print(f"DEBUG: Rejecting candidate due to anti-retail markers ({anti_hits})")
+                return False
+            # Generic threshold
+            if anti_hits >= 5:
                 return False
 
-        # 0.1. Dynamic Marker Requirement (Boost)
-        has_positive_match = False
-        if profile and profile.get("markers"):
-            has_positive_match = any(m in content_lower for m in profile["markers"])
+        # 0.1. Type Scoring (The Core Logic)
+        from app.services.competitor_intelligence import competitor_service
+        all_markers = competitor_service.get_type_markers()
 
-        # 1. Broaden industry keywords
+        candidate_scores = {}
+        for b_type, markers in all_markers.items():
+            candidate_scores[b_type] = sum(1 for m in markers if m in content_lower)
+
+        candidate_type = max(candidate_scores, key=candidate_scores.get)
+
+        # Validation Rule: Candidate type must match user type OR be extremely high in a related industry
+        if profile and profile.get("type") != "GENERIC":
+            user_type = profile["type"]
+            # Strict Match for Agency/Retail/Real Estate
+            if user_type in ["AGENCY", "RETAIL", "ECOMMERCE", "REAL_ESTATE", "EDUCATION", "HEALTHCARE"]:
+                if candidate_type != user_type and candidate_scores.get(user_type, 0) < 2:
+                    print(f"DEBUG: Rejecting candidate {candidate_type} (Mismatch with user type {user_type})")
+                    return False
+
+        # 1. Location Normalization
         industry_keywords = {
             "travel": ["tour", "holiday", "package", "travel", "yatra", "itinerary", "booking", "hotel", "resort", "tourism"],
             "construction": ["builder", "architect", "civil", "renovation", "interior", "structural", "real estate", "housing", "developers"],
@@ -184,68 +203,88 @@ class CompetitorIntelligenceService:
         self.query_gen = QueryGenerator()
         self.filter = HardFilter()
         self.scorer = CompetitorScorer()
-        self.business_profile = {} # Dynamic profile of the user's business
+        self.business_profile = {}
+
+    def get_type_markers(self) -> Dict[str, List[str]]:
+        return {
+            "AGENCY": ["our services", "case studies", "our clients", "digital marketing", "agency", "branding", "seo", "advertising", "performance marketing", "martech", "adtech", "client success"],
+            "RETAIL": ["add to cart", "checkout", "buy now", "return policy", "shop", "shipping", "product", "warranty", "inventory"],
+            "ECOMMERCE": ["d2c", "online store", "shopping cart", "payment gateway", "order tracking", "customer reviews", "sku"],
+            "SAAS_TECH": ["software", "platform", "dashboard", "api", "integration", "enterprise", "automation", "tech", "infrastructure", "cloud", "saas"],
+            "REAL_ESTATE": ["property", "flat", "apartment", "villa", "plot", "realestate", "realty", "builders", "developers", "residential", "commercial", "rera"],
+            "EDUCATION": ["school", "college", "university", "course", "training", "edtech", "student", "admissions", "curriculum", "scholarship", "learning"],
+            "HEALTHCARE": ["hospital", "clinic", "doctor", "medical", "patient", "treatment", "healthcare", "diagnostics", "appointment", "specialist"],
+            "FINANCE": ["bank", "fintech", "insurance", "loan", "investment", "financial", "credit", "mortgage", "banking", "wealth"],
+            "HOSPITALITY": ["hotel", "resort", "restaurant", "travel", "booking", "stay", "vacation", "holiday", "itinerary", "hospitality"],
+            "MANUFACTURING": ["factory", "production", "industrial", "manufacturing", "supply chain", "logistics", "machinery", "manufacturing unit", "oem"],
+            "PROFESSIONAL_SERVICES": ["legal", "consulting", "accounting", "hr", "tax", "audit", "lawyer", "recruitment", "professional services"],
+            "MEDIA_PUBLISHER": ["news", "magazine", "article", "blog", "publication", "editorial", "journalism", "latest news", "breaking news"],
+            "MARKETPLACE": ["seller", "buyer", "marketplace", "platform", "vendor", "classifieds", "listings", "multi-vendor"],
+            "DIRECTORY": ["justdial", "sulekha", "yelp", "directory", "listings", "reviews", "top 10", "best in", "yellow pages"],
+            "GOVT_NONPROFIT": ["gov", "nic", "ministry", "ngo", "nonprofit", "charity", "donation", "foundation", "public welfare"]
+        }
+
+    def get_type_search_suffix(self, b_type: str) -> str:
+        mapping = {
+            "AGENCY": "Agency", "RETAIL": "Store", "ECOMMERCE": "Online Shop",
+            "SAAS_TECH": "Software Platform", "REAL_ESTATE": "Company",
+            "EDUCATION": "Institution", "HEALTHCARE": "Services", "FINANCE": "Services",
+            "HOSPITALITY": "Hospitality", "MANUFACTURING": "Manufacturer",
+            "PROFESSIONAL_SERVICES": "Consultancy", "MEDIA_PUBLISHER": "Publisher",
+            "MARKETPLACE": "Marketplace", "DIRECTORY": "Directory"
+        }
+        return mapping.get(b_type, "")
 
     async def profile_user_business(self, site_url: str):
-        """
-        Crawls the user's own website to identify business type and core markers.
-        """
         from app.workers.seo_worker import extract_with_webclaw
-        print(f"---> [PROFILER] Profiling user business at {site_url}...")
+        print(f"---> [PROFILER] Deep Profiling user business at {site_url}...")
 
         content = await extract_with_webclaw(site_url)
         if not content or len(content) < 300:
-            print("!!! [PROFILER] Failed to crawl site. Using default profile.")
-            self.business_profile = {"type": "GENERIC", "markers": [], "anti_markers": []}
+            self.business_profile = {"type": "GENERIC", "scores": {}, "anti_markers": [], "is_agency": False}
             return
 
         content_lower = content.lower()
+        all_markers = self.get_type_markers()
 
-        # 1. Detect Business Type
-        retail_markers = ["add to cart", "checkout", "free shipping", "return policy", "buy now", "shop now"]
-        agency_markers = ["our services", "case studies", "our clients", "get a quote", "contact us for", "digital marketing", "agency", "solutions for"]
+        scores = {}
+        for b_type, markers in all_markers.items():
+            scores[b_type] = sum(1 for m in markers if m in content_lower)
 
-        retail_score = sum(1 for m in retail_markers if m in content_lower)
-        agency_score = sum(1 for m in agency_markers if m in content_lower)
-
-        if agency_score > retail_score:
-            b_type = "AGENCY"
-            # If we are an agency, we want to find other agencies and EXCLUDE retail stores
-            markers = agency_markers
-            anti_markers = retail_markers
-        elif retail_score > 0:
-            b_type = "RETAIL"
-            # If we are a store, we want to find other stores and EXCLUDE agencies
-            markers = retail_markers
-            anti_markers = agency_markers
-        else:
-            b_type = "GENERIC"
-            markers = []
-            anti_markers = []
+        primary_type = max(scores, key=scores.get)
+        if scores[primary_type] == 0: primary_type = "GENERIC"
 
         self.business_profile = {
-            "type": b_type,
-            "markers": markers,
-            "anti_markers": anti_markers,
-            "is_agency": b_type == "AGENCY"
+            "type": primary_type,
+            "scores": scores,
+            "is_agency": primary_type == "AGENCY",
+            "anti_markers": []
         }
-        print(f"✅ [PROFILER] Identified as {b_type} (Agency Score: {agency_score}, Retail Score: {retail_score})")
 
-    async def discover_candidates(self, services: List[str], city: str) -> List[Dict[str, Any]]:
-        # If we are an agency, ensure we aren't just searching for product terms
+        if primary_type == "AGENCY":
+            self.business_profile["anti_markers"] = all_markers["RETAIL"] + all_markers["ECOMMERCE"] + all_markers["DIRECTORY"]
+        elif primary_type in ["RETAIL", "ECOMMERCE"]:
+            self.business_profile["anti_markers"] = all_markers["AGENCY"] + all_markers["DIRECTORY"]
+
+        print(f"✅ [PROFILER] Identified as {primary_type}")
+
+    async def discover_candidates(self, services: List[str], city: str, force_type: str = None) -> List[Dict[str, Any]]:
+        target_type = force_type or self.business_profile.get("type", "GENERIC")
+        type_suffix = self.get_type_search_suffix(target_type)
+
         refined_services = []
         for s in services:
-            if self.business_profile.get("is_agency"):
-                # Wrap product-like terms into service terms
-                if any(bad in s.lower() for bad in ["tops", "dresses", "clothing", "buy ", "price"]):
-                    refined_services.append(f"Digital Marketing for {s}")
-                else:
-                    refined_services.append(s)
+            s_clean = s.strip()
+            # If we have a target type like AGENCY, ensure it's in the query
+            if type_suffix and type_suffix.lower() not in s_clean.lower():
+                refined_services.append(f"{s_clean} {type_suffix}")
             else:
-                refined_services.append(s)
+                refined_services.append(s_clean)
 
         queries = self.query_gen.generate(refined_services, city)
         raw_results = {}
+
+        # Search Loop
         for query in queries[:10]:
             try:
                 results = await search_manager.get_results(query)
