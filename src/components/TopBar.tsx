@@ -163,21 +163,47 @@ export default function TopBar({
   const handleStartTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { formatted, iso } = validateAndFormatDate(e.target.value);
     setStartText(formatted);
-    if (iso) onChangeDateRange({ ...dateRange, start: iso });
+    if (iso) {
+      const newRange = { ...dateRange, start: iso };
+      // Enforce Start <= End logic: If user makes start date LATER than current end date
+      if (dateRange.end && iso > dateRange.end) {
+        newRange.end = iso;
+        setEndText(formatted);
+      }
+      onChangeDateRange(newRange);
+    }
   };
 
   const handleEndTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { formatted, iso } = validateAndFormatDate(e.target.value);
     setEndText(formatted);
-    if (iso) onChangeDateRange({ ...dateRange, end: iso });
+    if (iso) {
+      const newRange = { ...dateRange, end: iso };
+      // If end date is made earlier than start date, bring start date back to match
+      if (iso < dateRange.start) {
+        newRange.start = iso;
+        setStartText(formatted);
+      }
+      onChangeDateRange(newRange);
+    }
   };
 
   const handleNativeStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChangeDateRange({ ...dateRange, start: e.target.value });
+    const val = e.target.value;
+    const newRange = { ...dateRange, start: val };
+    if (val > dateRange.end) {
+      newRange.end = val;
+    }
+    onChangeDateRange(newRange);
   };
 
   const handleNativeEndChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChangeDateRange({ ...dateRange, end: e.target.value });
+    const val = e.target.value;
+    const newRange = { ...dateRange, end: val };
+    if (val < dateRange.start) {
+      newRange.start = val;
+    }
+    onChangeDateRange(newRange);
   };
 
   const openStartPicker = () => {
