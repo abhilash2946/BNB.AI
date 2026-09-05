@@ -683,6 +683,7 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             # 1. Discover Candidates Loop (with Broadening Fallback)
             search_level = 1 # 1: Neighborhood, 2: City, 3: Region/National
             locations = [site_city, "Hyderabad", "India"]
+            FRESHNESS_THRESHOLD_DAYS = 14
 
             while len(competitor_insights) < 2 and search_level <= 3:
                 current_loc = locations[search_level-1]
