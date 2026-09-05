@@ -526,19 +526,16 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
             services.extend(commercial_kws[:3])
 
             # 1. Discover and Score Candidates
-            candidates = await competitor_service.discover_competitors(
-                industry=site_info.get("industry", ""),
-                city=site_city,
-                services=list(set(services))
+            candidates = await competitor_service.discover_candidates(
+                services=list(set(services)), city=site_city
             )
 
             print(f"DEBUG: Discovered {len(candidates)} raw candidates via SERP Mining.")
 
             # 2. Extract and Validate Top Candidates
             FRESHNESS_THRESHOLD_DAYS = 14
-            for cand in candidates[:10]: # Process top 10 candidates
+            for cand in candidates[:10]:
                 if len(competitor_insights) >= 6: break
-
                 domain = cand["domain"]
                 url = cand["representative_url"]
                 db_cached = get_db_competitor_insight(site_id, url, "seo")
@@ -553,31 +550,25 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                     print(f"DEBUG: Extracting content for {domain}...")
                     content = await extract_with_webclaw(url)
                     if content and len(content) > 300:
-                        # Business Classifier (Semantic Validation)
-                        if validate_competitor_relevance(content, site_info.get("industry", ""), site_city, level=1):
+                        if competitor_service.scorer.validate_relevance(content, site_info.get("industry", ""), site_city, level=1):
                             valid_content = content
-                            # Cache it
-                            analysis = analyse_competitor_text(content)
+                            analysis = competitor_service.analyse_text(content)
                             upsert_db_competitor_insight({
                                 "site_id": site_id, "competitor_url": url, "competitor_name": clean_domain(domain),
                                 "full_text": content[:4000], "key_phrases": analysis["key_phrases"],
                                 "cta": analysis["cta"], "entities": analysis["entities"],
                                 "trust_signals": analysis["trust_signals"], "raw_text_preview": content[:500],
-                                "extracted_at": datetime.now(timezone.utc), "discovery_query": cand.get("discovery_query", "SERP Engine"),
+                                "extracted_at": datetime.now(timezone.utc), "discovery_query": "SERP Robust Discovery",
                                 "source_module": "seo"
                             })
 
                 if valid_content:
-                    analysis = analyse_competitor_text(valid_content)
+                    analysis = competitor_service.analyse_text(valid_content)
                     competitor_insights.append({
-                        "competitor_name": clean_domain(domain),
-                        "url": url,
-                        "full_text": valid_content[:4000],
-                        "key_phrases": analysis["key_phrases"],
-                        "cta": analysis["cta"],
-                        "entities": analysis["entities"],
-                        "trust_signals": analysis["trust_signals"],
-                        "discovery_query": cand.get("discovery_query", "Direct Competitor")
+                        "competitor_name": clean_domain(domain), "url": url, "full_text": valid_content[:4000],
+                        "key_phrases": analysis["key_phrases"], "cta": analysis["cta"],
+                        "entities": analysis["entities"], "trust_signals": analysis["trust_signals"],
+                        "discovery_query": "Direct Competitor"
                     })
 
             print(f"✅ [COMPETITOR_ENGINE] Final Validated Competitors: {len(competitor_insights)}")
@@ -776,7 +767,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                 },
                 "daily_users": [{"date": d["date"], "users": d["users"], "returningUsers": max(0, d["users"]-d["newUsers"])} for d in daily_ga4]
             },
-            "chart_datasets": chart_data, "radar_data": radar_data,
+            "chart_datasets": chart_data, "radar_data": radar_data, "radar_self": self_radar,
             "ai_summary": ai_result.get("summary"),
             "ai_insights": presentation_insights,
             "ai_recommendations": ai_result.get("neural_strategy_markers") or ai_result.get("recommendations", []),
@@ -784,7 +775,8 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
             "ai_competitor_analysis": ai_result.get("competitor_analysis"), "ai_table_explanations": ai_result.get("table_explanations", {}),
             "improvement_roadmap": ai_result.get("improvement_roadmap"), "competitor_intelligence": {"competitors": competitor_breakdown, "overall_threat_summary": overall_threat_summary},
             "section_advice": section_advice, "ai_slide_descriptions": ai_result.get("slide_descriptions", {}),
-            "seo_work_details": seo_work_details, "gbp_details": gbp_details
+            "seo_work_details": seo_work_details, "gbp_details": gbp_details,
+            "self_gap_analysis": self_gap_analysis
         })
 
         update_db_report_status(report_id, "completed")

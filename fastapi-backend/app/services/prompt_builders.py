@@ -10,8 +10,9 @@ RULES:
    - Sentence 1: Direct diagnosis with numbers.
    - Sentence 2: Comparative cross-platform context.
    - Sentence 3: Technical move with target metric.
-   - STRICT: Keep sentences concise, punchy, and data-dense. Each sentence MUST be between 15 and 18 words. No more, no less. This ensures the output fits exactly 4 lines in the UI.
-4. VALID JSON: Strictly avoid unescaped double quotes inside values; use single quotes instead. Ensure the JSON is properly terminated.
+   - STRICT: Keep sentences concise, punchy, and data-dense. Each sentence MUST be between 15 and 18 words. No more, no less.
+4. VALID JSON: Strictly avoid unescaped double quotes inside values; use single quotes instead.
+5. NO NOISE: Return ONLY the JSON object. Do not include any commentary, word counts, or markdown outside the JSON.
 """
 
 # --- PERFORMANCE PROMPTS ---

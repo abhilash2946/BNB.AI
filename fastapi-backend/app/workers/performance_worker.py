@@ -677,10 +677,8 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
                 services.extend([k.get("keyword") for k in all_kws[:3] if k.get("keyword")])
 
             # 1. Discover and Score Candidates
-            candidates = await competitor_service.discover_competitors(
-                industry=site_info.get("industry", ""),
-                city=site_city,
-                services=list(set(services))
+            candidates = await competitor_service.discover_candidates(
+                services=list(set(services)), city=site_city
             )
 
             print(f"DEBUG: Discovered {len(candidates)} raw candidates via SERP Mining.")
@@ -698,7 +696,6 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             FRESHNESS_THRESHOLD_DAYS = 14
             for cand in candidates[:10]:
                 if len(competitor_insights) >= 6: break
-
                 domain = cand["domain"]
                 url = cand["representative_url"]
                 db_cached = get_db_competitor_insight(site_id, url, "performance")
@@ -713,29 +710,25 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
                     print(f"DEBUG: Extracting content for {domain}...")
                     content = await extract_with_webclaw(url)
                     if content and len(content) > 300:
-                        if validate_competitor_relevance(content, site_info.get("industry", ""), site_city, level=1):
+                        if competitor_service.scorer.validate_relevance(content, site_info.get("industry", ""), site_city, level=1):
                             valid_content = content
-                            analysis = analyse_competitor_text(content)
+                            analysis = competitor_service.analyse_text(content)
                             upsert_db_competitor_insight({
                                 "site_id": site_id, "competitor_url": url, "competitor_name": clean_domain(domain),
                                 "full_text": content[:4000], "key_phrases": analysis["key_phrases"],
                                 "cta": analysis["cta"], "entities": analysis["entities"],
                                 "trust_signals": analysis["trust_signals"], "raw_text_preview": content[:500],
-                                "extracted_at": datetime.now(timezone.utc), "discovery_query": cand.get("discovery_query", "SERP Engine"),
+                                "extracted_at": datetime.now(timezone.utc), "discovery_query": "Performance Robust Discovery",
                                 "source_module": "performance"
                             })
 
                 if valid_content:
-                    analysis = analyse_competitor_text(valid_content)
+                    analysis = competitor_service.analyse_text(valid_content)
                     competitor_insights.append({
-                        "competitor_name": clean_domain(domain),
-                        "url": url,
-                        "full_text": valid_content[:4000],
-                        "key_phrases": analysis["key_phrases"],
-                        "cta": analysis["cta"],
-                        "entities": analysis["entities"],
-                        "trust_signals": analysis["trust_signals"],
-                        "discovery_query": cand.get("discovery_query", "Direct Competitor")
+                        "competitor_name": clean_domain(domain), "url": url, "full_text": valid_content[:4000],
+                        "key_phrases": analysis["key_phrases"], "cta": analysis["cta"],
+                        "entities": analysis["entities"], "trust_signals": analysis["trust_signals"],
+                        "discovery_query": "Direct Competitor"
                     })
 
             print(f"✅ [COMPETITOR_ENGINE] Final Validated Competitors: {len(competitor_insights)}")
@@ -949,7 +942,7 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             "top_keywords": top_keywords_array, # Store raw array here!
             "top_landing_pages": top_landing, "users_by_country": geo_users, "sessions_by_channel": sessions_by_channel,
             "charts": {"overview": chart_data_overview, "devices": google_results[11], "demographics": google_results[12], "search_terms": google_results[13], "campaigns": google_results[14]},
-            "google_ads_details": processed_google_details, "competitor_data": auction_insights, "radar_data": radar_data,
+            "google_ads_details": processed_google_details, "competitor_data": auction_insights, "radar_data": radar_data, "radar_self": self_radar,
             "ga4_details": {"daily_users": [{"date": d["date"], "users": d["users"], "returningUsers": max(0, d["users"]-d["newUsers"])} for d in daily_ga4], "gbp_details": gbp_details},
             "chart_datasets": [{"label": d["date"], "valueA": d["users"], "valueB": max(0, d["users"]-d["newUsers"]), "valueC": 0} for d in daily_ga4],
             "ai_summary": ai_result.get("summary"),
@@ -960,7 +953,8 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             "section_advice": section_advice, "ai_slide_descriptions": ai_result.get("slide_descriptions", {}),
             "meta_ads_kpi": {"current": meta_current, "previous": meta_previous},
             "meta_ads_details": {"top_campaigns": meta_campaigns, "prev_top_campaigns": meta_campaigns_prev, "top_adsets": meta_adsets, "prev_top_adsets": meta_adsets_prev, "devices": meta_devices, "prev_devices": meta_devices_prev},
-            "meta_ads_charts": {"daily": meta_daily}
+            "meta_ads_charts": {"daily": meta_daily},
+            "self_gap_analysis": self_gap_analysis
         })
 
         update_db_report_status(report_id, "completed")
