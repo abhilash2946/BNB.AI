@@ -103,39 +103,31 @@ export default function TopBar({
   }, [dateRange]);
 
   const validateAndFormatDate = (value: string): { formatted: string, iso: string | null } => {
-    // 1. Logic for typing '/' - pad current segment
-    let input = value;
-    if (value.endsWith('/')) {
-      const parts = value.split('/');
-      // If user typed "3/", convert to "03/"
-      if (parts[parts.length - 2]?.length === 1) {
-        const lastIndex = value.lastIndexOf('/');
-        input = value.slice(0, lastIndex - 1) + '0' + value.slice(lastIndex - 1);
-      }
-    }
+    // 1. Filter out all non-digits EXCEPT the slash
+    let input = value.replace(/[^\d/]/g, '');
 
-    // 2. Remove all non-digits for logic
-    let clean = input.replace(/\D/g, '');
-    clean = clean.slice(0, 8);
+    // 2. Split into segments to prevent "shifting" (Year bleeding into Month)
+    let parts = input.split('/');
 
-    let d = clean.slice(0, 2);
-    let m = clean.slice(2, 4);
-    let y = clean.slice(4, 8);
+    // 3. Extract segments with strict limits
+    let d = (parts[0] || '').slice(0, 2);
+    let m = (parts[1] || '').slice(0, 2);
+    let y = (parts[2] || '').slice(0, 4);
 
-    // 3. Auto-padding for first digits > 3 (days) or > 1 (months)
-    // If typing '4' as first digit of day, make it '04'
+    // 4. Auto-padding & Validation logic
+
+    // Auto-pad single digits if they are definitive
     if (d.length === 1 && parseInt(d) > 3) d = '0' + d;
-    // If typing '2' as first digit of month, make it '02'
     if (m.length === 1 && parseInt(m) > 1) m = '0' + m;
 
-    // 4. Month validation: 1-12. If typing '13', convert to '01'.
+    // Month validation: 1-12. If typing '13', convert to '01'.
     if (m.length === 2) {
       let month = parseInt(m);
       if (month > 12) m = '01';
       else if (month === 0) m = '01';
     }
 
-    // 5. Day validation: 1-31. If month is set, check month-specific max.
+    // Day validation: 1-31. Checks month-specific max days (e.g. Sep has 30).
     if (d.length === 2) {
       let day = parseInt(d);
       if (day === 0) d = '01';
@@ -149,20 +141,23 @@ export default function TopBar({
       }
     }
 
-    // 6. Auto-formatting (adding slashes)
+    // 5. Reconstruct display string while preserving segment structure
+    // This prevents the year from shifting into the month slot when deleting.
     let display = d;
-    if (m.length > 0 || clean.length > 2) display += '/' + m;
-    if (y.length > 0 || clean.length > 4) display += '/' + y;
-
-    // ISO generation when full
-    if (d.length === 2 && m.length === 2 && y.length === 4) {
-      return {
-        formatted: display,
-        iso: `${y}-${m}-${d}`
-      };
+    if (input.includes('/') || d.length === 2) {
+      display += '/' + m;
+    }
+    if (input.lastIndexOf('/') > input.indexOf('/') || m.length === 2) {
+      display += '/' + y;
     }
 
-    return { formatted: display, iso: null };
+    // 6. Generate ISO format for backend sync only when date is complete
+    let iso: string | null = null;
+    if (d.length === 2 && m.length === 2 && y.length === 4) {
+      iso = `${y}-${m}-${d}`;
+    }
+
+    return { formatted: display, iso };
   };
 
   const handleStartTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
