@@ -667,69 +667,82 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
         competitor_insights = []
 
         if site_city:
+            # --- NEW DYNAMIC PROFILING ---
+            await competitor_service.profile_user_business(site_info.get("url", ""))
+
             print(f"---> [COMPETITOR_ENGINE] Starting Robust Discovery for {site_info.get('name')} in {site_city}...")
 
             # Define core services
-            services = [site_info.get("industry", "Business")]
+            industry = site_info.get("industry", "Business").lower()
+            services = [industry]
             # Extract top 3 high-spend keywords from Google Ads
             all_kws = google_ads_details.get('top_keywords', [])
             if all_kws:
                 services.extend([k.get("keyword") for k in all_kws[:3] if k.get("keyword")])
 
-            # 1. Discover and Score Candidates
-            candidates = await competitor_service.discover_candidates(
-                services=list(set(services)), city=site_city
-            )
+            # 1. Discover Candidates Loop (with Broadening Fallback)
+            search_level = 1 # 1: Neighborhood, 2: City, 3: Region/National
+            locations = [site_city, "Hyderabad", "India"]
 
-            print(f"DEBUG: Discovered {len(candidates)} raw candidates via SERP Mining.")
+            while len(competitor_insights) < 2 and search_level <= 3:
+                current_loc = locations[search_level-1]
+                print(f"DEBUG: [COMPETITOR_LOOP] Level {search_level} - Searching in {current_loc}...")
 
-            # 2. Integrate Auction Insights (Boost domains found in Auction Insights)
-            auction_domains = {a.get("domain", "").lower().replace("www.", "") for a in auction_insights if a.get("domain")}
-            for cand in candidates:
-                if cand["domain"] in auction_domains:
-                    cand["score"] += 15 # Boost score for domains confirmed in Ads Auction
-                    print(f"DEBUG: Boosting {cand['domain']} due to Auction Insight match.")
+                candidates = await competitor_service.discover_candidates(
+                    services=list(set(services)), city=current_loc
+                )
 
-            candidates = sorted(candidates, key=lambda x: x["score"], reverse=True)
+                # 2. Integrate Auction Insights (Boost domains found in Auction Insights)
+                auction_domains = {a.get("domain", "").lower().replace("www.", "") for a in auction_insights if a.get("domain")}
+                for cand in candidates:
+                    if cand["domain"] in auction_domains:
+                        cand["score"] += 15 # Boost score for domains confirmed in Ads Auction
 
-            # 3. Extract and Validate Top Candidates
-            FRESHNESS_THRESHOLD_DAYS = 14
-            for cand in candidates[:10]:
-                if len(competitor_insights) >= 6: break
-                domain = cand["domain"]
-                url = cand["representative_url"]
-                db_cached = get_db_competitor_insight(site_id, url, "performance")
+                candidates = sorted(candidates, key=lambda x: x["score"], reverse=True)
 
-                valid_content = None
-                if db_cached and db_cached.get("extracted_at"):
-                    last = safe_parse_iso(db_cached["extracted_at"])
-                    if last and last > datetime.now(timezone.utc) - timedelta(days=FRESHNESS_THRESHOLD_DAYS):
-                        valid_content = db_cached.get("full_text")
+                # 3. Extract and Validate Top Candidates
+                FRESHNESS_THRESHOLD_DAYS = 14
+                for cand in candidates[:15]:
+                    if len(competitor_insights) >= 6: break
+                    domain = cand["domain"]
+                    url = cand["representative_url"]
+                    db_cached = get_db_competitor_insight(site_id, url, "performance")
 
-                if not valid_content:
-                    print(f"DEBUG: Extracting content for {domain}...")
-                    content = await extract_with_webclaw(url)
-                    if content and len(content) > 300:
-                        if competitor_service.scorer.validate_relevance(content, site_info.get("industry", ""), site_city, level=1):
-                            valid_content = content
-                            analysis = competitor_service.analyse_text(content)
-                            upsert_db_competitor_insight({
-                                "site_id": site_id, "competitor_url": url, "competitor_name": clean_domain(domain),
-                                "full_text": content[:4000], "key_phrases": analysis["key_phrases"],
-                                "cta": analysis["cta"], "entities": analysis["entities"],
-                                "trust_signals": analysis["trust_signals"], "raw_text_preview": content[:500],
-                                "extracted_at": datetime.now(timezone.utc), "discovery_query": "Performance Robust Discovery",
-                                "source_module": "performance"
+                    valid_content = None
+                    if db_cached and db_cached.get("extracted_at"):
+                        last = safe_parse_iso(db_cached["extracted_at"])
+                        if last and last > datetime.now(timezone.utc) - timedelta(days=FRESHNESS_THRESHOLD_DAYS):
+                            valid_content = db_cached.get("full_text")
+
+                    if not valid_content:
+                        content = await extract_with_webclaw(url)
+                        if content and len(content) > 300:
+                            if competitor_service.scorer.validate_relevance(
+                                content, site_info.get("industry", ""), site_city,
+                                level=1, profile=competitor_service.business_profile
+                            ):
+                                valid_content = content
+                                analysis = competitor_service.analyse_text(content)
+                                upsert_db_competitor_insight({
+                                    "site_id": site_id, "competitor_url": url, "competitor_name": clean_domain(domain),
+                                    "full_text": content[:4000], "key_phrases": analysis["key_phrases"],
+                                    "cta": analysis["cta"], "entities": analysis["entities"],
+                                    "trust_signals": analysis["trust_signals"], "raw_text_preview": content[:500],
+                                    "extracted_at": datetime.now(timezone.utc), "discovery_query": "Performance Robust Discovery",
+                                    "source_module": "performance"
+                                })
+
+                    if valid_content:
+                        analysis = competitor_service.analyse_text(valid_content)
+                        if not any(c["url"] == url for c in competitor_insights):
+                            competitor_insights.append({
+                                "competitor_name": clean_domain(domain), "url": url, "full_text": valid_content[:4000],
+                                "key_phrases": analysis["key_phrases"], "cta": analysis["cta"],
+                                "entities": analysis["entities"], "trust_signals": analysis["trust_signals"],
+                                "discovery_query": f"Direct Competitor ({current_loc})"
                             })
 
-                if valid_content:
-                    analysis = competitor_service.analyse_text(valid_content)
-                    competitor_insights.append({
-                        "competitor_name": clean_domain(domain), "url": url, "full_text": valid_content[:4000],
-                        "key_phrases": analysis["key_phrases"], "cta": analysis["cta"],
-                        "entities": analysis["entities"], "trust_signals": analysis["trust_signals"],
-                        "discovery_query": "Direct Competitor"
-                    })
+                search_level += 1
 
             print(f"✅ [COMPETITOR_ENGINE] Final Validated Competitors: {len(competitor_insights)}")
 

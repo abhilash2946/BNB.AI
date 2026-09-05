@@ -587,7 +587,8 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                 search_level += 1 # Broaden for next iteration if < 2 found
 
             print(f"✅ [COMPETITOR_ENGINE] Final Validated Competitors: {len(competitor_insights)}")
-      competitor_names = [c["competitor_name"] for c in competitor_insights]
+
+        competitor_names = [c["competitor_name"] for c in competitor_insights]
         radar_data = build_dynamic_radar(self_radar, competitor_names)
 
         # 8. Call Gemini (3 Efficient Tasks)
