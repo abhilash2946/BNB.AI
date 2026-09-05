@@ -88,26 +88,46 @@ class HardFilter:
         "youtube.com", "pinterest.com", "reddit.com", "quora.com", "medium.com",
         "justdial.com", "sulekha.com", "indiamart.com", "yelp.com", "yellowpages.com",
         "tripadvisor.in", "tripadvisor.com", "glassdoor.com", "indeed.com", "crunchbase.com",
-        "wikipedia.org", "amazon.com", "ebay.com", "flipkart.com", "statista.com", "gov.in", "nic.in"
+        "wikipedia.org", "amazon.com", "amazon.in", "ebay.com", "flipkart.com", "statista.com",
+        "gov.in", "nic.in", "myntra.com", "ajio.com", "nykaa.com", "nykaafashion.com",
+        "meesho.com", "zara.com", "hm.com", "bewakoof.com", "limeroad.com"
     }
 
     @staticmethod
     def is_valid(url: str) -> bool:
         try:
             domain = urlparse(url).netloc.lower().replace("www.", "")
+
+            # Check for generic marketplace/retailer patterns
+            retail_patterns = ["amazon.", "ebay.", "flipkart.", "myntra.", "ajio.", "nykaa.", "meesho.", "zara.", "aliexpress."]
+            if any(pattern in domain for pattern in retail_patterns):
+                return False
+
             if domain in HardFilter.EXCLUDED_DOMAINS or any(domain.endswith("." + ex) for ex in HardFilter.EXCLUDED_DOMAINS):
                 return False
+
             return "." in domain
         except Exception: return False
 
 class CompetitorScorer:
     @staticmethod
-    def validate_relevance(content: str, industry: str, city: str, level: int = 1) -> bool:
+    def validate_relevance(content: str, industry: str, city: str, level: int = 1, profile: dict = None) -> bool:
         if not content or len(content) < 300: return False
         content_lower = content.lower()
-        industry_lower = industry.lower()
 
-        # Broaden industry keywords
+        # 0. Dynamic Anti-Marker Check
+        if profile and profile.get("anti_markers"):
+            anti_hits = sum(1 for m in profile["anti_markers"] if m in content_lower)
+            if anti_hits >= 2:
+                print(f"DEBUG: Rejecting candidate due to dynamic anti-markers ({anti_hits})")
+                return False
+
+        # 0.1. Dynamic Marker Requirement (Boost)
+        has_positive_match = False
+        if profile and profile.get("markers"):
+            has_positive_match = any(m in content_lower for m in profile["markers"])
+
+        # 1. Broaden industry keywords
         industry_keywords = {
             "travel": ["tour", "holiday", "package", "travel", "yatra", "itinerary", "booking", "hotel", "resort", "tourism"],
             "construction": ["builder", "architect", "civil", "renovation", "interior", "structural", "real estate", "housing", "developers"],
@@ -164,9 +184,67 @@ class CompetitorIntelligenceService:
         self.query_gen = QueryGenerator()
         self.filter = HardFilter()
         self.scorer = CompetitorScorer()
+        self.business_profile = {} # Dynamic profile of the user's business
+
+    async def profile_user_business(self, site_url: str):
+        """
+        Crawls the user's own website to identify business type and core markers.
+        """
+        from app.workers.seo_worker import extract_with_webclaw
+        print(f"---> [PROFILER] Profiling user business at {site_url}...")
+
+        content = await extract_with_webclaw(site_url)
+        if not content or len(content) < 300:
+            print("!!! [PROFILER] Failed to crawl site. Using default profile.")
+            self.business_profile = {"type": "GENERIC", "markers": [], "anti_markers": []}
+            return
+
+        content_lower = content.lower()
+
+        # 1. Detect Business Type
+        retail_markers = ["add to cart", "checkout", "free shipping", "return policy", "buy now", "shop now"]
+        agency_markers = ["our services", "case studies", "our clients", "get a quote", "contact us for", "digital marketing", "agency", "solutions for"]
+
+        retail_score = sum(1 for m in retail_markers if m in content_lower)
+        agency_score = sum(1 for m in agency_markers if m in content_lower)
+
+        if agency_score > retail_score:
+            b_type = "AGENCY"
+            # If we are an agency, we want to find other agencies and EXCLUDE retail stores
+            markers = agency_markers
+            anti_markers = retail_markers
+        elif retail_score > 0:
+            b_type = "RETAIL"
+            # If we are a store, we want to find other stores and EXCLUDE agencies
+            markers = retail_markers
+            anti_markers = agency_markers
+        else:
+            b_type = "GENERIC"
+            markers = []
+            anti_markers = []
+
+        self.business_profile = {
+            "type": b_type,
+            "markers": markers,
+            "anti_markers": anti_markers,
+            "is_agency": b_type == "AGENCY"
+        }
+        print(f"✅ [PROFILER] Identified as {b_type} (Agency Score: {agency_score}, Retail Score: {retail_score})")
 
     async def discover_candidates(self, services: List[str], city: str) -> List[Dict[str, Any]]:
-        queries = self.query_gen.generate(services, city)
+        # If we are an agency, ensure we aren't just searching for product terms
+        refined_services = []
+        for s in services:
+            if self.business_profile.get("is_agency"):
+                # Wrap product-like terms into service terms
+                if any(bad in s.lower() for bad in ["tops", "dresses", "clothing", "buy ", "price"]):
+                    refined_services.append(f"Digital Marketing for {s}")
+                else:
+                    refined_services.append(s)
+            else:
+                refined_services.append(s)
+
+        queries = self.query_gen.generate(refined_services, city)
         raw_results = {}
         for query in queries[:10]:
             try:

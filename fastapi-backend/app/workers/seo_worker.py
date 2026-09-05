@@ -516,11 +516,17 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
         competitor_insights = []
 
         if site_city:
+            # --- NEW DYNAMIC PROFILING ---
+            # Crawl our own site first to understand what we are
+            await competitor_service.profile_user_business(site_info.get("url", ""))
+
             print(f"---> [COMPETITOR_ENGINE] Starting Robust Discovery for {site_info.get('name')} in {site_city}...")
 
-            # Define core services based on industry and top keywords
-            services = [site_info.get("industry", "Business")]
-            # Extract top 3 generic commercial keywords from GSC
+            # Define core services
+            industry = site_info.get("industry", "Business").lower()
+            services = [industry]
+
+            # Extract generic commercial keywords
             commercial_kws = [k["keyword"] for k in top_keywords_full[:20]
                              if competitor_service.classifier.classify(k["keyword"]) == "Service"]
             services.extend(commercial_kws[:3])
@@ -550,7 +556,11 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                     print(f"DEBUG: Extracting content for {domain}...")
                     content = await extract_with_webclaw(url)
                     if content and len(content) > 300:
-                        if competitor_service.scorer.validate_relevance(content, site_info.get("industry", ""), site_city, level=1):
+                        # Use the DYNAMIC profile to validate
+                        if competitor_service.scorer.validate_relevance(
+                            content, site_info.get("industry", ""), site_city,
+                            level=1, profile=competitor_service.business_profile
+                        ):
                             valid_content = content
                             analysis = competitor_service.analyse_text(content)
                             upsert_db_competitor_insight({
