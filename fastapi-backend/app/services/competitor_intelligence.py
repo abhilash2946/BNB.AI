@@ -114,6 +114,7 @@ class CompetitorScorer:
     def validate_relevance(content: str, industry: str, city: str, level: int = 1, profile: dict = None) -> bool:
         if not content or len(content) < 300: return False
         content_lower = content.lower()
+        industry_lower = industry.lower()
 
         # 0. Dynamic Anti-Marker Check (Strict)
         if profile and profile.get("anti_markers"):
@@ -207,10 +208,10 @@ class CompetitorIntelligenceService:
 
     def get_type_markers(self) -> Dict[str, List[str]]:
         return {
-            "AGENCY": ["our services", "case studies", "our clients", "digital marketing", "agency", "branding", "seo", "advertising", "performance marketing", "martech", "adtech", "client success"],
+            "AGENCY": ["our services", "case studies", "our clients", "digital marketing", "agency", "branding", "seo", "advertising", "performance marketing", "martech", "adtech", "client success", "media house", "marketing strategy"],
             "RETAIL": ["add to cart", "checkout", "buy now", "return policy", "shop", "shipping", "product", "warranty", "inventory"],
             "ECOMMERCE": ["d2c", "online store", "shopping cart", "payment gateway", "order tracking", "customer reviews", "sku"],
-            "SAAS_TECH": ["software", "platform", "dashboard", "api", "integration", "enterprise", "automation", "tech", "infrastructure", "cloud", "saas"],
+            "SAAS_TECH": ["software as a service", "saas platform", "cloud software", "tech infrastructure", "automation software"],
             "REAL_ESTATE": ["property", "flat", "apartment", "villa", "plot", "realestate", "realty", "builders", "developers", "residential", "commercial", "rera"],
             "EDUCATION": ["school", "college", "university", "course", "training", "edtech", "student", "admissions", "curriculum", "scholarship", "learning"],
             "HEALTHCARE": ["hospital", "clinic", "doctor", "medical", "patient", "treatment", "healthcare", "diagnostics", "appointment", "specialist"],
