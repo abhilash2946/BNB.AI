@@ -54,18 +54,32 @@ class QueryGenerator:
     @staticmethod
     def generate(services: List[str], location: Optional[str] = None) -> List[str]:
         queries = []
-        loc_suffix = f" in {location}" if location else ""
+        loc_lower = location.lower() if location else ""
+
         for service in services:
             s = service.strip()
+            s_lower = s.lower()
+
+            # De-duplicate: only add suffix if location not in service name
+            loc_suffix = f" in {location}" if location and loc_lower not in s_lower else ""
+
             queries.append(f"{s}{loc_suffix}")
             queries.append(f"best {s}{loc_suffix}")
-            if not any(word in s.lower() for word in ["agency", "company", "firm", "service", "provider"]):
+
+            # Smart Agency Suffix
+            if not any(word in s_lower for word in ["agency", "company", "firm", "service", "provider"]):
                 if len(s.split()) <= 3:
                     queries.append(f"{s} agency{loc_suffix}")
+
             if location:
-                queries.append(f"top rated {s} {location}")
-                if len(s.split()) <= 3:
-                    queries.append(f"{s} companies near {location}")
+                # Localized queries
+                if loc_lower not in s_lower:
+                    queries.append(f"top rated {s} {location}")
+                    if len(s.split()) <= 3:
+                        queries.append(f"{s} companies near {location}")
+                else:
+                    queries.append(f"top rated {s}")
+
         return list(set(queries))
 
 class HardFilter:
@@ -93,31 +107,49 @@ class CompetitorScorer:
         content_lower = content.lower()
         industry_lower = industry.lower()
 
+        # Broaden industry keywords
         industry_keywords = {
-            "travel": ["tour", "holiday", "package", "travel", "yatra", "itinerary", "booking", "hotel"],
-            "construction": ["builder", "architect", "civil", "renovation", "interior", "structural"],
-            "e-commerce": ["shop", "store", "buy", "product", "cart", "online", "retail"],
-            "real estate": ["property", "flat", "apartment", "villa", "plot", "realestate", "realty"],
-            "marketing": ["agency", "ads", "digital", "branding", "marketing", "media", "strategy", "seo", "ppc"],
+            "travel": ["tour", "holiday", "package", "travel", "yatra", "itinerary", "booking", "hotel", "resort", "tourism"],
+            "construction": ["builder", "architect", "civil", "renovation", "interior", "structural", "real estate", "housing", "developers"],
+            "e-commerce": ["shop", "store", "buy", "product", "cart", "online", "retail", "marketplace", "shipping", "orders"],
+            "real estate": ["property", "flat", "apartment", "villa", "plot", "realestate", "realty", "residential", "commercial", "builders"],
+            "marketing": ["agency", "ads", "digital", "branding", "marketing", "media", "strategy", "seo", "ppc", "advertising", "social media", "creative"],
         }
 
         check_list = []
+        # Match industry based on substring or membership
         for key, kws in industry_keywords.items():
             if key in industry_lower or any(kw in industry_lower for kw in kws):
                 check_list.extend(kws)
+
         if not check_list: check_list = [w for w in re.split(r'\W+', industry_lower) if len(w) > 3]
-        if not check_list: check_list = ["business"]
+        if not check_list: check_list = ["business", "services", "company"]
 
         found_kws = [kw for kw in check_list if kw in content_lower]
 
-        city_aliases = {"madhapur": "hyderabad", "gachibowli": "hyderabad", "kondapur": "hyderabad", "whitefield": "bangalore"}
-        city_lower = city.lower()
-        target_city = city_aliases.get(city_lower, city_lower)
+        # Smart City Normalization
+        city_lower = city.lower() if city else ""
+        city_aliases = {
+            "madhapur": ["hyderabad", "telangana", "hitech city"],
+            "gachibowli": ["hyderabad", "telangana"],
+            "kondapur": ["hyderabad", "telangana"],
+            "jubilee hills": ["hyderabad", "telangana"],
+            "whitefield": ["bangalore", "bengaluru", "karnataka"]
+        }
+
+        valid_locations = [city_lower]
+        if city_lower in city_aliases:
+            valid_locations.extend(city_aliases[city_lower])
+
+        has_loc_match = any(loc in content_lower for loc in valid_locations)
 
         if level == 1:
+            # Strict: Industry AND Location match OR high industry density
             if not found_kws: return False
-            if city_lower in content_lower or target_city in content_lower: return len(found_kws) >= 1
-            return len(found_kws) >= 3
+            if has_loc_match: return len(found_kws) >= 1
+            return len(found_kws) >= 3 # Allow if extremely industry relevant even if location is ambiguous
+
+        # Level 2 (Relaxed): Just industry match
         return len(found_kws) >= 1
 
     @staticmethod
