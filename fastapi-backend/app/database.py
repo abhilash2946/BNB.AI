@@ -132,6 +132,7 @@ class ProcessedReport(Base):
     improvement_roadmap = Column(JSON)
     competitor_intelligence = Column(JSON)
     radar_self = Column(JSON)
+    self_gap_analysis = Column(JSON)
 
 class CompetitorInsight(Base):
     __tablename__ = "competitor_insights"
