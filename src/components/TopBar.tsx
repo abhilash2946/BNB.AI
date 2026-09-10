@@ -108,15 +108,32 @@ export default function TopBar({
     // 1. Filter out all non-digits EXCEPT the slash
     let input = value.replace(/[^\d/]/g, '');
 
-    // 2. Split into segments to prevent "shifting" (Year bleeding into Month)
-    let parts = input.split('/');
+    // 2. Split into segments and handle "locked" slashes logic
+    let rawParts = input.split('/');
+    let d = rawParts[0] || '';
+    let m = rawParts[1] || '';
+    let y = rawParts[2] || '';
 
-    // 3. Extract segments with strict limits
-    let d = (parts[0] || '').slice(0, 2);
-    let m = (parts[1] || '').slice(0, 2);
-    let y = (parts[2] || '').slice(0, 4);
+    // Handle digits redistributing if slashes were deleted (e.g., "0908" -> "09/08")
+    // This implements the "cannot delete / until i delete the following content" rule.
+    if (rawParts.length === 1 && d.length > 2) {
+      m = d.slice(2);
+      d = d.slice(0, 2);
+      if (m.length > 2) {
+        y = m.slice(2);
+        m = m.slice(0, 2);
+      }
+    } else if (rawParts.length === 2 && m.length > 2) {
+      y = m.slice(2);
+      m = m.slice(0, 2);
+    }
 
-    // 4. Auto-padding & Validation logic
+    // Apply strict length limits to segments
+    d = d.slice(0, 2);
+    m = m.slice(0, 2);
+    y = y.slice(0, 4);
+
+    // 3. Auto-padding & Validation logic
 
     // Auto-pad single digits if they are definitive
     if (d.length === 1 && parseInt(d) > 3) d = '0' + d;
@@ -143,17 +160,17 @@ export default function TopBar({
       }
     }
 
-    // 5. Reconstruct display string while preserving segment structure
-    // This prevents the year from shifting into the month slot when deleting.
+    // 4. Reconstruct display string
+    // A slash is mandatory if the user typed it OR if the following segment has content.
     let display = d;
-    if (input.includes('/') || d.length === 2) {
+    if (m.length > 0 || input.includes('/')) {
       display += '/' + m;
     }
-    if (input.lastIndexOf('/') > input.indexOf('/') || m.length === 2) {
+    if (y.length > 0 || (input.includes('/') && rawParts.length > 2)) {
       display += '/' + y;
     }
 
-    // 6. Generate ISO format for backend sync only when date is complete
+    // 5. Generate ISO format for backend sync only when date is complete
     let iso: string | null = null;
     if (d.length === 2 && m.length === 2 && y.length === 4) {
       iso = `${y}-${m}-${d}`;
