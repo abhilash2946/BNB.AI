@@ -114,6 +114,7 @@ export default function SiteManagement({
   } | null>(null);
 
   const [deleteConfirmSite, setDeleteConfirmSite] = useState<SiteProfile | null>(null);
+  const [deleteType, setDeleteConfirmType] = useState<'credentials' | 'site'>('credentials');
 
   const getAgencyHealth = () => {
     const googleScopes = sharedCreds.googleOAuth?.granted_scopes || "";
@@ -425,8 +426,8 @@ export default function SiteManagement({
         body: formData
       });
 
-      if (!res.ok) throw new Error(await res.text());
-      const { url } = await res.json();
+      if (!uploadRes.ok) throw new Error(await uploadRes.text());
+      const { url } = await uploadRes.json();
 
       setSiteImageUrl(url);
 
@@ -501,11 +502,15 @@ export default function SiteManagement({
     }
   };
 
-  const handleConfirmDeleteCredentials = async () => {
+  const handleConfirmDelete = async () => {
     if (!deleteConfirmSite) return;
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const res = await fetch(`${API_URL}/sites/${deleteConfirmSite.id}/credentials`, {
+      const endpoint = deleteType === 'credentials'
+        ? `${API_URL}/sites/${deleteConfirmSite.id}/credentials`
+        : `${API_URL}/sites/${deleteConfirmSite.id}`;
+
+      const res = await fetch(endpoint, {
         method: "DELETE",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -515,7 +520,7 @@ export default function SiteManagement({
       setDeleteConfirmSite(null);
       onRefresh();
     } catch (err: any) {
-      alert("Error deleting credentials: " + err.message);
+      alert(`Error during delete: ${err.message}`);
     }
   };
 
@@ -813,13 +818,23 @@ export default function SiteManagement({
                         {site.status === 'paused' ? <Play size={18} fill="currentColor" /> : <Pause size={18} fill="currentColor" />}
                       </button>
                       <button onClick={() => startEdit(site)} className="p-3 rounded-xl hover:bg-white/5 text-gray-400 hover:text-white transition-all"><Edit size={18}/></button>
-                      <button
-                        onClick={() => setDeleteConfirmSite(site)}
-                        className="p-3 rounded-xl hover:bg-rose-500/10 text-gray-400 hover:text-rose-500 transition-all"
-                        title="Delete Site Credentials"
-                      >
-                        <Trash size={18}/>
-                      </button>
+
+                      <div className="relative group/del">
+                        <button
+                          onClick={() => { setDeleteConfirmSite(site); setDeleteConfirmType('credentials'); }}
+                          className="p-3 rounded-xl hover:bg-rose-500/10 text-gray-400 hover:text-rose-500 transition-all"
+                          title="Delete Site Credentials"
+                        >
+                          <Trash size={18}/>
+                        </button>
+                        <button
+                          onClick={() => { setDeleteConfirmSite(site); setDeleteConfirmType('site'); }}
+                          className="absolute -top-1 -right-1 p-1 bg-black border border-white/10 rounded-full text-[8px] text-gray-500 hover:text-rose-500 opacity-0 group-hover/del:opacity-100 transition-all"
+                          title="Delete Entire Node"
+                        >
+                          FULL
+                        </button>
+                      </div>
                     </div>
                   </GlassCard>
                 );
@@ -840,9 +855,13 @@ export default function SiteManagement({
                     <Trash size={32} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold mb-2">Delete Credentials?</h3>
+                    <h3 className="text-xl font-bold mb-2">{deleteType === 'credentials' ? 'Delete Credentials?' : 'Delete Entire Node?'}</h3>
                     <p className="text-sm text-gray-400 leading-relaxed">
-                      All the credentials for <span className="text-white font-bold">{deleteConfirmSite.name}</span> such as GA4 ID, Google Ads IDs, and Social platform links will be permanently deleted. This action cannot be undone.
+                      {deleteType === 'credentials' ? (
+                        <>All the credentials for <span className="text-white font-bold">{deleteConfirmSite.name}</span> such as GA4 ID, Google Ads IDs, and Social platform links will be permanently deleted. This action cannot be undone.</>
+                      ) : (
+                        <>You are about to delete <span className="text-white font-bold">{deleteConfirmSite.name}</span> entirely. This will remove all data, settings, and credentials associated with this node. This action is irreversible.</>
+                      )}
                     </p>
                   </div>
                   <div className="flex gap-4 w-full pt-4">
@@ -853,10 +872,10 @@ export default function SiteManagement({
                       Cancel
                     </button>
                     <button
-                      onClick={handleConfirmDeleteCredentials}
+                      onClick={handleConfirmDelete}
                       className="flex-1 py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-rose-500/20"
                     >
-                      Confirm Delete
+                      {deleteType === 'credentials' ? 'Confirm Delete Credentials' : 'Confirm Delete Node'}
                     </button>
                   </div>
                 </div>
