@@ -180,13 +180,18 @@ export default function TopBar({
   };
 
   const handleStartTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { formatted, iso } = validateAndFormatDate(e.target.value);
+    const val = e.target.value;
+    const { formatted, iso } = validateAndFormatDate(val);
     setStartText(formatted);
-    if (iso) {
-      const newRange = { ...dateRange, start: iso };
+
+    // Always sync with parent.
+    // If not a full date (iso is null), send empty string to clear the filter/URL.
+    const newIso = iso || '';
+    if (newIso !== dateRange.start) {
+      const newRange = { ...dateRange, start: newIso };
       // Enforce Start <= End logic: If user makes start date LATER than current end date
-      if (dateRange.end && iso > dateRange.end) {
-        newRange.end = iso;
+      if (newIso && dateRange.end && newIso > dateRange.end) {
+        newRange.end = newIso;
         setEndText(formatted);
       }
       onChangeDateRange(newRange);
@@ -194,13 +199,18 @@ export default function TopBar({
   };
 
   const handleEndTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { formatted, iso } = validateAndFormatDate(e.target.value);
+    const val = e.target.value;
+    const { formatted, iso } = validateAndFormatDate(val);
     setEndText(formatted);
-    if (iso) {
-      const newRange = { ...dateRange, end: iso };
+
+    // Always sync with parent.
+    // If not a full date (iso is null), send empty string to clear the filter/URL.
+    const newIso = iso || '';
+    if (newIso !== dateRange.end) {
+      const newRange = { ...dateRange, end: newIso };
       // If end date is made earlier than start date, bring start date back to match
-      if (iso < dateRange.start) {
-        newRange.start = iso;
+      if (newIso && dateRange.start && newIso < dateRange.start) {
+        newRange.start = newIso;
         setStartText(formatted);
       }
       onChangeDateRange(newRange);
@@ -210,7 +220,7 @@ export default function TopBar({
   const handleNativeStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     const newRange = { ...dateRange, start: val };
-    if (val > dateRange.end) {
+    if (val && dateRange.end && val > dateRange.end) {
       newRange.end = val;
     }
     onChangeDateRange(newRange);
@@ -219,7 +229,7 @@ export default function TopBar({
   const handleNativeEndChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     const newRange = { ...dateRange, end: val };
-    if (val < dateRange.start) {
+    if (val && dateRange.start && val < dateRange.start) {
       newRange.start = val;
     }
     onChangeDateRange(newRange);
