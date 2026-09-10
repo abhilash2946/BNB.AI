@@ -64,9 +64,10 @@ interface ClientReportsProps {
   userName?: string;
   resetTrigger?: number; // Force re-sync when generate is clicked
   isSharedMode?: boolean;
+  onTriggerSync?: () => void;
 }
 
-export default function ClientReports({ report, siteId, category, setCategory, isFullscreen, setIsFullscreen, userAvatarUrl, userName, resetTrigger, isSharedMode }: ClientReportsProps) {
+export default function ClientReports({ report, siteId, category, setCategory, isFullscreen, setIsFullscreen, userAvatarUrl, userName, resetTrigger, isSharedMode, onTriggerSync }: ClientReportsProps) {
   const [slides, setSlides] = useState<Slide[]>(() => {
     return initialSlides;
   });
@@ -1367,6 +1368,15 @@ export default function ClientReports({ report, siteId, category, setCategory, i
           <h2 className="text-2xl font-display font-bold text-[#111827]">Awaiting Intelligence Feed</h2>
           <p className="text-[#6B7280] max-w-md">Please sync a division to generate the professional client presentation.</p>
         </div>
+        {onTriggerSync && (
+          <button
+            onClick={onTriggerSync}
+            className="px-6 py-3 bg-gradient-to-r from-[#00d4ff] to-[#7c3aed] text-white font-bold rounded-2xl hover:shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+          >
+            <Sparkles size={18} />
+            Trigger Neural Sync
+          </button>
+        )}
       </div>
     );
   }

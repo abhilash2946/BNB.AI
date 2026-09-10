@@ -50,9 +50,26 @@ export default function CommandCenter({
     catch { return defaultValue; }
   };
 
-  const [activeView, setActiveView] = useState<string>(() => getSavedState("activeView", "cmd-center"));
-  const [category, setCategory] = useState<CategoryType>(() => getSavedState("category", "SEO"));
-  const [section, setSection] = useState<SectionType>(() => getSavedState("section", "Reports"));
+  const [activeView, setActiveView] = useState<string>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlView = params.get('view');
+    if (urlView) return urlView;
+    return getSavedState("activeView", "cmd-center");
+  });
+
+  const [category, setCategory] = useState<CategoryType>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlCat = params.get('category');
+    if (urlCat) return urlCat as CategoryType;
+    return getSavedState("category", "SEO");
+  });
+
+  const [section, setSection] = useState<SectionType>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlSec = params.get('section');
+    if (urlSec) return urlSec as SectionType;
+    return getSavedState("section", "Reports");
+  });
 
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>(() => {
     // Strictly follow user request: "app should open with notting selected"
@@ -73,24 +90,29 @@ export default function CommandCenter({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isFullscreenReport, setIsFullscreenReport] = useState(false);
   const [resetTrigger, setResetTrigger] = useState(0);
+  const autoFetchTriggered = useRef(false);
 
   // Shared Mode Configuration & Auto-Fetch
   useEffect(() => {
-    if (isSharedMode && sharedConfig) {
+    if (isSharedMode && sharedConfig && activeSite?.id) {
       console.log("[CommandCenter] Shared Mode detected, configuring workspace...");
 
       // 1. Lock dates
-      if (sharedConfig.date_range) {
+      if (sharedConfig.date_range && (dateRange.start !== sharedConfig.date_range.start || dateRange.end !== sharedConfig.date_range.end)) {
         setDateRange(sharedConfig.date_range);
       }
 
       // 2. Determine initial view/category
+      const params = new URLSearchParams(window.location.search);
+      const urlView = params.get('view');
+
       let targetCat = category;
       let targetView = activeView;
 
-      if (sharedConfig.access_type === 'private') {
-        const hasPPT = sharedConfig.shared_pages.includes('ppt');
-        const hasDoc = sharedConfig.shared_pages.includes('doc');
+      // Only force initial view if URL doesn't specify one
+      if (!urlView && sharedConfig.access_type === 'private') {
+        const hasPPT = sharedConfig.shared_pages?.includes('ppt');
+        const hasDoc = sharedConfig.shared_pages?.includes('doc');
 
         if (hasPPT && activeView !== 'client-ppt' && activeView !== 'client-doc') {
           targetView = 'client-ppt';
@@ -104,13 +126,13 @@ export default function CommandCenter({
         targetCat = 'Combined Intelligence';
       }
 
-      setActiveView(targetView);
-      setCategory(targetCat);
+      if (targetView !== activeView) setActiveView(targetView);
+      if (targetCat !== category) setCategory(targetCat);
 
-      // 3. Auto-trigger fetch for Shared Mode
+      // 3. Auto-trigger fetch for Shared Mode (Strictly Once)
       // We use the exact report_id if available to bypass complex date/module searching
-      // Only trigger if activeSite is fully loaded with an ID
-      if (activeSite?.id && sharedConfig.report_id) {
+      if (sharedConfig.report_id && !autoFetchTriggered.current) {
+        autoFetchTriggered.current = true;
         console.log("[CommandCenter] Shared Mode: Auto-triggering report fetch for ID", sharedConfig.report_id);
         fetchReportData(activeSite, sharedConfig.date_range, targetCat, sharedConfig.report_id);
       }
@@ -605,6 +627,7 @@ export default function CommandCenter({
               userName={user.name}
               resetTrigger={resetTrigger}
               isSharedMode={isSharedMode}
+              onTriggerSync={() => handleGenerateReport()}
             />
           ) : activeView === 'client-doc' ? (
             marketingReport ? (
