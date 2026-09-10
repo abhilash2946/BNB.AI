@@ -141,7 +141,7 @@ export default function App() {
               const { share, site } = await res.json();
               if (share && site) {
                 const mappedSite = {
-                  id: site.id,
+                  id: site.id || site.site_id,
                   name: site.name,
                   url: site.url,
                   industry: site.industry,
@@ -407,7 +407,10 @@ export default function App() {
             localStorage.setItem('bnb_sites', JSON.stringify(mappedSites));
 
             // Strictly follow user request: "dont select any site as default"
-            setActiveSite(null);
+            // EXCEPT in Shared Mode where we MUST keep the selected shared site.
+            if (!sharedMode) {
+              setActiveSite(null);
+            }
           }
 
           const elapsed = Date.now() - startTime;

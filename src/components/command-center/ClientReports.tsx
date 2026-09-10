@@ -925,8 +925,8 @@ export default function ClientReports({ report, siteId, category, setCategory, i
 
        // ENHANCED FETCHING: If competitor data is missing, try to fetch it directly from Supabase
        const populateCompetitors = async () => {
-          const targetSiteId = siteId || report.site_id || report.report_id?.split('_')[0];
-          if (!targetSiteId) return;
+          const targetSiteId = siteId || report.site_id;
+          if (!targetSiteId || targetSiteId === 'undefined' || targetSiteId.startsWith('report_')) return;
 
           try {
             const { data: { session } } = await supabase.auth.getSession();

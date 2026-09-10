@@ -109,9 +109,12 @@ export default function CommandCenter({
 
       // 3. Auto-trigger fetch for Shared Mode
       // We use the exact report_id if available to bypass complex date/module searching
-      fetchReportData(activeSite, sharedConfig.date_range, targetCat, sharedConfig.report_id);
+      // Only trigger if activeSite is fully loaded with an ID
+      if (activeSite?.id) {
+        fetchReportData(activeSite, sharedConfig.date_range, targetCat, sharedConfig.report_id);
+      }
     }
-  }, [isSharedMode, !!sharedConfig]);
+  }, [isSharedMode, !!sharedConfig, activeSite?.id]);
 
   // Radar switching states
   const [isSelfRadar, setIsSelfRadar] = useState(false);
