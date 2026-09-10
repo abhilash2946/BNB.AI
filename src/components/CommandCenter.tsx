@@ -113,9 +113,6 @@ export default function CommandCenter({
       if (activeSite?.id && sharedConfig.report_id) {
         console.log("[CommandCenter] Shared Mode: Auto-triggering report fetch for ID", sharedConfig.report_id);
         fetchReportData(activeSite, sharedConfig.date_range, targetCat, sharedConfig.report_id);
-      } else if (activeSite?.id) {
-        console.log("[CommandCenter] Shared Mode: Auto-triggering search fetch for site", activeSite.id);
-        fetchReportData(activeSite, sharedConfig.date_range, targetCat);
       }
     }
   }, [isSharedMode, !!sharedConfig, activeSite?.id, sharedConfig?.report_id]);
@@ -169,15 +166,17 @@ export default function CommandCenter({
     const state = { activeView, category, section, dateRange, sidebarExpanded };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 
-    // Sync with URL
     const params = new URLSearchParams(window.location.search);
-    if (activeSite) params.set('site_id', activeSite.id);
+    if (activeSite?.id) params.set('site_id', activeSite.id);
     params.set('view', activeView);
     params.set('category', category);
     params.set('section', section);
     params.set('start_date', dateRange.start);
     params.set('end_date', dateRange.end);
-    window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
+
+    // CRITICAL: Ensure we don't accidentally put "undefined" into the URL string
+    const finalParams = params.toString().replace(/=undefined/g, '=');
+    window.history.replaceState({}, "", `${window.location.pathname}?${finalParams}`);
   }, [activeView, category, section, dateRange, activeSite?.id, sidebarExpanded, STORAGE_KEY]);
 
   const handleGenerateReport = async (targetCategory?: CategoryType) => {

@@ -146,8 +146,11 @@ export default function App() {
             if (res.ok && mounted) {
               const { share, site } = await res.json();
               if (share && site) {
+                const siteId = site.id || site.site_id;
+                console.log("[App] Shared Mode: Initializing with site", siteId);
+
                 const mappedSite = {
-                  id: site.id || site.site_id,
+                  id: siteId,
                   name: site.name,
                   url: site.url,
                   industry: site.industry,
@@ -189,7 +192,13 @@ export default function App() {
     const checkInitialSession = async () => {
       try {
         const isShared = await checkSharedLink();
-        if (isShared) return;
+        // CRITICAL: If this is a shared report, STOP HERE.
+        // Do not attempt to load a real user session or fetch profile data.
+        if (isShared) {
+          console.log("[App] Shared Report detected, skipping initial session check");
+          setIsLoading(false);
+          return;
+        }
 
         const { data: { session } } = await supabase.auth.getSession();
 

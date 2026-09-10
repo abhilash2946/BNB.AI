@@ -925,6 +925,9 @@ export default function ClientReports({ report, siteId, category, setCategory, i
 
        // ENHANCED FETCHING: If competitor data is missing, try to fetch it directly from Supabase
        const populateCompetitors = async () => {
+          // Shared Mode Enforcement: Guest users should not attempt extra background fetches
+          if (isSharedMode) return;
+
           const targetSiteId = siteId || report.site_id;
           if (!targetSiteId || targetSiteId === 'undefined' || targetSiteId.startsWith('report_')) return;
 

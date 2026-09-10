@@ -331,8 +331,8 @@ export default function TopBar({
           {/* Start Date Container */}
           <div className="flex items-center gap-2 px-3 py-1.5 bg-[#0c0c0c] border border-white/10 rounded-lg group hover:border-white/30 transition-all relative">
             <button
-              onClick={openStartPicker}
-              className="text-white/40 group-hover:text-white/70 transition-colors cursor-pointer"
+              onClick={isSharedMode ? undefined : openStartPicker}
+              className={`text-white/40 ${isSharedMode ? 'cursor-default' : 'group-hover:text-white/70 transition-colors cursor-pointer'}`}
             >
               <Calendar size={14} />
             </button>
@@ -341,18 +341,20 @@ export default function TopBar({
               value={startText}
               onChange={handleStartTextChange}
               placeholder="DD/MM/YYYY"
-              disabled={isSharedMode}
-              className={`bg-transparent border-0 text-white font-mono text-[11px] focus:ring-0 p-0 w-[95px] focus:outline-none ${isSharedMode ? 'opacity-50' : ''}`}
+              readOnly={isSharedMode}
+              className={`bg-transparent border-0 text-white font-mono text-[11px] focus:ring-0 p-0 w-[95px] focus:outline-none ${isSharedMode ? 'opacity-70 cursor-default' : ''}`}
             />
             {/* Hidden native picker triggered by button */}
-            <input
-              ref={startInputRef}
-              type="date"
-              value={dateRange.start}
-              onChange={handleNativeStartChange}
-              className="absolute opacity-0 pointer-events-none w-0 h-0"
-              style={{ colorScheme: 'dark' }}
-            />
+            {!isSharedMode && (
+              <input
+                ref={startInputRef}
+                type="date"
+                value={dateRange.start}
+                onChange={handleNativeStartChange}
+                className="absolute opacity-0 pointer-events-none w-0 h-0"
+                style={{ colorScheme: 'dark' }}
+              />
+            )}
           </div>
 
           <span className="text-white/20 text-[10px]">→</span>
@@ -364,24 +366,26 @@ export default function TopBar({
               value={endText}
               onChange={handleEndTextChange}
               placeholder="DD/MM/YYYY"
-              disabled={isSharedMode}
-              className={`bg-transparent border-0 text-white font-mono text-[11px] focus:ring-0 p-0 w-[95px] text-right focus:outline-none ${isSharedMode ? 'opacity-50' : ''}`}
+              readOnly={isSharedMode}
+              className={`bg-transparent border-0 text-white font-mono text-[11px] focus:ring-0 p-0 w-[95px] text-right focus:outline-none ${isSharedMode ? 'opacity-70 cursor-default' : ''}`}
             />
             <button
-              onClick={openEndPicker}
-              className="text-white/40 group-hover:text-white/70 transition-colors cursor-pointer"
+              onClick={isSharedMode ? undefined : openEndPicker}
+              className={`text-white/40 ${isSharedMode ? 'cursor-default' : 'group-hover:text-white/70 transition-colors cursor-pointer'}`}
             >
               <Calendar size={14} />
             </button>
             {/* Hidden native picker triggered by button */}
-            <input
-              ref={endInputRef}
-              type="date"
-              value={dateRange.end}
-              onChange={handleNativeEndChange}
-              className="absolute opacity-0 pointer-events-none w-0 h-0"
-              style={{ colorScheme: 'dark' }}
-            />
+            {!isSharedMode && (
+              <input
+                ref={endInputRef}
+                type="date"
+                value={dateRange.end}
+                onChange={handleNativeEndChange}
+                className="absolute opacity-0 pointer-events-none w-0 h-0"
+                style={{ colorScheme: 'dark' }}
+              />
+            )}
           </div>
         </div>
 
