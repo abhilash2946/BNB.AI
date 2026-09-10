@@ -79,6 +79,8 @@ export default function CommandCenter({
     const urlStart = params.get('start_date');
     const urlEnd = params.get('end_date');
 
+    // If both are present but empty, and we might be in shared mode, we'll let the shared effect handle it.
+    // However, if we have actual values, we use them.
     if (urlStart || urlEnd) {
       return { start: urlStart || "", end: urlEnd || "" };
     }
@@ -97,9 +99,13 @@ export default function CommandCenter({
     if (isSharedMode && sharedConfig && activeSite?.id) {
       console.log("[CommandCenter] Shared Mode detected, configuring workspace...");
 
-      // 1. Lock dates
-      if (sharedConfig.date_range && (dateRange.start !== sharedConfig.date_range.start || dateRange.end !== sharedConfig.date_range.end)) {
-        setDateRange(sharedConfig.date_range);
+      // 1. Lock dates - handle both start/startDate naming conventions
+      const dbStart = sharedConfig.date_range?.start || sharedConfig.date_range?.startDate;
+      const dbEnd = sharedConfig.date_range?.end || sharedConfig.date_range?.endDate;
+
+      if (dbStart && dbEnd && (dateRange.start !== dbStart || dateRange.end !== dbEnd)) {
+        console.log("[CommandCenter] Locking dates to shared config:", dbStart, dbEnd);
+        setDateRange({ start: dbStart, end: dbEnd });
       }
 
       // 2. Determine initial view/category
@@ -130,14 +136,15 @@ export default function CommandCenter({
       if (targetCat !== category) setCategory(targetCat);
 
       // 3. Auto-trigger fetch for Shared Mode (Strictly Once)
-      // We use the exact report_id if available to bypass complex date/module searching
       if (sharedConfig.report_id && !autoFetchTriggered.current) {
         autoFetchTriggered.current = true;
         console.log("[CommandCenter] Shared Mode: Auto-triggering report fetch for ID", sharedConfig.report_id);
-        fetchReportData(activeSite, sharedConfig.date_range, targetCat, sharedConfig.report_id);
+
+        // Pass mapped dates to ensure fetchReportData sees them correctly
+        fetchReportData(activeSite, { startDate: dbStart, endDate: dbEnd }, targetCat, sharedConfig.report_id);
       }
     }
-  }, [isSharedMode, !!sharedConfig, activeSite?.id, sharedConfig?.report_id]);
+  }, [isSharedMode, !!sharedConfig, activeSite?.id, sharedConfig?.report_id, sharedConfig?.date_range]);
 
   // Radar switching states
   const [isSelfRadar, setIsSelfRadar] = useState(false);

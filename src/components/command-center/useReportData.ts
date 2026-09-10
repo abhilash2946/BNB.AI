@@ -828,10 +828,14 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile | null,
     });
   };
 
-  const normalizeDateRange = (range: DateRange) => {
-    if (range.startDate && range.endDate && range.startDate > range.endDate)
-      return { startDate: range.endDate, endDate: range.startDate };
-    return range;
+  const normalizeDateRange = (range: any) => {
+    const r = {
+      startDate: range?.startDate || range?.start || "",
+      endDate: range?.endDate || range?.end || ""
+    };
+    if (r.startDate && r.endDate && r.startDate > r.endDate)
+      return { startDate: r.endDate, endDate: r.startDate };
+    return r;
   };
 
   const isCompleteSeoDatabaseReport = (report: RawReport) => Boolean(report && (report.ga4_details || report.kpi_summary?.ga4));
