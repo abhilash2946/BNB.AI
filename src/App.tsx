@@ -246,7 +246,8 @@ export default function App() {
       if (!mounted) return;
 
       // Shared Mode Enforcement: Ignore auth changes if on a shared path to stay as guest
-      if (window.location.pathname.startsWith('/shared/')) {
+      // We check both the path and the current sharedMode state for extra safety
+      if (window.location.pathname.startsWith('/shared/') || sharedMode) {
         console.log("[App] Ignoring auth change in Shared Mode to preserve Guest session");
         setIsLoading(false);
         return;

@@ -808,9 +808,12 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile | null,
 
   const getAuthHeaders = async () => {
     const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return { "Content-Type": "application/json" };
+
     return {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${session?.access_token || ""}`,
+      "Authorization": `Bearer ${token}`,
     };
   };
 
@@ -917,7 +920,11 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile | null,
     }
 
     // Shared Mode Enforcement: Guest users cannot trigger new reports or check credentials
+    // But they CAN fetch existing processed reports (handled above)
     if (user.role === 'Guest' || user.id.startsWith('guest_')) {
+      if (reportIdToQuery) {
+         console.warn("[useReportData] Guest fetch for ID failed, possibly not ready yet.");
+      }
       setIsLoading(false);
       setErrorMsg("This shared report link is no longer valid or the data has not been generated yet.");
       return;
