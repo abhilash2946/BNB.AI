@@ -113,11 +113,17 @@ export default function App() {
       let targetPath = "/";
       if (view === "dashboard") targetPath = "/dashboard";
       else if (view === "site_management") targetPath = "/site-management";
+
+      // CRITICAL: Preserve shared report path to prevent breaking refresh/bookmarking
+      if (currentPath.startsWith('/shared/')) {
+        targetPath = currentPath;
+      }
+
       if (currentPath !== targetPath) {
         window.history.replaceState({}, "", targetPath);
       }
     }
-  }, [view, isLoading, user]);
+  }, [view, isLoading, user, sharedMode]);
 
   useEffect(() => {
     if (activeSite?.id) {
@@ -238,6 +244,14 @@ export default function App() {
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
+
+      // Shared Mode Enforcement: Ignore auth changes if on a shared path to stay as guest
+      if (window.location.pathname.startsWith('/shared/')) {
+        console.log("[App] Ignoring auth change in Shared Mode to preserve Guest session");
+        setIsLoading(false);
+        return;
+      }
+
       if (session) {
         const isNewSession = session.user.id !== sessionUserId;
         setSessionUserId(session.user.id);
@@ -290,6 +304,12 @@ export default function App() {
   }, []);
 
   async function fetchProfileData(userId: string, authUserFromSession?: any, force = false) {
+    // Prevent overriding Guest session in Shared Mode
+    if (window.location.pathname.startsWith('/shared/')) {
+       console.log("[App] Blocking profile fetch in Shared Mode");
+       return;
+    }
+
     if (!force && lastFetchedUserIdRef.current === userId) return;
     if (isFetchingRef.current) return;
 
