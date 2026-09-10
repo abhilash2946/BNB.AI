@@ -25,6 +25,15 @@ class SiteCreate(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     image_url: Optional[str] = None
+    seo_settings: Optional[Dict[str, Any]] = {
+        "ga4Id": "",
+        "gscUrl": "",
+        "googleAdsId": "",
+        "googleLoginAdsId": "",
+        "metaAdsId": "",
+        "fbPageId": "",
+        "igBusId": ""
+    }
 
 class SiteUpdate(BaseModel):
     name: Optional[str] = None
