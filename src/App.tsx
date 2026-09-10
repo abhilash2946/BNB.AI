@@ -505,7 +505,11 @@ export default function App() {
           </motion.div>
         )}
         {view === "dashboard" && user && (
-          <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <motion.div
+            key={`dashboard-${activeSite?.id || 'none'}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
             <CommandCenter
               user={user}
               sites={sites}

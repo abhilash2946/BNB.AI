@@ -55,8 +55,18 @@ export default function CommandCenter({
   const [section, setSection] = useState<SectionType>(() => getSavedState("section", "Reports"));
 
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>(() => {
-    const saved = getSavedState("dateRange", { start: initialDates.startDate, end: initialDates.endDate });
-    return saved;
+    // Strictly follow user request: "app should open with notting selected"
+    // We only respect URL parameters if they are explicitly present (e.g. following a link)
+    // but we do NOT restore from localStorage for a fresh session/start.
+    const params = new URLSearchParams(window.location.search);
+    const urlStart = params.get('start_date');
+    const urlEnd = params.get('end_date');
+
+    if (urlStart || urlEnd) {
+      return { start: urlStart || "", end: urlEnd || "" };
+    }
+
+    return { start: "", end: "" };
   });
 
   const [sidebarExpanded, setSidebarExpanded] = useState(() => getSavedState("sidebarExpanded", true));
