@@ -1,6 +1,7 @@
 import jwt
 import base64
 from datetime import datetime
+from typing import Optional
 from fastapi import HTTPException, Security, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
