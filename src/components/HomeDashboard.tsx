@@ -52,6 +52,7 @@ export default function HomeDashboard({
   siteName
 }: HomeDashboardProps) {
 
+  const noSite = siteName === "No Site Selected";
   // Check if report has ACTUAL data or is just a skeleton
   const hasRealData = report && report.kpis && report.kpis.length > 0 && report.kpis[0].value !== "3,18,420";
 
@@ -63,7 +64,10 @@ export default function HomeDashboard({
         </div>
         <h3 className="font-display font-medium text-lg text-white mb-2">No Intel Generated</h3>
         <p className="text-xs text-white/60 leading-relaxed mb-6 font-sans">
-          Active systems are resting safely. Trigger a neural intelligence sync on the {siteName || "workspace"} node to analyze this division's report curves.
+          {noSite
+            ? "Please select a site node and date range from the top bar to analyze your marketing ecosystem."
+            : `Active systems are resting safely. Trigger a neural intelligence sync on the ${siteName} node to analyze this division's report curves.`
+          }
         </p>
         <button
           onClick={onTriggerSync}

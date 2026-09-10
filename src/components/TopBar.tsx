@@ -18,7 +18,7 @@ interface TopBarProps {
   sidebarExpanded: boolean;
   onToggleSidebar: () => void;
   sites: SiteInfo[];
-  selectedSite: SiteInfo;
+  selectedSite: SiteInfo | null;
   onSelectSite: (site: SiteInfo) => void;
   dateRange: { start: string; end: string };
   onChangeDateRange: (range: { start: string; end: string }) => void;
@@ -92,7 +92,9 @@ export default function TopBar({
   // Convert YYYY-MM-DD (ISO) to DD/MM/YYYY (Display)
   const toDisplay = (iso: string) => {
     if (!iso) return '';
-    const [y, m, d] = iso.split('-');
+    const parts = iso.split('-');
+    if (parts.length !== 3) return '';
+    const [y, m, d] = parts;
     return `${d}/${m}/${y}`;
   };
 

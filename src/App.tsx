@@ -41,10 +41,7 @@ export default function App() {
     try { return saved ? JSON.parse(saved) : []; } catch { return []; }
   });
 
-  const [activeSite, setActiveSite] = useState<SiteProfile | null>(() => {
-    const saved = localStorage.getItem('bnb_active_site');
-    try { return saved ? JSON.parse(saved) : null; } catch { return null; }
-  });
+  const [activeSite, setActiveSite] = useState<SiteProfile | null>(null);
 
   const [sharedCreds, setSharedCreds] = useState<UserCredentials>(() => {
     const saved = localStorage.getItem('bnb_shared_creds');
@@ -406,16 +403,8 @@ export default function App() {
             setSites(mappedSites);
             localStorage.setItem('bnb_sites', JSON.stringify(mappedSites));
 
-            if (mappedSites.length > 0) {
-              const lastSiteId = localStorage.getItem('bnb_active_site_id');
-              const finalActive = mappedSites.find(s => s.id === lastSiteId) || mappedSites[0];
-              setActiveSite(finalActive);
-              localStorage.setItem('bnb_active_site', JSON.stringify(finalActive));
-              localStorage.setItem('bnb_active_site_id', finalActive.id);
-            } else {
-              setActiveSite(null);
-              localStorage.removeItem('bnb_active_site_id');
-            }
+            // Strictly follow user request: "dont select any site as default"
+            setActiveSite(null);
           }
 
           const elapsed = Date.now() - startTime;
@@ -515,7 +504,7 @@ export default function App() {
             <LandingPage onStart={handleLoginSuccess} onLogin={handleLoginSuccess} />
           </motion.div>
         )}
-        {view === "dashboard" && user && activeSite && (
+        {view === "dashboard" && user && (
           <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <CommandCenter
               user={user}
@@ -525,15 +514,15 @@ export default function App() {
               onOpenSiteManagement={() => setView("site_management")}
               onLogout={handleLogout}
               initialDates={{
-                startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                endDate: new Date().toISOString().split('T')[0]
+                startDate: "",
+                endDate: ""
               }}
               isSharedMode={sharedMode}
               sharedConfig={sharedConfig}
             />
           </motion.div>
         )}
-        {view === "dashboard" && user && !activeSite && (
+        {view === "dashboard" && user && !activeSite && sites.length === 0 && (
           <motion.div key="dashboard-empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen flex items-center justify-center px-6">
             {isSyncing ? (
               <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-md w-full bg-[#111111] border border-white/10 rounded-[2.5rem] shadow-2xl p-12 text-center flex flex-col items-center gap-8">

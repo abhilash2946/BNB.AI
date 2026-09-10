@@ -28,7 +28,7 @@ import {
 interface CommandCenterProps {
   user: UserProfile;
   sites: SiteProfile[];
-  activeSite: SiteProfile;
+  activeSite: SiteProfile | null;
   setActiveSite: (site: SiteProfile) => void;
   onOpenSiteManagement: () => void;
   onLogout: () => void;
@@ -41,7 +41,7 @@ export default function CommandCenter({
   user, sites, activeSite, setActiveSite, onOpenSiteManagement, onLogout, initialDates, isSharedMode, sharedConfig
 }: CommandCenterProps) {
   const { theme, toggleTheme } = useTheme();
-  const STORAGE_KEY = `bnb_dashboard_state_v3_${user.id}_${activeSite.id}`;
+  const STORAGE_KEY = `bnb_dashboard_state_v4_${user.id}_${activeSite?.id || 'none'}`;
 
   const getSavedState = (key: string, defaultValue: any) => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -121,7 +121,7 @@ export default function CommandCenter({
 
   const {
     reportData, isLoading, errorMsg, pollingStatus, fetchReportData
-  } = useReportData(user, activeSite, { startDate: dateRange.start, endDate: dateRange.end }, category);
+  } = useReportData(user, activeSite!, { startDate: dateRange.start, endDate: dateRange.end }, category);
 
   const [marketingReport, setMarketingReport] = useState<MarketingReport | null>(null);
 
@@ -132,7 +132,7 @@ export default function CommandCenter({
   }, [activeView, category]);
 
   useEffect(() => {
-    if (reportData) {
+    if (reportData && activeSite) {
       const mapped = mapReportResponseToMarketingReport(
         reportData,
         activeSite.id + "_" + category,
@@ -154,16 +154,28 @@ export default function CommandCenter({
 
     // Sync with URL
     const params = new URLSearchParams(window.location.search);
-    params.set('site_id', activeSite.id);
+    if (activeSite) params.set('site_id', activeSite.id);
     params.set('view', activeView);
     params.set('category', category);
     params.set('section', section);
     params.set('start_date', dateRange.start);
     params.set('end_date', dateRange.end);
     window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
-  }, [activeView, category, section, dateRange, activeSite.id, sidebarExpanded, STORAGE_KEY]);
+  }, [activeView, category, section, dateRange, activeSite?.id, sidebarExpanded, STORAGE_KEY]);
 
-  const handleGenerateReport = (targetCategory?: CategoryType) => {
+  const handleGenerateReport = async (targetCategory?: CategoryType) => {
+    const { toast } = await import('react-hot-toast');
+
+    if (!activeSite) {
+      toast.error("Please select a site node first.");
+      return;
+    }
+
+    if (!dateRange.start || !dateRange.end) {
+      toast.error("Please specify a valid start and end date.");
+      return;
+    }
+
     let cat = targetCategory || category;
     // Enforcement for Client PPT view
     if (activeView === 'client-ppt') cat = 'Combined Intelligence';
@@ -199,6 +211,9 @@ export default function CommandCenter({
     const API_URL = import.meta.env.VITE_API_URL || "/api";
     const webhookPath = category === "SEO" ? "seo-report" : category === "Performance Marketing" ? "performance-report" : category === "Combined Intelligence" ? "combined-report" : "social-report";
     const url = `${API_URL}/${webhookPath}`;
+
+    if (!activeSite) return;
+
     try {
       const res = await fetch(url, {
         method: "POST",
@@ -248,7 +263,7 @@ export default function CommandCenter({
         reportLoaded={!!marketingReport}
         isGenerating={isLoading}
         onGenerate={() => handleGenerateReport()}
-        onExportPdf={() => exportReportToPDF('report-content', `BNB_AI_${activeSite.name}_${category}_Report`)}
+        onExportPdf={() => activeSite && exportReportToPDF('report-content', `BNB_AI_${activeSite.name}_${category}_Report`)}
         darkTheme={theme === 'dark'}
         onToggleTheme={toggleTheme}
         onNavigateHome={() => handleNavigate('cmd-center')}
@@ -310,7 +325,7 @@ export default function CommandCenter({
           ) : activeView === 'cmd-center' ? (
             <HomeDashboard
               report={marketingReport}
-              siteName={activeSite.name}
+              siteName={activeSite?.name || "No Site Selected"}
               onNavigateToCategory={(cat) => {
                 const viewId = cat === 'SEO' ? 'seo-intel' : cat === 'Performance Marketing' ? 'perf-intel' : 'social-intel';
                 handleNavigate(viewId, cat as CategoryType, 'Reports');
@@ -578,7 +593,12 @@ export default function CommandCenter({
                   <Sparkles size={32} className="animate-pulse" />
                 </div>
                 <h3 className="font-display font-medium text-lg text-white mb-2">No Intel Generated</h3>
-                <p className="text-xs text-white/60 leading-relaxed mb-6 font-sans">Active systems are resting safely. Trigger a neural intelligence sync on the {activeSite.name} node to analyze this division's report curves.</p>
+                <p className="text-xs text-white/60 leading-relaxed mb-6 font-sans">
+                  {activeSite
+                    ? `Active systems are resting safely. Trigger a neural intelligence sync on the ${activeSite.name} node to analyze this division's report curves.`
+                    : "Please select a site node and date range from the top bar to begin neural sync."
+                  }
+                </p>
                 <button onClick={() => handleGenerateReport()} className="px-5 py-2.5 bg-gradient-to-r from-[#00d4ff] to-[#7c3aed] text-white text-xs font-semibold rounded-xl hover:shadow-[0_0_15px_rgba(0,212,255,0.2)] transition-transform hover:scale-105 inline-flex items-center gap-2">Trigger Neural Sync</button>
               </div>
             )
@@ -590,7 +610,12 @@ export default function CommandCenter({
                 <Sparkles size={32} className="animate-pulse" />
               </div>
               <h3 className="font-display font-medium text-lg text-white mb-2">No Intel Generated</h3>
-              <p className="text-xs text-white/60 leading-relaxed mb-6 font-sans">Active systems are resting safely. Trigger a neural intelligence sync on the {activeSite.name} node to analyze this division's report curves.</p>
+              <p className="text-xs text-white/60 leading-relaxed mb-6 font-sans">
+                {activeSite
+                  ? `Active systems are resting safely. Trigger a neural intelligence sync on the ${activeSite.name} node to analyze this division's report curves.`
+                  : "Please select a site node and date range from the top bar to begin neural sync."
+                }
+              </p>
               <button onClick={() => handleGenerateReport()} className="px-5 py-2.5 bg-gradient-to-r from-[#00d4ff] to-[#7c3aed] text-white text-xs font-semibold rounded-xl hover:shadow-[0_0_15px_rgba(0,212,255,0.2)] transition-transform hover:scale-105 inline-flex items-center gap-2">Trigger Neural Sync</button>
             </div>
           )}

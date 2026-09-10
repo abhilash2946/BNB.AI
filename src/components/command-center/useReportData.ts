@@ -792,7 +792,7 @@ const buildReportFromRow = (report: RawReport, cat: string, startDate: string, e
   return {} as ReportResponse;
 };
 
-export const useReportData = (user: UserProfile, activeSite: SiteProfile, dates: DateRange, category: string) => {
+export const useReportData = (user: UserProfile, activeSite: SiteProfile | null, dates: DateRange, category: string) => {
   const [reportData, setReportData] = useState<ReportResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
