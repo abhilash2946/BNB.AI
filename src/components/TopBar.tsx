@@ -268,7 +268,7 @@ export default function TopBar({
             {siteDropdownOpen && (
               <div className="absolute left-0 mt-2 w-56 rounded-xl border border-white/10 bg-[#111111] p-1.5 shadow-2xl z-50">
                 <div className="px-2.5 py-1 text-[10px] font-mono text-white/40 tracking-wider uppercase">ACTIVE PORT VECTOR</div>
-                {sites.map((site) => (
+                {sites.filter(s => s.status !== 'paused').map((site) => (
                   <button
                     key={site.id}
                     onClick={() => {

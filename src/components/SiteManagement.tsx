@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { UserProfile, SiteProfile, UserCredentials } from "../types";
-import { Globe, Trash, Edit, Plus, ArrowLeft, ExternalLink, LogOut, Key, CheckCircle2, ShieldCheck, BarChart3, Facebook, Instagram, Settings, X, Building2, Sparkles, Camera, RefreshCw } from "lucide-react";
+import { Globe, Trash, Edit, Plus, ArrowLeft, ExternalLink, LogOut, Key, CheckCircle2, ShieldCheck, BarChart3, Facebook, Instagram, Settings, X, Building2, Sparkles, Camera, RefreshCw, Pause, Play } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard } from "./GlassCard";
@@ -112,6 +112,8 @@ export default function SiteManagement({
     title: string;
     items: { label: string; status: 'ok' | 'missing'; id: string }[];
   } | null>(null);
+
+  const [deleteConfirmSite, setDeleteConfirmSite] = useState<SiteProfile | null>(null);
 
   const getAgencyHealth = () => {
     const googleScopes = sharedCreds.googleOAuth?.granted_scopes || "";
@@ -480,6 +482,43 @@ export default function SiteManagement({
     }
   };
 
+  const handleToggleStatus = async (site: SiteProfile) => {
+    const newStatus = site.status === 'paused' ? 'active' : 'paused';
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch(`${API_URL}/sites/${site.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      onRefresh();
+    } catch (err: any) {
+      alert("Error updating site status: " + err.message);
+    }
+  };
+
+  const handleConfirmDeleteCredentials = async () => {
+    if (!deleteConfirmSite) return;
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch(`${API_URL}/sites/${deleteConfirmSite.id}/credentials`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setDeleteConfirmSite(null);
+      onRefresh();
+    } catch (err: any) {
+      alert("Error deleting credentials: " + err.message);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#000000] text-white p-8">
       <div className="max-w-7xl mx-auto">
@@ -743,7 +782,44 @@ export default function SiteManagement({
             <div className="grid gap-4">
               {sites.map(site => {
                 const health = getSiteHealth(site);
-                return (
+                const handleToggleStatus = async (site: SiteProfile) => {
+    const newStatus = site.status === 'paused' ? 'active' : 'paused';
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch(`${API_URL}/sites/${site.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      onRefresh();
+    } catch (err: any) {
+      alert("Error updating site status: " + err.message);
+    }
+  };
+
+  const handleConfirmDeleteCredentials = async () => {
+    if (!deleteConfirmSite) return;
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch(`${API_URL}/sites/${deleteConfirmSite.id}/credentials`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setDeleteConfirmSite(null);
+      onRefresh();
+    } catch (err: any) {
+      alert("Error deleting credentials: " + err.message);
+    }
+  };
+
+  return (
                   <GlassCard key={site.id} className="p-6 flex justify-between items-center group">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden border border-white/10 transition-all group-hover:border-cyan-500/30">
@@ -766,7 +842,21 @@ export default function SiteManagement({
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleToggleStatus(site)}
+                        className={`p-3 rounded-xl transition-all ${site.status === 'paused' ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20' : 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20'}`}
+                        title={site.status === 'paused' ? "Resume Site Activity" : "Pause Site Activity"}
+                      >
+                        {site.status === 'paused' ? <Play size={18} fill="currentColor" /> : <Pause size={18} fill="currentColor" />}
+                      </button>
                       <button onClick={() => startEdit(site)} className="p-3 rounded-xl hover:bg-white/5 text-gray-400 hover:text-white transition-all"><Edit size={18}/></button>
+                      <button
+                        onClick={() => setDeleteConfirmSite(site)}
+                        className="p-3 rounded-xl hover:bg-rose-500/10 text-gray-400 hover:text-rose-500 transition-all"
+                        title="Delete Site Credentials"
+                      >
+                        <Trash size={18}/>
+                      </button>
                     </div>
                   </GlassCard>
                 );
@@ -775,6 +865,43 @@ export default function SiteManagement({
           </main>
         </div>
       </div>
+
+      <AnimatePresence>
+        {deleteConfirmSite && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDeleteConfirmSite(null)} className="absolute inset-0 bg-black/80 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-md">
+              <GlassCard className="p-8 border-rose-500/30">
+                <div className="flex flex-col items-center text-center space-y-6">
+                  <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500">
+                    <Trash size={32} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold mb-2">Delete Credentials?</h3>
+                    <p className="text-sm text-gray-400 leading-relaxed">
+                      All the credentials for <span className="text-white font-bold">{deleteConfirmSite.name}</span> such as GA4 ID, Google Ads IDs, and Social platform links will be permanently deleted. This action cannot be undone.
+                    </p>
+                  </div>
+                  <div className="flex gap-4 w-full pt-4">
+                    <button
+                      onClick={() => setDeleteConfirmSite(null)}
+                      className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl font-bold transition-all border border-white/10"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleConfirmDeleteCredentials}
+                      className="flex-1 py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-rose-500/20"
+                    >
+                      Confirm Delete
+                    </button>
+                  </div>
+                </div>
+              </GlassCard>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {activeSettingsModal && (

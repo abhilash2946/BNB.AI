@@ -25,6 +25,7 @@ export interface SiteProfile {
   imageUrl?: string;
   phone?: string;
   email?: string;
+  status?: 'active' | 'paused';
   seoSettings?: {
     ga4Id?: string;
     gscUrl?: string;
@@ -524,6 +525,7 @@ export interface SiteInfo {
   id: string;
   name: string;
   url: string;
+  status?: 'active' | 'paused';
 }
 
 // Interactive PPT Types

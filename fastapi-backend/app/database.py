@@ -58,6 +58,7 @@ class Site(Base):
     city = Column(String(255))
     phone = Column(String(50))
     email = Column(String(255))
+    status = Column(String(20), default="active")
 
     user = relationship("Profile", back_populates="sites")
     credentials = relationship("SiteCredential", back_populates="site")

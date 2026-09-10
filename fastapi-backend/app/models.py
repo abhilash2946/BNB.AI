@@ -34,6 +34,7 @@ class SiteUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     image_url: Optional[str] = None
+    status: Optional[str] = None
     seo_settings: Optional[Dict[str, Any]] = None
 
 class UserCredentialCreate(BaseModel):

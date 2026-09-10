@@ -197,6 +197,30 @@ async def delete_site(site_id: str, user_id: str = Depends(get_current_user), db
     db.commit()
     return {"success": True}
 
+@api_router.delete("/sites/{site_id}/credentials", tags=["Sites"])
+async def delete_site_credentials(site_id: str, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Verify site ownership
+    site = db.query(Site).filter(Site.id == site_id, Site.user_id == user_id).first()
+    if not site:
+        raise HTTPException(status_code=404, detail="Site not found or access denied")
+
+    # 1. Delete all SiteCredential records for this site
+    db.query(SiteCredential).filter(SiteCredential.site_id == site_id).delete()
+
+    # 2. Reset seo_settings in the Site record to default empty values
+    site.seo_settings = {
+        "ga4Id": "",
+        "gscUrl": "",
+        "googleAdsId": "",
+        "googleLoginAdsId": "",
+        "metaAdsId": "",
+        "fbPageId": "",
+        "igBusId": ""
+    }
+
+    db.commit()
+    return {"success": True}
+
 # --- Credential Routes ---
 
 @api_router.get("/user-credentials", tags=["Credentials"])
