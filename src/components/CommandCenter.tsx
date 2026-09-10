@@ -197,7 +197,13 @@ export default function CommandCenter({
     if (activeView === 'client-ppt') cat = 'Combined Intelligence';
 
     setResetTrigger(prev => prev + 1);
-    fetchReportData(activeSite, { startDate: dateRange.start, endDate: dateRange.end }, cat);
+
+    // In Shared Mode, we always fetch the specific report_id instead of triggering a new generation
+    if (isSharedMode && sharedConfig?.report_id) {
+      fetchReportData(activeSite, sharedConfig.date_range || { startDate: dateRange.start, endDate: dateRange.end }, cat, sharedConfig.report_id);
+    } else {
+      fetchReportData(activeSite, { startDate: dateRange.start, endDate: dateRange.end }, cat);
+    }
   };
 
   const handleNavigate = (view: string, targetCategory?: CategoryType, targetSection?: SectionType) => {

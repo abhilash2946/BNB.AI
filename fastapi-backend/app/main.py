@@ -27,7 +27,7 @@ from app.database import (
     ProcessedReport, ReportStatus, Site,
     UserCredential, SiteCredential, Profile, SharedReport, get_db
 )
-from app.auth import get_current_user
+from app.auth import get_current_user, get_optional_user
 from app.models import (
     ReportRequest, ReportResponse, AdviceSummarizeRequest,
     SiteCreate, SiteUpdate, UserCredentialCreate, SiteCredentialCreate,
@@ -406,21 +406,38 @@ async def social_report(
     return ReportResponse(success=True, report_id=report_id)
 
 @api_router.get("/report-status/{report_id}", tags=["Reports"])
-async def get_report_status(report_id: str, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_report_status(report_id: str, user_id: Optional[str] = Depends(get_optional_user), db: Session = Depends(get_db)):
     status = db.query(ReportStatus).filter(ReportStatus.report_id == report_id).first()
     if not status:
         raise HTTPException(status_code=404, detail="Report status not found")
-    return status
+
+    # 1. Ownership check
+    if user_id and status.user_id == user_id:
+        return status
+
+    # 2. Shared link check
+    shared = db.query(SharedReport).filter(
+        (SharedReport.report_id == report_id) |
+        (SharedReport.report_id.like(f"%{report_id}%"))
+    ).first()
+    if shared:
+        return status
+
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    raise HTTPException(status_code=403, detail="Access denied to report status")
 
 @api_router.get("/processed-report/{report_id}", tags=["Reports"])
 async def get_processed_report(
     report_id: str,
     site_id: Optional[str] = None,
     module: Optional[str] = None,
-    user_id: str = Depends(get_current_user),
+    user_id: Optional[str] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
     if report_id == "latest" and site_id and module:
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Auth required for latest report lookup")
         report = db.query(ProcessedReport).filter(
             ProcessedReport.site_id == site_id,
             ProcessedReport.module == module
@@ -430,7 +447,24 @@ async def get_processed_report(
 
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-    return report
+
+    # 1. Author check (logged in user owns the report)
+    if user_id and report.user_id == user_id:
+        return report
+
+    # 2. Shared link check (is this report_id linked to any shared link?)
+    # Supports both exact matches and partial matches for combined reports (e.g. seo_id_perf_id)
+    shared = db.query(SharedReport).filter(
+        (SharedReport.report_id == report_id) |
+        (SharedReport.report_id.like(f"%{report_id}%"))
+    ).first()
+    if shared:
+        return report
+
+    # 3. Fallback: If not shared and no valid ownership, deny
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    raise HTTPException(status_code=403, detail="Access denied to this report")
 
 @api_router.patch("/processed-report/{report_id}", tags=["Reports"])
 async def update_processed_report(

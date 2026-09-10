@@ -10,6 +10,7 @@ from app.config import settings
 from app.database import get_db, Profile
 
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 def get_secret():
     secret = settings.supabase_jwt_secret
@@ -87,3 +88,22 @@ async def get_current_user(
         print(f"!!! AUTH ERROR: Unexpected error: {str(e)}")
         traceback.print_exc()
         raise HTTPException(status_code=401, detail="Authentication failed")
+
+async def get_optional_user(
+    auth: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
+    db: Session = Depends(get_db)
+):
+    if not auth or not auth.credentials:
+        return None
+
+    token = auth.credentials
+    try:
+        payload = jwt.decode(
+            token,
+            get_secret(),
+            algorithms=["HS256", "RS256", "ES256"],
+            options={"verify_signature": False, "verify_aud": False, "verify_iat": False}
+        )
+        return payload.get("sub")
+    except Exception:
+        return None
