@@ -492,6 +492,33 @@ async def create_shared_report(share_data: SharedReportCreate, user_id: str = De
     if not site:
         raise HTTPException(status_code=403, detail="Not authorized for this site")
 
+    # Deduplication: Check if an identical share already exists
+    # We query by site and access type first to narrow down
+    existing_shares = db.query(SharedReport).filter(
+        SharedReport.site_id == share_data.site_id,
+        SharedReport.access_type == share_data.access_type,
+        SharedReport.report_id == share_data.report_id
+    ).all()
+
+    for share in existing_shares:
+        # Compare JSON fields
+        # date_range: {"start": "...", "end": "..."}
+        # shared_pages: ["ppt", "doc"]
+
+        # Exact match for date range
+        date_match = share.date_range == share_data.date_range
+
+        # Match for shared pages (order-independent)
+        pages_match = False
+        if isinstance(share.shared_pages, list) and isinstance(share_data.shared_pages, list):
+            pages_match = set(share.shared_pages) == set(share_data.shared_pages)
+        elif share.shared_pages == share_data.shared_pages:
+            pages_match = True
+
+        if date_match and pages_match:
+            print(f"---> [SharedReport] Found existing share {share.id}, reusing...")
+            return share
+
     new_share = SharedReport(
         id=str(uuid.uuid4()),
         **share_data.model_dump()
