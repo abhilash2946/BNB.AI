@@ -584,7 +584,7 @@ export default function CommandCenter({
           ) : activeView === 'client-ppt' ? (
             <ClientReports
               report={marketingReport}
-              siteId={activeSite.id}
+              siteId={activeSite?.id}
               category={category}
               setCategory={setCategory}
               isFullscreen={isFullscreenReport}

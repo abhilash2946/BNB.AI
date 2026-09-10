@@ -375,6 +375,7 @@ export default function App() {
           if (Array.isArray(credsData)) {
             const creds: UserCredentials = {};
             credsData.forEach((c: any) => {
+              if (!c) return;
               if (c.platform === 'google_oauth') creds.googleOAuth = c.credentials;
               if (c.platform === 'google_developer_token') creds.googleAdsDeveloperToken = c.credentials.developer_token;
               if (c.platform === 'meta_long_lived_token') {
@@ -388,18 +389,20 @@ export default function App() {
           }
 
           if (Array.isArray(sitesData)) {
-            const mappedSites = sitesData.map((s: any) => ({
-              id: s.id,
-              name: s.name,
-              url: s.url,
-              industry: s.industry,
-              city: s.city || undefined,
-              imageUrl: s.image_url || undefined,
-              phone: s.phone || undefined,
-              email: s.email || undefined,
-              seoSettings: s.seo_settings || undefined,
-              status: s.status || 'active',
-            }));
+            const mappedSites = sitesData
+              .filter((s: any) => s && s.id)
+              .map((s: any) => ({
+                id: s.id,
+                name: s.name,
+                url: s.url,
+                industry: s.industry,
+                city: s.city || undefined,
+                imageUrl: s.image_url || undefined,
+                phone: s.phone || undefined,
+                email: s.email || undefined,
+                seoSettings: s.seo_settings || undefined,
+                status: s.status || 'active',
+              }));
             setSites(mappedSites);
             localStorage.setItem('bnb_sites', JSON.stringify(mappedSites));
 
