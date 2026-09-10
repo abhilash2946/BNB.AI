@@ -538,7 +538,10 @@ async def get_shared_report_info(share_id: str, db: Session = Depends(get_db)):
     return {
         "share": share,
         "site": {
+            "id": site.id if site else share.site_id,
             "name": site.name if site else "Unknown",
+            "url": site.url if site else "",
+            "industry": site.industry if site else "",
             "image_url": site.image_url if site else None
         }
     }

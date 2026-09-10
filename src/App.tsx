@@ -146,14 +146,14 @@ export default function App() {
             if (res.ok && mounted) {
               const { share, site } = await res.json();
               if (share && site) {
-                const siteId = site.id || site.site_id;
+                const siteId = site.id || share.site_id;
                 console.log("[App] Shared Mode: Initializing with site", siteId);
 
                 const mappedSite = {
                   id: siteId,
                   name: site.name,
-                  url: site.url,
-                  industry: site.industry,
+                  url: site.url || "",
+                  industry: site.industry || "",
                   city: site.city || undefined,
                   imageUrl: site.image_url || undefined,
                   phone: site.phone || undefined,

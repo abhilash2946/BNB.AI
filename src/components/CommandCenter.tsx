@@ -99,13 +99,28 @@ export default function CommandCenter({
     if (isSharedMode && sharedConfig && activeSite?.id) {
       console.log("[CommandCenter] Shared Mode detected, configuring workspace...");
 
-      // 1. Lock dates - handle both start/startDate naming conventions
-      const dbStart = sharedConfig.date_range?.start || sharedConfig.date_range?.startDate;
-      const dbEnd = sharedConfig.date_range?.end || sharedConfig.date_range?.endDate;
+      // 1. Lock dates - handle both start/startDate naming conventions and potential stringification
+      const rawDateRange = typeof sharedConfig.date_range === 'string'
+        ? JSON.parse(sharedConfig.date_range)
+        : sharedConfig.date_range;
 
-      if (dbStart && dbEnd && (dateRange.start !== dbStart || dateRange.end !== dbEnd)) {
-        console.log("[CommandCenter] Locking dates to shared config:", dbStart, dbEnd);
-        setDateRange({ start: dbStart, end: dbEnd });
+      const dbStart = rawDateRange?.start || rawDateRange?.startDate;
+      const dbEnd = rawDateRange?.end || rawDateRange?.endDate;
+
+      if (dbStart && dbEnd) {
+        if (dateRange.start !== dbStart || dateRange.end !== dbEnd) {
+          console.log("[CommandCenter] Locking dates to shared config:", dbStart, dbEnd);
+          setDateRange({ start: dbStart, end: dbEnd });
+        }
+
+        // 3. Auto-trigger fetch for Shared Mode (Strictly Once)
+        if (sharedConfig.report_id && !autoFetchTriggered.current) {
+          autoFetchTriggered.current = true;
+          console.log("[CommandCenter] Shared Mode: Auto-triggering report fetch for ID", sharedConfig.report_id);
+          fetchReportData(activeSite, { startDate: dbStart, endDate: dbEnd }, category, sharedConfig.report_id);
+        }
+      } else {
+        console.warn("[CommandCenter] Shared Mode: Date range missing in config", sharedConfig.date_range);
       }
 
       // 2. Determine initial view/category
@@ -216,7 +231,17 @@ export default function CommandCenter({
       return;
     }
 
-    if (!dateRange.start || !dateRange.end) {
+    let start = dateRange.start;
+    let end = dateRange.end;
+
+    // Fallback for Shared Mode if state hasn't updated yet
+    if (isSharedMode && sharedConfig && (!start || !end)) {
+      const raw = typeof sharedConfig.date_range === 'string' ? JSON.parse(sharedConfig.date_range) : sharedConfig.date_range;
+      start = raw?.start || raw?.startDate;
+      end = raw?.end || raw?.endDate;
+    }
+
+    if (!start || !end) {
       toast.error("Please specify a valid start and end date.");
       return;
     }
@@ -229,9 +254,9 @@ export default function CommandCenter({
 
     // In Shared Mode, we always fetch the specific report_id instead of triggering a new generation
     if (isSharedMode && sharedConfig?.report_id) {
-      fetchReportData(activeSite, sharedConfig.date_range || { startDate: dateRange.start, endDate: dateRange.end }, cat, sharedConfig.report_id);
+      fetchReportData(activeSite, { startDate: start, endDate: end }, cat, sharedConfig.report_id);
     } else {
-      fetchReportData(activeSite, { startDate: dateRange.start, endDate: dateRange.end }, cat);
+      fetchReportData(activeSite, { startDate: start, endDate: end }, cat);
     }
   };
 
