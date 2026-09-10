@@ -153,6 +153,7 @@ export default function App() {
                   phone: site.phone || undefined,
                   email: site.email || undefined,
                   seoSettings: site.seo_settings || undefined,
+                  status: site.status || 'active',
                 };
 
                 setActiveSite(mappedSite);
@@ -291,8 +292,8 @@ export default function App() {
     };
   }, []);
 
-  async function fetchProfileData(userId: string, authUserFromSession?: any) {
-    if (lastFetchedUserIdRef.current === userId) return;
+  async function fetchProfileData(userId: string, authUserFromSession?: any, force = false) {
+    if (!force && lastFetchedUserIdRef.current === userId) return;
     if (isFetchingRef.current) return;
 
     isFetchingRef.current = true;
@@ -400,6 +401,7 @@ export default function App() {
               phone: s.phone || undefined,
               email: s.email || undefined,
               seoSettings: s.seo_settings || undefined,
+              status: s.status || 'active',
             }));
             setSites(mappedSites);
             localStorage.setItem('bnb_sites', JSON.stringify(mappedSites));
@@ -560,7 +562,7 @@ export default function App() {
         {view === "site_management" && (
           <motion.div key="site_management" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}>
             {user ? (
-              <SiteManagement user={user} sites={sites} sharedCreds={sharedCreds} onRefresh={() => fetchProfileData(sessionUserId!)} onClose={() => setView("dashboard")} onLogout={handleLogout} />
+              <SiteManagement user={user} sites={sites} sharedCreds={sharedCreds} onRefresh={() => fetchProfileData(sessionUserId!, null, true)} onClose={() => setView("dashboard")} onLogout={handleLogout} />
             ) : (
               <div className="min-h-screen flex items-center justify-center">
                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
