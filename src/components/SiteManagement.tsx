@@ -782,44 +782,7 @@ export default function SiteManagement({
             <div className="grid gap-4">
               {sites.map(site => {
                 const health = getSiteHealth(site);
-                const handleToggleStatus = async (site: SiteProfile) => {
-    const newStatus = site.status === 'paused' ? 'active' : 'paused';
-    try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const res = await fetch(`${API_URL}/sites/${site.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
-      if (!res.ok) throw new Error(await res.text());
-      onRefresh();
-    } catch (err: any) {
-      alert("Error updating site status: " + err.message);
-    }
-  };
-
-  const handleConfirmDeleteCredentials = async () => {
-    if (!deleteConfirmSite) return;
-    try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const res = await fetch(`${API_URL}/sites/${deleteConfirmSite.id}/credentials`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
-      });
-      if (!res.ok) throw new Error(await res.text());
-      setDeleteConfirmSite(null);
-      onRefresh();
-    } catch (err: any) {
-      alert("Error deleting credentials: " + err.message);
-    }
-  };
-
-  return (
+                return (
                   <GlassCard key={site.id} className="p-6 flex justify-between items-center group">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden border border-white/10 transition-all group-hover:border-cyan-500/30">
