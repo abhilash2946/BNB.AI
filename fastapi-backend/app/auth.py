@@ -14,21 +14,18 @@ security = HTTPBearer()
 optional_security = HTTPBearer(auto_error=False)
 
 def get_secret():
-    secret = settings.jwt_secret or settings.supabase_jwt_secret
+    if settings.jwt_secret:
+        return settings.jwt_secret
+    secret = settings.supabase_jwt_secret
     if not secret:
-        print("!!! AUTH ERROR: JWT_SECRET / SUPABASE_JWT_SECRET is not set in .env")
         return "super-secret-jwt-key-for-bnb-app"
 
-    # Safe Logging: Log the first 5 characters for verification in PM2
-    print(f"---> [Auth] Using Secret starting with: {secret[:5]}...")
-
     try:
-        # Check if secret might be base64 encoded
         missing_padding = len(secret) % 4
-        padded_secret = secret + ("=" * (4 - missing_padding) if missing_padding else "")
-        decoded = base64.b64decode(padded_secret)
-        return decoded
-    except Exception as e:
+        if missing_padding:
+            secret += "=" * (4 - missing_padding)
+        return base64.b64decode(secret)
+    except Exception:
         return secret
 
 async def get_current_user(
