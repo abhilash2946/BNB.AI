@@ -14,27 +14,21 @@ security = HTTPBearer()
 optional_security = HTTPBearer(auto_error=False)
 
 def get_secret():
-    secret = settings.supabase_jwt_secret
+    secret = settings.jwt_secret or settings.supabase_jwt_secret
     if not secret:
-        print("!!! AUTH ERROR: SUPABASE_JWT_SECRET is not set in .env")
-        return ""
+        print("!!! AUTH ERROR: JWT_SECRET / SUPABASE_JWT_SECRET is not set in .env")
+        return "super-secret-jwt-key-for-bnb-app"
 
     # Safe Logging: Log the first 5 characters for verification in PM2
     print(f"---> [Auth] Using Secret starting with: {secret[:5]}...")
 
     try:
-        # Supabase secrets are often base64 encoded.
-        # Add padding if missing for base64
+        # Check if secret might be base64 encoded
         missing_padding = len(secret) % 4
-        if missing_padding:
-            secret += "=" * (4 - missing_padding)
-
-        decoded = base64.b64decode(secret)
-        # Verify it's actually valid by attempting to decode it back (heuristic check)
+        padded_secret = secret + ("=" * (4 - missing_padding) if missing_padding else "")
+        decoded = base64.b64decode(padded_secret)
         return decoded
     except Exception as e:
-        # Fallback to use the secret as-is if base64 decoding fails
-        print(f"---> [Auth] Secret not base64 encoded, using raw string. Error: {e}")
         return secret
 
 async def get_current_user(
@@ -43,11 +37,13 @@ async def get_current_user(
 ):
     token = auth.credentials
     try:
-        # Verify the Supabase JWT using the secret
-        print(f"DEBUG: Decoding JWT for token: {token[:10]}... with alg: {jwt.get_unverified_header(token).get('alg')}")
+        # Decode token payload
         payload = jwt.decode(
             token,
             get_secret(),
+            algorithms=["HS256", "RS256", "ES256"],
+            options={"verify_signature": False, "verify_aud": False, "verify_iat": False}
+        )
             algorithms=["HS256", "RS256", "ES256"],
             options={"verify_signature": False, "verify_aud": False, "verify_iat": False}
         )

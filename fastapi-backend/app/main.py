@@ -628,6 +628,12 @@ app.include_router(oauth.router, prefix="/api")
 app.include_router(oauth.router)
 print("---> OAuth router loaded successfully")
 
+# Include App Auth router
+from app.routes import app_auth
+app.include_router(app_auth.router, prefix="/api")
+app.include_router(app_auth.router)
+print("---> App Auth router loaded successfully")
+
 # ============================================================
 # ROOT PAGE
 # ============================================================

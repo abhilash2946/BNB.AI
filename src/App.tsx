@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "./lib/supabaseClient";
+import { auth } from "./lib/auth";
 import { UserProfile, SiteProfile, UserCredentials } from "./types";
 import LandingPage from "./components/LandingPage";
 import SiteManagement from "./components/SiteManagement";
@@ -192,57 +193,48 @@ export default function App() {
     const checkInitialSession = async () => {
       try {
         const isShared = await checkSharedLink();
-        // CRITICAL: If this is a shared report, STOP HERE.
-        // Do not attempt to load a real user session or fetch profile data.
         if (isShared) {
           console.log("[App] Shared Report detected, skipping initial session check");
           setIsLoading(false);
           return;
         }
 
-        const { data: { session } } = await supabase.auth.getSession();
-
-        const savedUser = localStorage.getItem('bnb_user_profile');
+        // Check if returning from App OAuth callback redirect with ?token=...
         const urlParams = new URLSearchParams(window.location.search);
-        const isComingFromOAuth = urlParams.get('success') === 'true' || urlParams.has('error');
+        const tokenParam = urlParams.get('token');
+        if (tokenParam) {
+          auth.setToken(tokenParam);
+          // Clean token parameter from browser URL bar
+          urlParams.delete('token');
+          const newSearch = urlParams.toString();
+          const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '');
+          window.history.replaceState({}, document.title, newUrl);
+        }
 
-        if (mounted && session) {
-          setSessionUserId(session.user.id);
-          setSessionUserMetadata(session.user.user_metadata);
+        const token = auth.getToken();
+        if (mounted && token) {
           setIsSyncing(true);
-
-          const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-          if (refreshError || !refreshed?.user) {
-            if (isComingFromOAuth && savedUser) {
-               console.warn("Session refresh failed, but completing OAuth with local profile");
-               setUser(JSON.parse(savedUser));
-               setIsLoading(false);
-               return;
-            }
-            await supabase.auth.signOut();
-            setIsLoading(false);
-            setView("landing");
-            return;
-          }
-
-          setUser(prev => prev || {
-            id: refreshed.user.id,
-            name: refreshed.user.user_metadata?.full_name || "User",
-            agencyName: "Loading...",
-            email: refreshed.user.email || "",
-            role: "Member",
-            tier: "Standard"
-          });
-
-          void fetchProfileData(refreshed.user.id, refreshed.user);
-        } else if (mounted && !session) {
-          if (savedUser && isComingFromOAuth) {
-            console.log("Supabase session missing, restoring local profile to complete OAuth");
-            setUser(JSON.parse(savedUser));
-            setIsLoading(false);
+          const currentUser = await auth.fetchCurrentUser();
+          if (currentUser) {
+            setSessionUserId(currentUser.id);
+            const userProfile: UserProfile = {
+              id: currentUser.id,
+              name: currentUser.name || "User",
+              agencyName: currentUser.agency_name || "Enterprise Workspace",
+              email: currentUser.email || "",
+              role: currentUser.role || "Member",
+              tier: currentUser.tier || "Standard",
+              avatarUrl: currentUser.avatar_url
+            };
+            setUser(userProfile);
+            void fetchProfileData(currentUser.id);
           } else {
+            auth.clearToken();
+            setUser(null);
             setIsLoading(false);
           }
+        } else if (mounted) {
+          setIsLoading(false);
         }
       } catch (err) {
         console.error("checkInitialSession error:", err);
@@ -250,62 +242,6 @@ export default function App() {
       }
     };
     checkInitialSession();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-
-      // Shared Mode Enforcement: Ignore auth changes if on a shared path to stay as guest
-      // We check both the path and the current sharedMode state for extra safety
-      if (window.location.pathname.startsWith('/shared/') || sharedMode) {
-        console.log("[App] Ignoring auth change in Shared Mode to preserve Guest session");
-        setIsLoading(false);
-        return;
-      }
-
-      if (session) {
-        const isNewSession = session.user.id !== sessionUserId;
-        setSessionUserId(session.user.id);
-        setSessionUserMetadata(session.user.user_metadata);
-        if (isNewSession || !user) {
-          setIsSyncing(true);
-          setUser(prev => prev || {
-            id: session.user.id,
-            name: session.user.user_metadata?.full_name || "User",
-            agencyName: "Loading...",
-            email: session.user.email || "",
-            role: "Member",
-            tier: "Standard"
-          });
-          void fetchProfileData(session.user.id, session.user);
-        }
-      } else if (event === "SIGNED_OUT") {
-        const urlParams = new URLSearchParams(window.location.search);
-        const isComingFromOAuth = urlParams.has('success') || urlParams.has('error');
-        const recentlySynced = localStorage.getItem('bnb_last_oauth_sync');
-        const isRecentlySynced = recentlySynced && (Date.now() - parseInt(recentlySynced) < 30000); // 30 second window
-
-        // CRITICAL: If we are in an OAuth flow, DO NOT clear localStorage.
-        // This allows us to recover the session even if the browser hides the cookies.
-        if (isComingFromOAuth || isRecentlySynced) {
-          console.log("Session hidden by browser during OAuth, preserving local data for recovery...");
-          setIsLoading(false);
-          return;
-        }
-
-        setUser(null);
-        setSessionUserId(null);
-        setSites([]);
-        setActiveSite(null);
-        setSharedCreds({});
-        localStorage.clear();
-        setView("landing");
-        localStorage.removeItem('bnb_app_view');
-        localStorage.removeItem('bnb_active_site_id');
-        setIsLoading(false);
-      } else if (event === 'INITIAL_SESSION' && !session) {
-        setIsLoading(false);
-      }
-    });
 
     return () => {
       mounted = false;
@@ -338,10 +274,9 @@ export default function App() {
     }, 30000);
 
     try {
-      const getProfile = async (retry = true): Promise<any> => {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        if (!token) throw new Error("No session token available");
+      const getProfile = async (): Promise<any> => {
+        const token = auth.getToken();
+        if (!token) throw new Error("No token available");
 
         const response = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/profile`, {
           headers: {
@@ -349,12 +284,6 @@ export default function App() {
             'Content-Type': 'application/json'
           }
         });
-
-        if (response.status === 401 && retry) {
-          console.warn("Profile fetch 401, attempting token refresh...");
-          const { error: refreshError } = await supabase.auth.refreshSession();
-          if (!refreshError) return getProfile(false);
-        }
 
         if (!response.ok) {
           throw new Error(`Backend profile fetch failed: ${response.status}`);
@@ -366,7 +295,7 @@ export default function App() {
 
       const userData: UserProfile = {
         id: userId,
-        name: activeProfile.name || authUserFromSession?.user_metadata?.full_name || "User",
+        name: activeProfile.name || authUserFromSession?.name || "User",
         agencyName: activeProfile.agency_name || "Enterprise Workspace",
         email: activeProfile.email || authUserFromSession?.email || "",
         role: activeProfile.role || "Member",
@@ -389,8 +318,7 @@ export default function App() {
       void (async () => {
         const startTime = Date.now();
         try {
-          const { data: { session } } = await supabase.auth.getSession();
-          const token = session?.access_token;
+          const token = auth.getToken();
           if (!token) return;
 
           const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
@@ -436,8 +364,6 @@ export default function App() {
             setSites(mappedSites);
             localStorage.setItem('bnb_sites', JSON.stringify(mappedSites));
 
-            // Strictly follow user request: "dont select any site as default"
-            // EXCEPT in Shared Mode where we MUST keep the selected shared site.
             if (!sharedMode) {
               setActiveSite(null);
             }
@@ -480,25 +406,24 @@ export default function App() {
       setView(savedView && savedView !== "landing" ? savedView : "dashboard");
       return;
     }
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      void fetchProfileData(session.user.id, session.user);
-      return;
+    const token = auth.getToken();
+    if (token) {
+      const currentUser = await auth.fetchCurrentUser();
+      if (currentUser) {
+        void fetchProfileData(currentUser.id, currentUser);
+        return;
+      }
     }
     setAuthError(null);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { queryParams: { access_type: 'offline' }, redirectTo: window.location.origin }
-      });
-      if (error) throw error;
+      auth.loginWithGoogle();
     } catch (err: any) {
       setAuthError(`OAuth Error: ${err.message}`);
     }
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    auth.logout();
     setUser(null);
     setSites([]);
     setActiveSite(null);

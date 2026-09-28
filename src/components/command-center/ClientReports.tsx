@@ -29,6 +29,7 @@ import {
   Share2
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import { auth } from '../../lib/auth';
 import { toast } from 'react-hot-toast';
 import { MarketingReport, CategoryType, Slide, SlideType } from '../../types';
 import { SlideRenderer } from './SlideRenderer';
@@ -933,8 +934,7 @@ export default function ClientReports({ report, siteId, category, setCategory, i
           if (!targetSiteId || targetSiteId === 'undefined' || targetSiteId.startsWith('report_')) return;
 
           try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const token = auth.getToken();
             const baseUrl = import.meta.env.VITE_API_URL || '/api';
 
             // Helper to process fetched analysis
@@ -1096,8 +1096,7 @@ export default function ClientReports({ report, siteId, category, setCategory, i
     if (!report?.id) return;
     setIsSaving(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      const token = auth.getToken();
       const baseUrl = import.meta.env.VITE_API_URL || '/api';
 
       const response = await fetch(`${baseUrl}/processed-report/${report.id}`, {

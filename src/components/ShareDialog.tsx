@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Share2, Globe, Lock, FileText, Presentation, Copy, Check } from 'lucide-react';
 import { GlassCard } from './GlassCard';
 import { supabase } from '../lib/supabaseClient';
+import { auth } from '../lib/auth';
 import { toast } from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_API_URL || "/api";
@@ -34,13 +35,13 @@ export default function ShareDialog({ isOpen, onClose, siteId, reportId, dateRan
         return;
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
+      const token = auth.getToken();
 
       const response = await fetch(`${API_URL}/shared-reports`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           site_id: siteId,

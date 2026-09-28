@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
     pagespeed_api_key: str = os.getenv("PAGESPEED_API_KEY", "")
 
+    # Default settings for custom App Auth
+    app_google_client_id: str = os.getenv("APP_GOOGLE_CLIENT_ID", os.getenv("GOOGLE_CLIENT_ID", ""))
+    app_google_client_secret: str = os.getenv("APP_GOOGLE_CLIENT_SECRET", os.getenv("GOOGLE_CLIENT_SECRET", ""))
+    jwt_secret: str = os.getenv("JWT_SECRET", os.getenv("SUPABASE_JWT_SECRET", "super-secret-jwt-key-for-bnb-app"))
+    jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
+    jwt_expire_days: int = int(os.getenv("JWT_EXPIRE_DAYS", "30"))
+
     # These are defaults from Env, but often overridden by User Credentials from DB
     google_client_id: str = os.getenv("GOOGLE_CLIENT_ID", "")
     google_client_secret: str = os.getenv("GOOGLE_CLIENT_SECRET", "")

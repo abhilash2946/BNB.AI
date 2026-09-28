@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { UserProfile, SiteProfile, DateRange, ReportResponse, RawReport, MarketingMetric } from "../../types";
 import { supabase } from "../../lib/supabaseClient";
+import { auth } from "../../lib/auth";
 import toast from 'react-hot-toast';
 import {
   POLLING_FALLBACK_DELAY_MS,
@@ -807,8 +808,7 @@ export const useReportData = (user: UserProfile, activeSite: SiteProfile | null,
   }, []);
 
   const getAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
+    const token = auth.getToken();
     if (!token) return { "Content-Type": "application/json" };
 
     return {

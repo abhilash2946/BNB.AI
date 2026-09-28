@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { UserProfile, SiteProfile, UserCredentials } from "../types";
 import { Globe, Trash, Edit, Plus, ArrowLeft, ExternalLink, LogOut, Key, CheckCircle2, ShieldCheck, BarChart3, Facebook, Instagram, Settings, X, Building2, Sparkles, Camera, RefreshCw, Pause, Play } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
+import { auth } from "../lib/auth";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard } from "./GlassCard";
 
@@ -182,7 +183,7 @@ export default function SiteManagement({
     e.preventDefault();
     setActiveSettingsModal(null);
     try {
-      const token = (await (supabase.auth.getSession())).data.session?.access_token;
+      const token = auth.getToken();
       const tasks: Promise<any>[] = [];
 
       const callApi = async (path: string, body: any) => {
@@ -246,7 +247,7 @@ export default function SiteManagement({
     if (isSaving) return;
     setIsSaving(true);
     try {
-      const token = (await (supabase.auth.getSession())).data.session?.access_token;
+      const token = auth.getToken();
       const payload: any = {
         name: name.trim(),
         url: url.trim(),
@@ -343,7 +344,7 @@ export default function SiteManagement({
     if (!profileName.trim() || !profileAgencyName.trim()) return;
     setIsSaving(true);
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const token = auth.getToken();
       const res = await fetch(`${API_URL}/profile`, {
         method: "PATCH",
         headers: {
@@ -372,7 +373,7 @@ export default function SiteManagement({
 
     setIsUploading(true);
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const token = auth.getToken();
       const formData = new FormData();
       formData.append("file", file);
 
@@ -414,7 +415,7 @@ export default function SiteManagement({
 
     setIsUploadingSiteImage(true);
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const token = auth.getToken();
       const formData = new FormData();
       formData.append("file", file);
 
@@ -486,7 +487,7 @@ export default function SiteManagement({
   const handleToggleStatus = async (site: SiteProfile) => {
     const newStatus = site.status === 'paused' ? 'active' : 'paused';
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const token = auth.getToken();
       const res = await fetch(`${API_URL}/sites/${site.id}`, {
         method: "PATCH",
         headers: {
@@ -505,7 +506,7 @@ export default function SiteManagement({
   const handleConfirmDelete = async () => {
     if (!deleteConfirmSite) return;
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const token = auth.getToken();
       const endpoint = deleteType === 'credentials'
         ? `${API_URL}/sites/${deleteConfirmSite.id}/credentials`
         : `${API_URL}/sites/${deleteConfirmSite.id}`;
