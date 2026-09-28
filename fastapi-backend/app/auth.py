@@ -41,9 +41,6 @@ async def get_current_user(
             algorithms=["HS256", "RS256", "ES256"],
             options={"verify_signature": False, "verify_aud": False, "verify_iat": False}
         )
-            algorithms=["HS256", "RS256", "ES256"],
-            options={"verify_signature": False, "verify_aud": False, "verify_iat": False}
-        )
 
         user_id = payload.get("sub")
         email = payload.get("email")
@@ -51,8 +48,6 @@ async def get_current_user(
         if not user_id:
             print("!!! AUTH ERROR: sub missing from token")
             raise HTTPException(status_code=401, detail="Invalid token: sub missing")
-
-        # print(f"DEBUG: JWT Verified for {email or user_id}")
 
         # Ensure user exists in local database (Sync Profile)
         profile = db.query(Profile).filter(Profile.id == user_id).first()
@@ -74,9 +69,6 @@ async def get_current_user(
         raise HTTPException(status_code=401, detail="Token has expired")
     except jwt.InvalidTokenError as e:
         print(f"!!! AUTH ERROR: Invalid token: {str(e)}")
-        # Log the first 20 chars of the secret for debugging (masked)
-        secret = str(get_secret())
-        # print(f"DEBUG: Using secret starting with: {secret[:10]}...")
         raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
     except Exception as e:
         print(f"!!! AUTH ERROR: Unexpected error: {str(e)}")
