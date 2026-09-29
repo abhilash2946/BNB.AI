@@ -1,5 +1,40 @@
 import { ReportResponse, MarketingReport, KpiItem, AdviceItem, RadarDataPoint } from '../types';
 
+export const safeRenderText = (val: any, fallback = ''): string => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (typeof val === 'object') {
+    if (val.description && typeof val.description === 'string') return val.description;
+    if (val.title && typeof val.title === 'string') return val.title;
+    if (val.name && typeof val.name === 'string') return val.name;
+    const values = Object.values(val).filter(v => typeof v === 'string' || typeof v === 'number');
+    if (values.length > 0) return values.join('; ');
+    try {
+      return JSON.stringify(val);
+    } catch {
+      return fallback;
+    }
+  }
+  return String(val);
+};
+
+export const safeArray = (val: any): any[] => {
+  if (Array.isArray(val)) return val;
+  if (val === null || val === undefined) return [];
+  if (typeof val === 'string' || typeof val === 'number') return [val];
+  if (typeof val === 'object') {
+    const values = Object.values(val);
+    if (values.length > 0) return values;
+    return [val];
+  }
+  return [];
+};
+
+export const safeStringArray = (val: any): string[] => {
+  return safeArray(val).map(item => safeRenderText(item));
+};
+
 const parseNumeric = (val: any): number => {
   if (typeof val === 'number') return val;
   if (!val || typeof val !== 'string') return 0;
@@ -202,21 +237,32 @@ export const mapReportResponseToMarketingReport = (
         : (hist.prev_key_events_by_platform || []).map((p: any) => ({ platform: p.platform || 'Unknown', events: parseInt(String(p.keyEvents || p.events || 0)) || 0 })),
       platformInsight: report.tableExplanations?.key_events_by_platform || report.tableExplanations?.platform_overview || "Hardware gateway distribution metrics.",
       sectionAdvice: {
-        kpi_advice: report.sectionAdvice?.kpi_advice || report.section_advice?.kpi_advice || [],
-        demographics: report.sectionAdvice?.country_advice || report.section_advice?.country_advice || report.sectionAdvice?.demographic_advice || report.section_advice?.demographic_advice || [],
-        timeline: report.sectionAdvice?.activity_advice || report.section_advice?.activity_advice || report.sectionAdvice?.timeline_advice || report.section_advice?.timeline_advice || [],
-        keywords: report.sectionAdvice?.keyword_advice || report.section_advice?.keyword_advice || [],
-        pages: report.sectionAdvice?.page_title_advice || report.section_advice?.page_title_advice || [],
-        channels: report.sectionAdvice?.channel_advice || report.section_advice?.channel_advice || [],
-        events: report.sectionAdvice?.event_advice || report.section_advice?.event_advice || [],
-        platforms: report.sectionAdvice?.platform_advice || report.section_advice?.platform_advice || [],
+        kpi_advice: safeStringArray(report.sectionAdvice?.kpi_advice || report.section_advice?.kpi_advice),
+        demographics: safeStringArray(report.sectionAdvice?.country_advice || report.section_advice?.country_advice || report.sectionAdvice?.demographic_advice || report.section_advice?.demographic_advice),
+        timeline: safeStringArray(report.sectionAdvice?.activity_advice || report.section_advice?.activity_advice || report.sectionAdvice?.timeline_advice || report.section_advice?.timeline_advice),
+        keywords: safeStringArray(report.sectionAdvice?.keyword_advice || report.section_advice?.keyword_advice),
+        pages: safeStringArray(report.sectionAdvice?.page_title_advice || report.section_advice?.page_title_advice),
+        channels: safeStringArray(report.sectionAdvice?.channel_advice || report.section_advice?.channel_advice),
+        events: safeStringArray(report.sectionAdvice?.event_advice || report.section_advice?.event_advice),
+        platforms: safeStringArray(report.sectionAdvice?.platform_advice || report.section_advice?.platform_advice),
       },
       aiCompetitorAnalysis: {
-        inferredActions: report.aiCompetitorAnalysis?.inferred_actions || report.aiCompetitorAnalysis?.inferredActions || [],
-        recommendedSteps: report.aiCompetitorAnalysis?.actionable_steps || report.aiCompetitorAnalysis?.recommended_steps || report.aiCompetitorAnalysis?.recommendedSteps || [],
-        competitor_breakdown: report.aiCompetitorAnalysis?.competitor_breakdown || report.aiCompetitorAnalysis?.competitorBreakdown || [],
-        overall_threat_summary: report.aiCompetitorAnalysis?.overall_threat_summary || report.aiCompetitorAnalysis?.overallThreatSummary || "",
-        self_gap_analysis: report.aiCompetitorAnalysis?.self_gap_analysis || report.aiCompetitorAnalysis?.selfGapAnalysis || null,
+        inferredActions: safeStringArray(report.aiCompetitorAnalysis?.inferred_actions || report.aiCompetitorAnalysis?.inferredActions),
+        recommendedSteps: safeStringArray(report.aiCompetitorAnalysis?.actionable_steps || report.aiCompetitorAnalysis?.recommended_steps || report.aiCompetitorAnalysis?.recommendedSteps),
+        competitor_breakdown: safeArray(report.aiCompetitorAnalysis?.competitor_breakdown || report.aiCompetitorAnalysis?.competitorBreakdown).map((comp: any) => ({
+          ...comp,
+          name: safeRenderText(comp.name, "Competitor"),
+          inferred_actions: safeStringArray(comp.inferred_actions),
+          strengths: safeStringArray(comp.strengths),
+          weaknesses: safeStringArray(comp.weaknesses),
+        })),
+        overall_threat_summary: safeRenderText(report.aiCompetitorAnalysis?.overall_threat_summary || report.aiCompetitorAnalysis?.overallThreatSummary),
+        self_gap_analysis: report.aiCompetitorAnalysis?.self_gap_analysis ? {
+          ...report.aiCompetitorAnalysis.self_gap_analysis,
+          weaknesses: safeStringArray(report.aiCompetitorAnalysis.self_gap_analysis.weaknesses),
+          actionable_gaps: safeStringArray(report.aiCompetitorAnalysis.self_gap_analysis.actionable_gaps),
+          missed_opportunities: safeStringArray(report.aiCompetitorAnalysis.self_gap_analysis.missed_opportunities),
+        } : null,
       }
     };
   }
@@ -386,14 +432,14 @@ export const mapReportResponseToMarketingReport = (
       })),
       metaDeviceInsight: report.tableExplanations?.meta_devices || "Hardware-specific engagement metrics.",
       sectionAdvice: {
-        kpi_advice: report.sectionAdvice?.kpi_advice || report.section_advice?.kpi_advice || [],
-        campaign_advice: report.sectionAdvice?.campaign_advice || report.section_advice?.campaign_advice || [],
-        keyword_advice: report.sectionAdvice?.keyword_advice || report.section_advice?.keyword_advice || [],
-        device_advice: report.sectionAdvice?.device_advice || report.section_advice?.device_advice || [],
-        meta_kpi_advice: report.sectionAdvice?.meta_kpi_advice || report.section_advice?.meta_kpi_advice || [],
-        meta_campaign_advice: report.sectionAdvice?.meta_campaign_advice || report.section_advice?.meta_campaign_advice || [],
-        meta_adset_advice: report.sectionAdvice?.meta_adset_advice || report.section_advice?.meta_adset_advice || [],
-        meta_device_advice: report.sectionAdvice?.meta_device_advice || report.section_advice?.meta_device_advice || [],
+        kpi_advice: safeStringArray(report.sectionAdvice?.kpi_advice || report.section_advice?.kpi_advice),
+        campaign_advice: safeStringArray(report.sectionAdvice?.campaign_advice || report.section_advice?.campaign_advice),
+        keyword_advice: safeStringArray(report.sectionAdvice?.keyword_advice || report.section_advice?.keyword_advice),
+        device_advice: safeStringArray(report.sectionAdvice?.device_advice || report.section_advice?.device_advice),
+        meta_kpi_advice: safeStringArray(report.sectionAdvice?.meta_kpi_advice || report.section_advice?.meta_kpi_advice),
+        meta_campaign_advice: safeStringArray(report.sectionAdvice?.meta_campaign_advice || report.section_advice?.meta_campaign_advice),
+        meta_adset_advice: safeStringArray(report.sectionAdvice?.meta_adset_advice || report.section_advice?.meta_adset_advice),
+        meta_device_advice: safeStringArray(report.sectionAdvice?.meta_device_advice || report.section_advice?.meta_device_advice),
       },
       websiteTrafficByCountry: (report.topCountries || rawGa4Details.top_countries || []).map((c: any) => ({
         country: c.country || 'Unknown',
@@ -429,11 +475,22 @@ export const mapReportResponseToMarketingReport = (
       prevSessionsByChannel: (hist.prev_sessions_by_channel || []).map((s: any) => ({ channel: s.channel, sessions: s.sessions })),
       sessionsInsight: report.tableExplanations?.sessions_by_channel || report.tableExplanations?.channel_overview || "Acquisition protocol efficiency across all primary channels.",
       aiCompetitorAnalysis: {
-        inferredActions: report.aiCompetitorAnalysis?.inferred_actions || report.aiCompetitorAnalysis?.inferredActions || [],
-        recommendedSteps: report.aiCompetitorAnalysis?.actionable_steps || report.aiCompetitorAnalysis?.recommended_steps || report.aiCompetitorAnalysis?.recommendedSteps || [],
-        competitor_breakdown: report.aiCompetitorAnalysis?.competitor_breakdown || report.aiCompetitorAnalysis?.competitorBreakdown || [],
-        overall_threat_summary: report.aiCompetitorAnalysis?.overall_threat_summary || report.aiCompetitorAnalysis?.overallThreatSummary || "",
-        self_gap_analysis: report.aiCompetitorAnalysis?.self_gap_analysis || report.aiCompetitorAnalysis?.selfGapAnalysis || null,
+        inferredActions: safeStringArray(report.aiCompetitorAnalysis?.inferred_actions || report.aiCompetitorAnalysis?.inferredActions),
+        recommendedSteps: safeStringArray(report.aiCompetitorAnalysis?.actionable_steps || report.aiCompetitorAnalysis?.recommended_steps || report.aiCompetitorAnalysis?.recommendedSteps),
+        competitor_breakdown: safeArray(report.aiCompetitorAnalysis?.competitor_breakdown || report.aiCompetitorAnalysis?.competitorBreakdown).map((comp: any) => ({
+          ...comp,
+          name: safeRenderText(comp.name, "Competitor"),
+          inferred_actions: safeStringArray(comp.inferred_actions),
+          strengths: safeStringArray(comp.strengths),
+          weaknesses: safeStringArray(comp.weaknesses),
+        })),
+        overall_threat_summary: safeRenderText(report.aiCompetitorAnalysis?.overall_threat_summary || report.aiCompetitorAnalysis?.overallThreatSummary),
+        self_gap_analysis: report.aiCompetitorAnalysis?.self_gap_analysis ? {
+          ...report.aiCompetitorAnalysis.self_gap_analysis,
+          weaknesses: safeStringArray(report.aiCompetitorAnalysis.self_gap_analysis.weaknesses),
+          actionable_gaps: safeStringArray(report.aiCompetitorAnalysis.self_gap_analysis.actionable_gaps),
+          missed_opportunities: safeStringArray(report.aiCompetitorAnalysis.self_gap_analysis.missed_opportunities),
+        } : null,
       }
     };
   }

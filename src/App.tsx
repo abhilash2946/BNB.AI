@@ -245,7 +245,6 @@ export default function App() {
 
     return () => {
       mounted = false;
-      listener?.subscription.unsubscribe();
     };
   }, []);
 

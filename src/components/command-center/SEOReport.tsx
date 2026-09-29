@@ -9,6 +9,7 @@ import {
   Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend
 } from 'recharts';
 import { PALETTE, CHART_COLORS } from '../../constants/theme';
+import { safeRenderText } from '../../utils/mapper';
 
 interface SEOReportProps {
   reportData: ReportResponse;
@@ -29,7 +30,7 @@ const renderCompetitorBlock = (data: ReportResponse['aiCompetitorAnalysis'], tit
             <div>
               <p className="text-xs uppercase tracking-wider text-gray-400 mb-2">🔍 Inferred Actions</p>
               <ul className="list-disc pl-5 text-sm text-gray-200 space-y-1">
-                {data.inferred_actions.map((action: string, idx: number) => <li key={idx}>{action}</li>)}
+                {data.inferred_actions.map((action: string, idx: number) => <li key={idx}>{safeRenderText(action)}</li>)}
               </ul>
             </div>
           )}
@@ -37,7 +38,7 @@ const renderCompetitorBlock = (data: ReportResponse['aiCompetitorAnalysis'], tit
             <div>
               <p className="text-xs uppercase tracking-wider text-amber-400 mb-2">📌 Recommended Actions</p>
               <ul className="list-disc pl-5 text-sm text-gray-200 space-y-1">
-                {data.actionable_steps.map((step: string, idx: number) => <li key={idx}>{step}</li>)}
+                {data.actionable_steps.map((step: string, idx: number) => <li key={idx}>{safeRenderText(step)}</li>)}
               </ul>
             </div>
           )}
@@ -231,7 +232,7 @@ export const SEOReport: React.FC<SEOReportProps> = ({ reportData, includeCharts,
               <div className="mt-[-1rem] mb-6 mx-6 p-4 bg-white/5 border-l-4 border-white rounded-r-xl">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-white mb-2">📌 Strategic Protocol</p>
                 <ul className="list-disc pl-5 text-sm text-gray-300 space-y-1">
-                  {adviceList.map((adv, idx) => <li key={idx}>{adv}</li>)}
+                  {adviceList.map((adv, idx) => <li key={idx}>{safeRenderText(adv)}</li>)}
                 </ul>
               </div>
             )}

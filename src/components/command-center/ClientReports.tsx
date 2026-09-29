@@ -32,6 +32,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { auth } from '../../lib/auth';
 import { toast } from 'react-hot-toast';
 import { MarketingReport, CategoryType, Slide, SlideType } from '../../types';
+import { safeRenderText, safeArray, safeStringArray } from '../../utils/mapper';
 import { SlideRenderer } from './SlideRenderer';
 import { initialSlides } from './reportData';
 import ShareDialog from '../ShareDialog';
@@ -842,19 +843,22 @@ export default function ClientReports({ report, siteId, category, setCategory, i
 
              // Extract a summary observation if specific summary is missing
              const getObservation = (compList: any[], fallback: string) => {
-               if (compList.length && typeof compList[0] === 'object') {
+               if (compList.length && typeof compList[0] === 'object' && compList[0] !== null) {
                  const first = compList[0];
-                 return (first.inferred_actions || []).join(' ') || (first.strengths || []).join(' ') || fallback;
+                 const actions = safeStringArray(first.inferred_actions).join(' ');
+                 const strengths = safeStringArray(first.strengths).join(' ');
+                 return actions || strengths || fallback;
                }
                return fallback;
              };
 
              const getOpportunity = (moduleData: any, fallback: string) => {
                const analysis = moduleData?.aiCompetitorAnalysis;
-               return analysis?.self_gap_analysis?.missed_opportunities?.[0] ||
+               const rawOpp = analysis?.self_gap_analysis?.missed_opportunities?.[0] ||
                       analysis?.self_gap_analysis?.actionable_gaps?.[0] ||
                       moduleData?.competitor_intelligence?.biggest_threat ||
                       fallback;
+               return safeRenderText(rawOpp, fallback);
              };
 
              return {
@@ -865,8 +869,8 @@ export default function ClientReports({ report, siteId, category, setCategory, i
                  performanceCompetitors: perfComp,
                  selectedSeoIdx: s.customData?.selectedSeoIdx !== undefined ? s.customData.selectedSeoIdx : (seoComp.length > 0 ? 0 : undefined),
                  selectedPerfIdx: s.customData?.selectedPerfIdx !== undefined ? s.customData.selectedPerfIdx : (perfComp.length > 0 ? 0 : undefined),
-                 seoObservation: sMod_comp?.aiCompetitorAnalysis?.overall_threat_summary || getObservation(seoComp, 'SEO competitors are aggressively targeting high-intent keywords.'),
-                 performanceObservation: pMod_comp?.aiCompetitorAnalysis?.overall_threat_summary || getObservation(perfComp, 'Performance competitors are scaling video ad spend.'),
+                 seoObservation: safeRenderText(sMod_comp?.aiCompetitorAnalysis?.overall_threat_summary, getObservation(seoComp, 'SEO competitors are aggressively targeting high-intent keywords.')),
+                 performanceObservation: safeRenderText(pMod_comp?.aiCompetitorAnalysis?.overall_threat_summary, getObservation(perfComp, 'Performance competitors are scaling video ad spend.')),
                  seoOpportunity: getOpportunity(sMod_comp, 'Focus on long-tail destination keywords.'),
                  performanceOpportunity: getOpportunity(pMod_comp, 'Implement dynamic remarketing for abandoned carts.')
                }
@@ -875,18 +879,32 @@ export default function ClientReports({ report, siteId, category, setCategory, i
            case 'recommendations':
              return {
                ...s,
-               listItems: (report.adviceList || []).map(a => typeof a === 'string' ? a : a.title).slice(0, 7)
+               listItems: (report.adviceList || []).map(a => safeRenderText(typeof a === 'string' ? a : (a.title || a.description))).slice(0, 7)
              };
 
            case 'action_plan':
              const roadmap = report.improvement_roadmap || (report as any).performance?.improvement_roadmap || {};
-             const actions = roadmap.actions || [];
+             const actions = safeArray(roadmap.actions);
 
              // Map actions to the 4 categories
-             const seoActions = actions.filter((a: any) => a.title.toUpperCase().includes('SEO')).map((a: any) => a.title);
-             const socialActions = actions.filter((a: any) => a.title.toUpperCase().includes('SOCIAL')).map((a: any) => a.title);
-             const paidActions = actions.filter((a: any) => a.title.toUpperCase().includes('AD') || a.title.toUpperCase().includes('META') || a.title.toUpperCase().includes('GOOGLE')).map((a: any) => a.title);
-             const webActions = actions.filter((a: any) => a.title.toUpperCase().includes('WEB') || a.title.toUpperCase().includes('PAGE')).map((a: any) => a.title);
+             const seoActions = actions
+               .filter((a: any) => safeRenderText(a.title || a).toUpperCase().includes('SEO'))
+               .map((a: any) => safeRenderText(a.title || a));
+             const socialActions = actions
+               .filter((a: any) => safeRenderText(a.title || a).toUpperCase().includes('SOCIAL'))
+               .map((a: any) => safeRenderText(a.title || a));
+             const paidActions = actions
+               .filter((a: any) => {
+                 const t = safeRenderText(a.title || a).toUpperCase();
+                 return t.includes('AD') || t.includes('META') || t.includes('GOOGLE');
+               })
+               .map((a: any) => safeRenderText(a.title || a));
+             const webActions = actions
+               .filter((a: any) => {
+                 const t = safeRenderText(a.title || a).toUpperCase();
+                 return t.includes('WEB') || t.includes('PAGE');
+               })
+               .map((a: any) => safeRenderText(a.title || a));
 
              return {
                ...s,

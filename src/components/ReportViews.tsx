@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import * as Icons from 'lucide-react';
 import { MarketingReport, SectionType } from '../types';
+import { safeRenderText } from '../utils/mapper';
 
 import { CompetitorRadar } from './CompetitorRadar';
 import { WorldMap } from './WorldMap';
@@ -277,7 +278,7 @@ export default function ReportViews({ report, activeSection, isSharedMode }: Rep
                 </div>
                 <div className="space-y-2">
                   {report.improvement_roadmap.strengths.map((s, i) => (
-                    <div key={i} className="bg-white/[0.02] border border-white/5 p-3 rounded-xl text-[11px] text-white/60">{s}</div>
+                    <div key={i} className="bg-white/[0.02] border border-white/5 p-3 rounded-xl text-[11px] text-white/60">{safeRenderText(s)}</div>
                   ))}
                 </div>
               </div>
@@ -287,7 +288,7 @@ export default function ReportViews({ report, activeSection, isSharedMode }: Rep
                 </div>
                 <div className="space-y-2">
                   {report.improvement_roadmap.weaknesses.map((w, i) => (
-                    <div key={i} className="bg-white/[0.02] border border-white/5 p-3 rounded-xl text-[11px] text-white/60">{w}</div>
+                    <div key={i} className="bg-white/[0.02] border border-white/5 p-3 rounded-xl text-[11px] text-white/60">{safeRenderText(w)}</div>
                   ))}
                 </div>
               </div>
@@ -297,7 +298,7 @@ export default function ReportViews({ report, activeSection, isSharedMode }: Rep
                 </div>
                 <div className="space-y-2">
                   {report.improvement_roadmap.opportunities.map((o, i) => (
-                    <div key={i} className="bg-white/[0.02] border border-white/5 p-3 rounded-xl text-[11px] text-white/60">{o}</div>
+                    <div key={i} className="bg-white/[0.02] border border-white/5 p-3 rounded-xl text-[11px] text-white/60">{safeRenderText(o)}</div>
                   ))}
                 </div>
               </div>
@@ -310,11 +311,11 @@ export default function ReportViews({ report, activeSection, isSharedMode }: Rep
                   <div key={i} className="bg-white/5 border border-white/10 p-5 rounded-2xl group hover:border-white/30 transition-all">
                     <div className="flex justify-between items-start mb-3">
                       <span className={`text-[8px] font-mono px-2 py-0.5 rounded-full ${action.effort === 'High' ? 'bg-white/10 text-white' : action.effort === 'Medium' ? 'bg-white/10 text-white' : 'bg-white/10 text-white'}`}>
-                        {action.effort} EFFORT
+                        {safeRenderText(action.effort, 'Medium')} EFFORT
                       </span>
                     </div>
-                    <h5 className="text-xs font-display font-bold text-white mb-1">{action.title}</h5>
-                    <p className="text-[10px] text-white/40 font-mono">Target: {action.target}</p>
+                    <h5 className="text-xs font-display font-bold text-white mb-1">{safeRenderText(action.title, 'Strategic Action')}</h5>
+                    <p className="text-[10px] text-white/40 font-mono">Target: {safeRenderText(action.target, 'General')}</p>
                   </div>
                 ))}
               </div>
@@ -1405,7 +1406,7 @@ function DataBlock({ title, insight, children, icon: Icon, advice, adviceTitle, 
           <ul className="space-y-2">
             {advice.map((item, i) => (
               <li key={i} className="text-xs text-white/60 leading-relaxed">
-                {item}
+                {safeRenderText(item)}
               </li>
             ))}
           </ul>

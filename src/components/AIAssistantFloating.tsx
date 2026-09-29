@@ -24,7 +24,8 @@ export const AIAssistantFloating: React.FC<AIAssistantFloatingProps> = ({ report
       if (lowerQuestion.includes('competitor')) {
         const comp = reportData.aiCompetitorAnalysis;
         if (comp && typeof comp === 'object') {
-          const actions = comp.inferred_actions?.slice(0, 2).join(', ');
+          const rawActions = Array.isArray(comp.inferred_actions) ? comp.inferred_actions : typeof comp.inferred_actions === 'string' ? [comp.inferred_actions] : [];
+          const actions = rawActions.slice(0, 2).join(', ');
           return `Competitor insights: ${actions || 'No strong signals detected in this cycle.'}`;
         }
         return `No competitor data available yet. Generate a report to activate neural scanning.`;

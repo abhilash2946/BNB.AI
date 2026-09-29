@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Slide } from '../../types';
+import { safeRenderText, safeStringArray } from '../../utils/mapper';
 import { Edit2, ArrowUpRight, Check, Linkedin, Instagram, Facebook, Twitter, Youtube, MessageSquare, Search, Zap, Activity, ChevronLeft, ExternalLink } from 'lucide-react';
 
 // Highly detailed vector SVG representation of the actual RL Tours and Travels logo
@@ -1953,10 +1954,7 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({
                           <div>
                             <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block mb-2">Inferred Actions</span>
                             <div className="space-y-2">
-                              {(Array.isArray(slide.customData.seoCompetitors[slide.customData.selectedSeoIdx].inferred_actions)
-                                ? slide.customData.seoCompetitors[slide.customData.selectedSeoIdx].inferred_actions
-                                : [slide.customData.seoCompetitors[slide.customData.selectedSeoIdx].inferred_actions]
-                              ).map((action: string, i: number) => (
+                              {safeStringArray(slide.customData.seoCompetitors[slide.customData.selectedSeoIdx].inferred_actions).map((action: string, i: number) => (
                                 <p key={i} className="text-xs text-white/70 leading-relaxed font-sans">{action}</p>
                               ))}
                             </div>
@@ -1966,10 +1964,7 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({
                             <div>
                               <span className="text-[10px] font-mono font-bold text-green-500 uppercase block mb-2">Strengths</span>
                               <ul className="space-y-1.5">
-                                {(Array.isArray(slide.customData.seoCompetitors[slide.customData.selectedSeoIdx].strengths)
-                                  ? slide.customData.seoCompetitors[slide.customData.selectedSeoIdx].strengths
-                                  : [slide.customData.seoCompetitors[slide.customData.selectedSeoIdx].strengths]
-                                ).map((s: string, i: number) => (
+                                {safeStringArray(slide.customData.seoCompetitors[slide.customData.selectedSeoIdx].strengths).map((s: string, i: number) => (
                                   <li key={i} className="text-[11px] text-white/50 leading-tight flex gap-1.5">
                                     <div className="w-1 h-1 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
                                     {s}
@@ -1980,10 +1975,7 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({
                             <div>
                               <span className="text-[10px] font-mono font-bold text-amber-500 uppercase block mb-2">Weaknesses</span>
                               <ul className="space-y-1.5">
-                                {(Array.isArray(slide.customData.seoCompetitors[slide.customData.selectedSeoIdx].weaknesses)
-                                  ? slide.customData.seoCompetitors[slide.customData.selectedSeoIdx].weaknesses
-                                  : [slide.customData.seoCompetitors[slide.customData.selectedSeoIdx].weaknesses]
-                                ).map((w: string, i: number) => (
+                                {safeStringArray(slide.customData.seoCompetitors[slide.customData.selectedSeoIdx].weaknesses).map((w: string, i: number) => (
                                   <li key={i} className="text-[11px] text-white/50 leading-tight flex gap-1.5">
                                     <div className="w-1 h-1 rounded-full bg-amber-500 mt-1.5 shrink-0" />
                                     {w}
@@ -2084,10 +2076,7 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({
                           <div>
                             <span className="text-[10px] font-mono font-bold text-gray-500 uppercase block mb-2">Inferred Actions</span>
                             <div className="space-y-2">
-                              {(Array.isArray(slide.customData.performanceCompetitors[slide.customData.selectedPerfIdx].inferred_actions)
-                                ? slide.customData.performanceCompetitors[slide.customData.selectedPerfIdx].inferred_actions
-                                : [slide.customData.performanceCompetitors[slide.customData.selectedPerfIdx].inferred_actions]
-                              ).map((action: string, i: number) => (
+                              {safeStringArray(slide.customData.performanceCompetitors[slide.customData.selectedPerfIdx].inferred_actions).map((action: string, i: number) => (
                                 <p key={i} className="text-xs text-white/70 leading-relaxed font-sans">{action}</p>
                               ))}
                             </div>
@@ -2097,10 +2086,7 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({
                             <div>
                               <span className="text-[10px] font-mono font-bold text-green-500 uppercase block mb-2">Strengths</span>
                               <ul className="space-y-1.5">
-                                {(Array.isArray(slide.customData.performanceCompetitors[slide.customData.selectedPerfIdx].strengths)
-                                  ? slide.customData.performanceCompetitors[slide.customData.selectedPerfIdx].strengths
-                                  : [slide.customData.performanceCompetitors[slide.customData.selectedPerfIdx].strengths]
-                                ).map((s: string, i: number) => (
+                                {safeStringArray(slide.customData.performanceCompetitors[slide.customData.selectedPerfIdx].strengths).map((s: string, i: number) => (
                                   <li key={i} className="text-[11px] text-white/50 leading-tight flex gap-1.5">
                                     <div className="w-1 h-1 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
                                     {s}
@@ -2111,10 +2097,7 @@ export const SlideRenderer: React.FC<SlideRendererProps> = ({
                             <div>
                               <span className="text-[10px] font-mono font-bold text-amber-500 uppercase block mb-2">Weaknesses</span>
                               <ul className="space-y-1.5">
-                                {(Array.isArray(slide.customData.performanceCompetitors[slide.customData.selectedPerfIdx].weaknesses)
-                                  ? slide.customData.performanceCompetitors[slide.customData.selectedPerfIdx].weaknesses
-                                  : [slide.customData.performanceCompetitors[slide.customData.selectedPerfIdx].weaknesses]
-                                ).map((w: string, i: number) => (
+                                {safeStringArray(slide.customData.performanceCompetitors[slide.customData.selectedPerfIdx].weaknesses).map((w: string, i: number) => (
                                   <li key={i} className="text-[11px] text-white/50 leading-tight flex gap-1.5">
                                     <div className="w-1 h-1 rounded-full bg-amber-500 mt-1.5 shrink-0" />
                                     {w}
