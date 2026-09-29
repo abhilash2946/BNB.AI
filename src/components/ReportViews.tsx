@@ -93,7 +93,9 @@ export default function ReportViews({ report, activeSection, isSharedMode }: Rep
         <div key={idx} className="glass-panel rounded-2xl p-5 flex flex-col justify-between group relative overflow-hidden h-32">
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-mono font-bold text-gray-500 uppercase tracking-widest">{kpi.label}</span>
-            <div className="text-2xl font-display font-bold text-white tracking-tight">{kpi.value}</div>
+            <div className="text-2xl font-display font-bold text-white tracking-tight">
+              {activePeriod === 'previous' ? (kpi.prevValue || kpi.value) : kpi.value}
+            </div>
           </div>
           <div className="mt-auto flex items-center gap-1">
              <span className="text-[10px] font-mono font-bold text-white">

@@ -157,6 +157,40 @@ const buildSeoReport = (report: RawReport, startDate: string, endDate: string): 
     prev: typeof keyword.previous_position === "number" && keyword.previous_position > 0 ? keyword.previous_position.toFixed(1) : "-",
   }));
 
+  const rawGa4Details = safeJsonParse(report.ga4_details) || {};
+  const hist = rawGa4Details.historical_data || {};
+
+  const prevCountriesMap = (hist.prev_users_by_country || []).reduce((acc: Record<string, number>, row: any) => {
+    if (row.country) acc[row.country] = (acc[row.country] || 0) + (Number(row.users) || 0);
+    return acc;
+  }, {});
+  const prevTopCountries = Object.entries(prevCountriesMap).map(([country, users]) => ({ country, users: users as number })).sort((a, b) => b.users - a.users);
+
+  const prevTimeline = (hist.daily_users || []).map((d: any) => ({
+    date: toIsoDateLabel(String(d.date || d.label || "")),
+    users: Number(d.users || d.valueA || 0)
+  }));
+
+  const prevPages = (hist.prev_top_page_titles || []).map((p: any) => ({
+    pageTitle: p.title || p.pageTitle || 'Unknown',
+    views: Number(p.views || 0)
+  }));
+
+  const prevChannels = (hist.prev_sessions_by_channel || []).map((s: any) => ({
+    channel: s.channel || 'Unknown',
+    sessions: Number(s.sessions || 0)
+  }));
+
+  const prevEvents = (hist.prev_events_by_event_name || []).map((e: any) => ({
+    event: e.eventName || e.event || 'Unknown',
+    count: Number(e.count || 0)
+  }));
+
+  const prevPlatforms = (hist.prev_key_events_by_platform || []).map((p: any) => ({
+    platform: p.platform || 'Unknown',
+    events: Number(p.events || p.keyEvents || 0)
+  }));
+
   const countryMap = ga4Lists.usersByCountry.reduce((acc: Record<string, number>, row: any) => {
     if (row.country) acc[row.country] = (acc[row.country] || 0) + (Number(row.users) || 0);
     return acc;
@@ -165,11 +199,13 @@ const buildSeoReport = (report: RawReport, startDate: string, endDate: string): 
 
   const seoData: any = {
     activeUsersByCountry: topCountries,
+    prevActiveUsersByCountry: prevTopCountries,
     activeUsersInsight: aiTableExplanations.active_users_by_country || "Geographical user distribution.",
     userActivityOverTime: (report.chart_datasets || []).map((d: any) => ({
       date: toIsoDateLabel(String(d.label || "")),
       users: Number(d.valueA || 0)
     })),
+    prevUserActivityOverTime: prevTimeline,
     userActivityInsight: aiTableExplanations.user_activity_over_time || "Temporal activity flux.",
     topKeywords: topKeywords.map((k: any) => ({
       keyword: k.keyword,
@@ -181,14 +217,19 @@ const buildSeoReport = (report: RawReport, startDate: string, endDate: string): 
     averagePosition: gsc.position,
     topKeywordsInsight: topKeywordsOverview || "Search query resonance mapping.",
     viewsByPageTitle: ga4Lists.topPageTitles.map(p => ({ pageTitle: p.title, views: p.views })),
+    prevViewsByPageTitle: prevPages,
     viewsByPageInsight: aiTableExplanations.views_by_page_title || "Content resonance metrics.",
     sessionsByChannel: ga4Lists.sessionsByChannel.map(s => ({ channel: s.channel, sessions: s.sessions })),
+    prevSessionsByChannel: prevChannels,
     sessionsInsight: aiTableExplanations.sessions_by_channel || "Source node distribution.",
     eventCountByEventName: ga4Lists.eventsByEventName.map(e => ({ event: e.eventName, count: e.count })),
+    prevEventCountByEventName: prevEvents,
     eventInsight: aiTableExplanations.event_count_by_event_name || "Neural event density.",
     keyEventsByPlatform: ga4Lists.keyEventsByPlatform.map(p => ({ platform: p.platform, events: p.keyEvents })),
+    prevKeyEventsByPlatform: prevPlatforms,
     platformInsight: aiTableExplanations.key_events_by_platform || "Hardware vector access analytics.",
     totals: ga4,
+    ga4_details: rawGa4Details,
     sectionAdvice: {
       kpi_advice: sectionAdvice.kpi_advice || [],
       demographics: sectionAdvice.country_advice || sectionAdvice.demographic_advice || [],
@@ -217,10 +258,12 @@ const buildSeoReport = (report: RawReport, startDate: string, endDate: string): 
     kpis: tableData1.map((m, i) => ({
       label: m.metric,
       value: m.current,
+      prevValue: m.previous,
       change: parseFloat(m.change.replace(/[+%]/g, '')) || 0,
       isPositive: !m.change.startsWith('-'),
       icon: ["Globe", "Zap", "User", "Activity", "BarChart", "Clock"][i] || "Activity"
     })),
+    ga4_details: rawGa4Details,
      topCountries: topCountries,
     users_by_country: ga4Lists.usersByCountry,
     topPages: ga4Lists.topLandingPages.map(p => ({ page: p.page, views: Number(p.sessions || 0), bounceRate: p.bounceRate })),

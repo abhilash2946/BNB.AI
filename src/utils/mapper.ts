@@ -134,15 +134,17 @@ export const mapReportResponseToMarketingReport = (
                         (report.chart_datasets && report.chart_datasets.length > 0) ? report.chart_datasets : [];
 
     // Historical SEO mapping
-    const hist = rawSeoData.historical_data || {};
+    const hist = rawSeoData.historical_data || report.historical_data || report.seo?.historical_data || {};
 
     result.seo = {
       activeUsersByCountry: geoData.map(c => ({
         country: c.country || c.label || 'Unknown',
         users: parseInt(String(c.users || c.valueA || 0)) || 0
       })),
-      prevActiveUsersByCountry: (hist.prev_users_by_country || []).map((c: any) => ({
-        country: c.country || c.label || 'Unknown',
+      prevActiveUsersByCountry: (report.seo?.prevActiveUsersByCountry && report.seo.prevActiveUsersByCountry.length > 0)
+        ? report.seo.prevActiveUsersByCountry
+        : (hist.prev_users_by_country || []).map((c: any) => ({
+            country: c.country || c.label || 'Unknown',
         users: parseInt(String(c.users || c.valueA || 0)) || 0
       })),
       totals: report.seo?.totals || report.ga4_details || {},
@@ -157,16 +159,18 @@ export const mapReportResponseToMarketingReport = (
           newUsers: a.newUsers || Math.max(0, total - returning)
         };
       }),
-      prevUserActivityOverTime: (hist.daily_users || []).map((a: any) => {
-        const total = parseInt(String(a.users || a.valueA || 0)) || 0;
-        const returning = parseInt(String(a.returning || a.valueB || a.returningUsers || 0)) || 0;
-        return {
-          date: a.date || a.label || 'Unknown',
-          users: total,
-          returning: returning,
-          newUsers: a.newUsers || Math.max(0, total - returning)
-        };
-      }),
+      prevUserActivityOverTime: (report.seo?.prevUserActivityOverTime && report.seo.prevUserActivityOverTime.length > 0)
+        ? report.seo.prevUserActivityOverTime
+        : (hist.daily_users || []).map((a: any) => {
+            const total = parseInt(String(a.users || a.valueA || 0)) || 0;
+            const returning = parseInt(String(a.returning || a.valueB || a.returningUsers || 0)) || 0;
+            return {
+              date: a.date || a.label || 'Unknown',
+              users: total,
+              returning: returning,
+              newUsers: a.newUsers || Math.max(0, total - returning)
+            };
+          }),
       userActivityInsight: report.tableExplanations?.user_activity_over_time || report.tableExplanations?.activity_overview || "Engagement flux over the temporal range.",
       topKeywords: (report.tableData2 || []).map(k => ({
         keyword: k.item || 'Unknown',
@@ -178,16 +182,24 @@ export const mapReportResponseToMarketingReport = (
       averagePosition: report.averagePosition,
       topKeywordsInsight: report.aiTopKeywordsOverview || report.tableExplanations?.top_keywords_overview || "Search term resonance and bidding efficiency.",
       viewsByPageTitle: (report.topPageTitles || []).map(p => ({ pageTitle: p.title || 'Unknown', views: parseInt(String(p.views || 0)) || 0 })),
-      prevViewsByPageTitle: (hist.prev_top_page_titles || []).map((p: any) => ({ pageTitle: p.title || 'Unknown', views: parseInt(String(p.views || 0)) || 0 })),
+      prevViewsByPageTitle: (report.seo?.prevViewsByPageTitle && report.seo.prevViewsByPageTitle.length > 0)
+        ? report.seo.prevViewsByPageTitle
+        : (hist.prev_top_page_titles || []).map((p: any) => ({ pageTitle: p.title || 'Unknown', views: parseInt(String(p.views || 0)) || 0 })),
       viewsByPageInsight: report.tableExplanations?.views_by_page_title || report.tableExplanations?.page_title_overview || "Content resonance metrics across active page nodes.",
       sessionsByChannel: (report.sessionsByChannel || rawSeoData.sessions_by_channel || []).map(s => ({ channel: s.channel || 'Unknown', sessions: parseInt(String(s.sessions || 0)) || 0 })),
-      prevSessionsByChannel: (hist.prev_sessions_by_channel || []).map((s: any) => ({ channel: s.channel || 'Unknown', sessions: parseInt(String(s.sessions || 0)) || 0 })),
+      prevSessionsByChannel: (report.seo?.prevSessionsByChannel && report.seo.prevSessionsByChannel.length > 0)
+        ? report.seo.prevSessionsByChannel
+        : (hist.prev_sessions_by_channel || []).map((s: any) => ({ channel: s.channel || 'Unknown', sessions: parseInt(String(s.sessions || 0)) || 0 })),
       sessionsInsight: report.tableExplanations?.sessions_by_channel || report.tableExplanations?.channel_overview || "Acquisition protocol efficiency.",
       eventCountByEventName: (report.eventsByEventName || rawSeoData.events_by_event_name || []).map(e => ({ event: e.eventName || e.event || 'Unknown', count: parseInt(String(e.count || 0)) || 0 })),
-      prevEventCountByEventName: (hist.prev_events_by_event_name || []).map((e: any) => ({ event: e.eventName || e.event || 'Unknown', count: parseInt(String(e.count || 0)) || 0 })),
+      prevEventCountByEventName: (report.seo?.prevEventCountByEventName && report.seo.prevEventCountByEventName.length > 0)
+        ? report.seo.prevEventCountByEventName
+        : (hist.prev_events_by_event_name || []).map((e: any) => ({ event: e.eventName || e.event || 'Unknown', count: parseInt(String(e.count || 0)) || 0 })),
       eventInsight: report.tableExplanations?.event_count_by_event_name || report.tableExplanations?.event_overview || "Interaction event density parsing.",
       keyEventsByPlatform: (report.keyEventsByPlatform || rawSeoData.key_events_by_platform || []).map(p => ({ platform: p.platform || 'Unknown', events: parseInt(String(p.keyEvents || p.events || 0)) || 0 })),
-      prevKeyEventsByPlatform: (hist.prev_key_events_by_platform || []).map((p: any) => ({ platform: p.platform || 'Unknown', events: parseInt(String(p.events || 0)) || 0 })),
+      prevKeyEventsByPlatform: (report.seo?.prevKeyEventsByPlatform && report.seo.prevKeyEventsByPlatform.length > 0)
+        ? report.seo.prevKeyEventsByPlatform
+        : (hist.prev_key_events_by_platform || []).map((p: any) => ({ platform: p.platform || 'Unknown', events: parseInt(String(p.keyEvents || p.events || 0)) || 0 })),
       platformInsight: report.tableExplanations?.key_events_by_platform || report.tableExplanations?.platform_overview || "Hardware gateway distribution metrics.",
       sectionAdvice: {
         kpi_advice: report.sectionAdvice?.kpi_advice || report.section_advice?.kpi_advice || [],
