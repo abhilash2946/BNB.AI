@@ -130,14 +130,31 @@ export const mapReportResponseToMarketingReport = (
                         (report.chartData && report.chartData.length > 0) ? report.chartData :
                         (report.chart_datasets && report.chart_datasets.length > 0) ? report.chart_datasets : [];
 
+    // Historical SEO mapping
+    const hist = rawSeoData.historical_data || {};
+
     result.seo = {
       activeUsersByCountry: geoData.map(c => ({
+        country: c.country || c.label || 'Unknown',
+        users: parseInt(String(c.users || c.valueA || 0)) || 0
+      })),
+      prevActiveUsersByCountry: (hist.prev_users_by_country || []).map((c: any) => ({
         country: c.country || c.label || 'Unknown',
         users: parseInt(String(c.users || c.valueA || 0)) || 0
       })),
       totals: report.seo?.totals || report.ga4_details || {},
       activeUsersInsight: report.tableExplanations?.active_users_by_country || report.tableExplanations?.country_overview || "Geographical distribution shows primary engagement nodes.",
       userActivityOverTime: timelineData.map(a => {
+        const total = parseInt(String(a.users || a.valueA || 0)) || 0;
+        const returning = parseInt(String(a.returning || a.valueB || a.returningUsers || 0)) || 0;
+        return {
+          date: a.date || a.label || 'Unknown',
+          users: total,
+          returning: returning,
+          newUsers: a.newUsers || Math.max(0, total - returning)
+        };
+      }),
+      prevUserActivityOverTime: (hist.daily_users || []).map((a: any) => {
         const total = parseInt(String(a.users || a.valueA || 0)) || 0;
         const returning = parseInt(String(a.returning || a.valueB || a.returningUsers || 0)) || 0;
         return {
@@ -158,12 +175,16 @@ export const mapReportResponseToMarketingReport = (
       averagePosition: report.averagePosition,
       topKeywordsInsight: report.aiTopKeywordsOverview || report.tableExplanations?.top_keywords_overview || "Search term resonance and bidding efficiency.",
       viewsByPageTitle: (report.topPageTitles || []).map(p => ({ pageTitle: p.title || 'Unknown', views: parseInt(String(p.views || 0)) || 0 })),
+      prevViewsByPageTitle: (hist.prev_top_page_titles || []).map((p: any) => ({ pageTitle: p.title || 'Unknown', views: parseInt(String(p.views || 0)) || 0 })),
       viewsByPageInsight: report.tableExplanations?.views_by_page_title || report.tableExplanations?.page_title_overview || "Content resonance metrics across active page nodes.",
       sessionsByChannel: (report.sessionsByChannel || rawSeoData.sessions_by_channel || []).map(s => ({ channel: s.channel || 'Unknown', sessions: parseInt(String(s.sessions || 0)) || 0 })),
+      prevSessionsByChannel: (hist.prev_sessions_by_channel || []).map((s: any) => ({ channel: s.channel || 'Unknown', sessions: parseInt(String(s.sessions || 0)) || 0 })),
       sessionsInsight: report.tableExplanations?.sessions_by_channel || report.tableExplanations?.channel_overview || "Acquisition protocol efficiency.",
       eventCountByEventName: (report.eventsByEventName || rawSeoData.events_by_event_name || []).map(e => ({ event: e.eventName || e.event || 'Unknown', count: parseInt(String(e.count || 0)) || 0 })),
+      prevEventCountByEventName: (hist.prev_events_by_event_name || []).map((e: any) => ({ event: e.eventName || e.event || 'Unknown', count: parseInt(String(e.count || 0)) || 0 })),
       eventInsight: report.tableExplanations?.event_count_by_event_name || report.tableExplanations?.event_overview || "Interaction event density parsing.",
       keyEventsByPlatform: (report.keyEventsByPlatform || rawSeoData.key_events_by_platform || []).map(p => ({ platform: p.platform || 'Unknown', events: parseInt(String(p.keyEvents || p.events || 0)) || 0 })),
+      prevKeyEventsByPlatform: (hist.prev_key_events_by_platform || []).map((p: any) => ({ platform: p.platform || 'Unknown', events: parseInt(String(p.events || 0)) || 0 })),
       platformInsight: report.tableExplanations?.key_events_by_platform || report.tableExplanations?.platform_overview || "Hardware gateway distribution metrics.",
       sectionAdvice: {
         kpi_advice: report.sectionAdvice?.kpi_advice || report.section_advice?.kpi_advice || [],
@@ -189,6 +210,9 @@ export const mapReportResponseToMarketingReport = (
     const perfKpis = (category === 'Combined Intelligence' && report.googleAdsKpis)
       ? report.googleAdsKpis
       : report.tableData1;
+
+    const rawGa4Details = report.ga4_details || {};
+    const hist = rawGa4Details.historical_data || {};
 
     result.performance = {
       googleAdsKpis: perfKpis.map(d => ({
@@ -356,12 +380,26 @@ export const mapReportResponseToMarketingReport = (
         meta_adset_advice: report.sectionAdvice?.meta_adset_advice || report.section_advice?.meta_adset_advice || [],
         meta_device_advice: report.sectionAdvice?.meta_device_advice || report.section_advice?.meta_device_advice || [],
       },
-      websiteTrafficByCountry: (report.topCountries || report.ga4_details?.top_countries || []).map((c: any) => ({
+      websiteTrafficByCountry: (report.topCountries || rawGa4Details.top_countries || []).map((c: any) => ({
+        country: c.country || 'Unknown',
+        users: parseInt(c.users) || 0
+      })),
+      prevWebsiteTrafficByCountry: (hist.prev_users_by_country || []).map((c: any) => ({
         country: c.country || 'Unknown',
         users: parseInt(c.users) || 0
       })),
       websiteTrafficInsight: report.tableExplanations?.active_users_by_country || "Distribution of website visitors driven by performance marketing efforts.",
-      dailyWebsiteActivity: (report.userActivityOverTime || report.ga4_details?.daily_users || report.chartData || []).map((a: any) => {
+      dailyWebsiteActivity: (report.userActivityOverTime || rawGa4Details.daily_users || report.chartData || []).map((a: any) => {
+        const total = a.users || a.valueA || 0;
+        const returning = a.returning || a.valueB || a.returningUsers || 0;
+        return {
+          date: a.date || a.label,
+          users: total,
+          returning: returning,
+          newUsers: a.newUsers || Math.max(0, total - returning)
+        };
+      }),
+      prevDailyWebsiteActivity: (hist.daily_users || []).map((a: any) => {
         const total = a.users || a.valueA || 0;
         const returning = a.returning || a.valueB || a.returningUsers || 0;
         return {
@@ -372,7 +410,8 @@ export const mapReportResponseToMarketingReport = (
         };
       }),
       dailyWebsiteActivityInsight: report.tableExplanations?.user_activity_over_time || "Daily user volume trend on the website during the campaign period.",
-      sessionsByChannel: (report.sessionsByChannel || report.ga4_details?.sessions_by_channel || []).map(s => ({ channel: s.channel, sessions: s.sessions })),
+      sessionsByChannel: (report.sessionsByChannel || rawGa4Details.sessions_by_channel || []).map(s => ({ channel: s.channel, sessions: s.sessions })),
+      prevSessionsByChannel: (hist.prev_sessions_by_channel || []).map((s: any) => ({ channel: s.channel, sessions: s.sessions })),
       sessionsInsight: report.tableExplanations?.sessions_by_channel || report.tableExplanations?.channel_overview || "Acquisition protocol efficiency across all primary channels.",
       aiCompetitorAnalysis: {
         inferredActions: report.aiCompetitorAnalysis?.inferred_actions || report.aiCompetitorAnalysis?.inferredActions || [],

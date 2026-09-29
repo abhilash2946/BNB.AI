@@ -126,6 +126,7 @@ export interface RawReport {
   ai_comparison?: string;
   radar_data?: any;
   ai_insights?: any;
+  ai_summary_content?: string;
   ai_slide_descriptions?: Record<string, string>;
   seo_work_details?: {
     new_posts: string[];
@@ -259,6 +260,7 @@ export interface ActivityOverTime {
   date: string;
   users: number;
   returning?: number;
+  newUsers?: number;
 }
 
 export interface PageViews {
@@ -287,6 +289,7 @@ export interface CompetitorBreakdown {
   inferred_actions: string[];
   strengths: string[];
   weaknesses: string[];
+  discovery_query?: string;
 }
 
 export interface SelfGapAnalysis {
@@ -306,22 +309,29 @@ export interface CompetitorAnalysis {
 
 export interface SeoReportData {
   activeUsersByCountry: CountryUsers[];
+  prevActiveUsersByCountry?: CountryUsers[];
   activeUsersInsight: string;
   userActivityOverTime: ActivityOverTime[];
+  prevUserActivityOverTime?: ActivityOverTime[];
   userActivityInsight: string;
   topKeywords: { keyword: string; clicks: number; ctr: string; position: string; previous_position?: string | number }[];
   averagePosition?: number;
   topKeywordsInsight: string;
   viewsByPageTitle: PageViews[];
+  prevViewsByPageTitle?: PageViews[];
   viewsByPageInsight: string;
   sessionsByChannel: ChannelSessions[];
+  prevSessionsByChannel?: ChannelSessions[];
   sessionsInsight: string;
   eventCountByEventName: EventCount[];
+  prevEventCountByEventName?: EventCount[];
   eventInsight: string;
   keyEventsByPlatform: PlatformEvents[];
+  prevKeyEventsByPlatform?: PlatformEvents[];
   platformInsight: string;
   totals?: any;
   sectionAdvice: {
+    kpi_advice: string[];
     demographics: string[];
     timeline: string[];
     keywords: string[];
@@ -409,27 +419,37 @@ export interface PerformanceReportData {
   googleAdsKpis: GoogleAdsKpi[];
   googleAdsInsight: string;
   topCampaigns: TopCampaign[];
+  prevTopCampaigns?: TopCampaign[];
   topCampaignsInsight: string;
   topKeywords: TopKeyword[];
+  prevTopKeywords?: TopKeyword[];
   topKeywordsInsight: string;
   googleDeviceBreakdown: DeviceBreakdown[];
+  prevGoogleDeviceBreakdown?: DeviceBreakdown[];
   googleDeviceInsight: string;
   metaAdsKpis: MetaAdsKpi[];
   metaAdsInsight: string;
   metaTopCampaigns: MetaCampaign[];
+  prevMetaTopCampaigns?: MetaCampaign[];
   metaTopCampaignsInsight: string;
   metaAdSets: MetaAdSet[];
+  prevMetaAdSets?: MetaAdSet[];
   metaAdSetsInsight: string;
   metaDeviceBreakdown: DeviceBreakdown[];
+  prevMetaDeviceBreakdown?: DeviceBreakdown[];
   metaDeviceInsight: string;
   websiteTrafficByCountry: CountryUsers[];
+  prevWebsiteTrafficByCountry?: CountryUsers[];
   websiteTrafficInsight: string;
   dailyWebsiteActivity: ActivityOverTime[];
+  prevDailyWebsiteActivity?: ActivityOverTime[];
   dailyWebsiteActivityInsight: string;
   sessionsByChannel?: ChannelSessions[];
+  prevSessionsByChannel?: ChannelSessions[];
   sessionsInsight?: string;
   totals?: any;
   aiCompetitorAnalysis: CompetitorAnalysis;
+  sectionAdvice: SectionAdvice;
 }
 
 // Social Details
@@ -566,6 +586,14 @@ export interface ScatterPoint {
   ctr: number;      // percentage, e.g. 32.1
   position: number; // e.g. 1.86
   volume?: number;  // optional sized bubble
+}
+
+export interface FunnelStage {
+  id: string;
+  name: string;
+  value: number;
+  percentage?: string;
+  conversionText?: string;
 }
 
 export interface FunnelStage {

@@ -16,6 +16,7 @@ import { MarketingReport, SectionType } from '../types';
 import { CompetitorRadar } from './CompetitorRadar';
 import { WorldMap } from './WorldMap';
 import ShareDialog from './ShareDialog';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface ReportViewsProps {
   report: MarketingReport;
@@ -64,12 +65,15 @@ const getCompetitorStatus = (comp: any) => {
   return { level: 'Low', color: 'bg-gray-600', icon: '⚪', text: 'text-gray-600' };
 };
 
+type PeriodType = 'current' | 'previous';
+
 export default function ReportViews({ report, activeSection, isSharedMode }: ReportViewsProps) {
   const isReports = activeSection === "Reports";
   const isGraphs = activeSection === "Graphs";
   const isBnBReport = activeSection === "BnB Report";
   const isClientReport = activeSection === "Client Report";
 
+  const [activePeriod, setActivePeriod] = useState<PeriodType>('current');
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
 
   if (!report) {
@@ -110,7 +114,7 @@ export default function ReportViews({ report, activeSection, isSharedMode }: Rep
       {/* 1. Header (UI from bnb.ai) */}
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <div className="inline-flex items-center px-3 py-1 rounded-md bg-white/10 border border-white/20">
               <span className="text-[9px] font-mono font-bold text-white uppercase tracking-[0.2em]">Active Division: {report.category}</span>
             </div>
@@ -123,9 +127,32 @@ export default function ReportViews({ report, activeSection, isSharedMode }: Rep
                 <Icons.Share2 size={14} />
               </button>
             )}
+
+            {/* TEMPORAL SWITCHER (Only for BnB Report) */}
+            {isBnBReport && (
+              <div className="flex items-center bg-white/5 rounded-lg p-1 border border-white/10 ml-2">
+                <button
+                  onClick={() => setActivePeriod('current')}
+                  className={`px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded transition-all ${activePeriod === 'current' ? 'bg-white text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                >
+                  Current
+                </button>
+                <button
+                  onClick={() => setActivePeriod('previous')}
+                  className={`px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded transition-all ${activePeriod === 'previous' ? 'bg-white text-black shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                >
+                  Previous
+                </button>
+              </div>
+            )}
           </div>
           <h1 className="text-4xl font-display font-bold text-white tracking-tight">
             {report.siteName} {activeSection}
+            {isBnBReport && (
+              <span className="text-sm font-mono text-gray-500 ml-4 align-middle uppercase tracking-widest">
+                [{activePeriod} Period]
+              </span>
+            )}
           </h1>
           <div className="flex items-center gap-2 text-gray-500 text-xs font-mono">
              <Icons.Calendar size={12} className="text-white" />
@@ -143,6 +170,7 @@ export default function ReportViews({ report, activeSection, isSharedMode }: Rep
       {process.env.NODE_ENV === 'development' && (
         <div className="p-2 border border-white/20 rounded-lg bg-white/5 flex gap-4 text-[10px] font-mono text-white">
           <span>[SYSTEM_LINK] SECTION: {activeSection}</span>
+          <span>[SYSTEM_LINK] PERIOD: {activePeriod}</span>
           <span>[SYSTEM_LINK] KPI_COUNT: {report.kpis?.length || 0}</span>
           <span>[SYSTEM_LINK] SEO_NODE: {report.seo ? 'ONLINE' : 'OFFLINE'}</span>
           {report.seo && (
@@ -185,7 +213,7 @@ export default function ReportViews({ report, activeSection, isSharedMode }: Rep
                   </div>
                   <h2 className="text-xl font-display font-bold text-white uppercase tracking-widest">Organic Intelligence (SEO)</h2>
                 </div>
-                <SeoReportView data={report.seo} section={activeSection} radarData={report.radarData} report={report} hideRadar />
+                <SeoReportView data={report.seo} section={activeSection} radarData={report.radarData} report={report} hideRadar activePeriod={activePeriod} />
               </div>
             )}
 
@@ -197,7 +225,7 @@ export default function ReportViews({ report, activeSection, isSharedMode }: Rep
                   </div>
                   <h2 className="text-xl font-display font-bold text-white uppercase tracking-widest">Performance Intelligence (Ads)</h2>
                 </div>
-                <PerformanceReportView data={report.performance} section={activeSection} radarData={report.radarData} report={report} hideRadar />
+                <PerformanceReportView data={report.performance} section={activeSection} radarData={report.radarData} report={report} hideRadar activePeriod={activePeriod} />
               </div>
             )}
 
@@ -214,10 +242,10 @@ export default function ReportViews({ report, activeSection, isSharedMode }: Rep
         )}
 
         {report.category === 'SEO' && report.seo && (
-          <SeoReportView data={report.seo} section={activeSection} radarData={report.radarData} report={report} />
+          <SeoReportView data={report.seo} section={activeSection} radarData={report.radarData} report={report} activePeriod={activePeriod} />
         )}
         {report.category === 'Performance Marketing' && report.performance && (
-          <PerformanceReportView data={report.performance} section={activeSection} radarData={report.radarData} report={report} />
+          <PerformanceReportView data={report.performance} section={activeSection} radarData={report.radarData} report={report} activePeriod={activePeriod} />
         )}
         {report.category === 'Social Media Marketing' && report.social && (
           <SocialReportView data={report.social} section={activeSection} />
@@ -352,13 +380,22 @@ export default function ReportViews({ report, activeSection, isSharedMode }: Rep
 }
 
 /* --- SEO VIEW --- */
-function SeoReportView({ data, section, radarData, report, hideRadar }: { data: any, section: SectionType, radarData: any[], report: MarketingReport, hideRadar?: boolean }) {
+function SeoReportView({ data, section, radarData, report, hideRadar, activePeriod }: { data: any, section: SectionType, radarData: any[], report: MarketingReport, hideRadar?: boolean, activePeriod?: PeriodType }) {
   const isReports = section === "Reports";
   const isGraphs = section === "Graphs";
   const isBnB = section === "BnB Report";
   const isClient = section === "Client Report";
 
   const [selectedCompetitor, setSelectedCompetitor] = useState<string>("all");
+
+  const usePrevious = activePeriod === 'previous' && isBnB;
+
+  const currentCountryData = usePrevious ? (data.prevActiveUsersByCountry || []) : data.activeUsersByCountry;
+  const currentTimelineData = usePrevious ? (data.prevUserActivityOverTime || []) : data.userActivityOverTime;
+  const currentPagesData = usePrevious ? (data.prevViewsByPageTitle || []) : data.viewsByPageTitle;
+  const currentChannelData = usePrevious ? (data.prevSessionsByChannel || []) : data.sessionsByChannel;
+  const currentEventsData = usePrevious ? (data.prevEventCountByEventName || []) : data.eventCountByEventName;
+  const currentPlatformData = usePrevious ? (data.prevKeyEventsByPlatform || []) : data.keyEventsByPlatform;
 
   if (isGraphs) {
     return (
@@ -414,10 +451,10 @@ function SeoReportView({ data, section, radarData, report, hideRadar }: { data: 
           {/* 1. Active Users (Small) */}
           <DataBlock title="Active Users By Country" icon={Icons.Globe} insight={data.activeUsersInsight} advice={isBnB ? data.sectionAdvice.demographics : []} adviceTitle="DEMOGRAPHIC STRATEGY">
             <div className="space-y-8">
-              <DataTable headers={['Country', 'Nodes']} rows={data.activeUsersByCountry.map((c: any) => [c.country, c.users?.toLocaleString() || "0"])} />
+              <DataTable headers={['Country', 'Nodes']} rows={currentCountryData.map((c: any) => [c.country, c.users?.toLocaleString() || "0"])} />
               {showVisuals && (
                 <div className="w-full">
-                  <WorldMap data={data.activeUsersByCountry} />
+                  <WorldMap data={currentCountryData} />
                 </div>
               )}
             </div>
@@ -426,11 +463,11 @@ function SeoReportView({ data, section, radarData, report, hideRadar }: { data: 
           {/* 4. Page Views (Small) */}
           <DataBlock title="Views By Page Title" icon={Icons.Layers} insight={data.viewsByPageInsight} advice={isBnB ? data.sectionAdvice.pages : []} adviceTitle="PAGE OPTIMIZATION">
              <div className={`grid grid-cols-1 ${showVisuals ? 'xl:grid-cols-2' : ''} gap-6 items-stretch`}>
-              <DataTable headers={['Page Title', 'Views']} rows={data.viewsByPageTitle.map((p: any) => [p.pageTitle, p.views?.toLocaleString() || "0"])} />
+              <DataTable headers={['Page Title', 'Views']} rows={currentPagesData.map((p: any) => [p.pageTitle, p.views?.toLocaleString() || "0"])} />
               {showVisuals && (
                 <div className="h-48 bg-black/20 rounded-xl p-2 border border-white/5">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart layout="vertical" data={data.viewsByPageTitle.slice(0, 10)}>
+                    <BarChart layout="vertical" data={currentPagesData.slice(0, 10)}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
                       <XAxis type="number" stroke="rgba(255,255,255,0.3)" fontSize={8} />
                       <YAxis dataKey="pageTitle" type="category" width={80} tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 8 }} />
@@ -447,11 +484,11 @@ function SeoReportView({ data, section, radarData, report, hideRadar }: { data: 
           {/* 6. Events (Small) */}
           <DataBlock title="Event Density" icon={Icons.Activity} insight={data.eventInsight} advice={isBnB ? data.sectionAdvice.events : []} adviceTitle="EVENT MONITORING">
              <div className={`grid grid-cols-1 ${showVisuals ? 'xl:grid-cols-2' : ''} gap-6 items-stretch`}>
-              <DataTable headers={['Event', 'Count']} rows={data.eventCountByEventName.map((e: any) => [e.event, e.count?.toLocaleString() || "0"])} />
+              <DataTable headers={['Event', 'Count']} rows={currentEventsData.map((e: any) => [e.event, e.count?.toLocaleString() || "0"])} />
               {showVisuals && (
                 <div className="h-48 bg-black/20 rounded-xl p-2 border border-white/5">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart layout="vertical" data={data.eventCountByEventName.slice(0, 5)}>
+                    <BarChart layout="vertical" data={currentEventsData.slice(0, 5)}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
                       <XAxis type="number" stroke="rgba(255,255,255,0.3)" fontSize={8} />
                       <YAxis dataKey="event" type="category" width={80} tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 8 }} />
@@ -471,17 +508,17 @@ function SeoReportView({ data, section, radarData, report, hideRadar }: { data: 
           {/* 2. Timeline (Small) */}
           <DataBlock title="User Activity Timeline" icon={Icons.Calendar} insight={data.userActivityInsight} advice={isBnB ? data.sectionAdvice.timeline : []} adviceTitle="TIMELINE STRATEGY">
             <div className={`grid grid-cols-1 ${showVisuals ? 'xl:grid-cols-2' : ''} gap-6 items-stretch`}>
-              <DataTable headers={['Date', 'Users']} rows={data.userActivityOverTime.map((a: any) => [a.date, a.users?.toLocaleString() || "0"])} />
+              <DataTable headers={['Date', 'Users']} rows={currentTimelineData.map((a: any) => [a.date, a.users?.toLocaleString() || "0"])} />
               {showVisuals && (
                 <div className="h-48 bg-black/20 rounded-xl p-2 border border-white/5">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={data.userActivityOverTime}>
+                    <LineChart data={currentTimelineData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                       <XAxis dataKey="date" stroke="rgba(255,255,255,0.3)" fontSize={8} interval="preserveStartEnd" minTickGap={30} />
                       <YAxis stroke="rgba(255,255,255,0.3)" fontSize={8} />
                       <ChartTooltip content={<CustomTooltip />} />
                       <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
-                      <Line type="monotone" dataKey="users" name="Active Members" stroke="#FFFFFF" strokeWidth={2} dot={data.userActivityOverTime.length < 31 ? { fill: '#FFFFFF', r: 2 } : false} activeDot={{ r: 4, strokeWidth: 0 }} />
+                      <Line type="monotone" dataKey="users" name="Active Members" stroke="#FFFFFF" strokeWidth={2} dot={currentTimelineData.length < 31 ? { fill: '#FFFFFF', r: 2 } : false} activeDot={{ r: 4, strokeWidth: 0 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -492,13 +529,13 @@ function SeoReportView({ data, section, radarData, report, hideRadar }: { data: 
           {/* 5. Sessions (Small) */}
           <DataBlock title="Sessions By Channel" icon={Icons.Users} insight={data.sessionsInsight} advice={isBnB ? data.sectionAdvice.channels : []} adviceTitle="CHANNEL ALLOCATION">
              <div className={`grid grid-cols-1 ${showVisuals ? 'xl:grid-cols-2' : ''} gap-6 items-stretch`}>
-              <DataTable headers={['Channel', 'Sessions']} rows={data.sessionsByChannel.map((s: any) => [s.channel, s.sessions?.toLocaleString() || "0"])} />
+              <DataTable headers={['Channel', 'Sessions']} rows={currentChannelData.map((s: any) => [s.channel, s.sessions?.toLocaleString() || "0"])} />
               {showVisuals && (
                 <div className="h-48 bg-black/20 rounded-xl p-2 border border-white/5 flex items-center justify-center">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={data.sessionsByChannel.slice(0, 5)} dataKey="sessions" nameKey="channel" cx="50%" cy="50%" outerRadius={50} innerRadius={30}>
-                        {data.sessionsByChannel.slice(0, 5).map((_: any, index: number) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
+                      <Pie data={currentChannelData.slice(0, 5)} dataKey="sessions" nameKey="channel" cx="50%" cy="50%" outerRadius={50} innerRadius={30}>
+                        {currentChannelData.slice(0, 5).map((_: any, index: number) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
                       </Pie>
                       <ChartTooltip content={<CustomTooltip />} />
                       <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
@@ -512,13 +549,13 @@ function SeoReportView({ data, section, radarData, report, hideRadar }: { data: 
           {/* 7. Platform Access (Small) */}
           <DataBlock title="Hardware Vector Access" icon={Icons.Database} insight={data.platformInsight} advice={isBnB ? data.sectionAdvice.platforms : []} adviceTitle="PLATFORM BLUEPRINTS">
              <div className={`grid grid-cols-1 ${showVisuals ? 'xl:grid-cols-2' : ''} gap-6 items-stretch`}>
-              <DataTable headers={['Platform', 'Events']} rows={data.keyEventsByPlatform.map((p: any) => [p.platform, p.events?.toLocaleString() || "0"])} />
+              <DataTable headers={['Platform', 'Events']} rows={currentPlatformData.map((p: any) => [p.platform, p.events?.toLocaleString() || "0"])} />
               {showVisuals && (
                 <div className="h-48 bg-black/20 rounded-xl p-2 border border-white/5 flex items-center justify-center">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={data.keyEventsByPlatform.slice(0, 4)} dataKey="events" nameKey="platform" cx="50%" cy="50%" outerRadius={50} innerRadius={30}>
-                        {data.keyEventsByPlatform.slice(0, 4).map((_: any, index: number) => <Cell key={index} fill={COLORS[(index+3) % COLORS.length]} />)}
+                      <Pie data={currentPlatformData.slice(0, 4)} dataKey="events" nameKey="platform" cx="50%" cy="50%" outerRadius={50} innerRadius={30}>
+                        {currentPlatformData.slice(0, 4).map((_: any, index: number) => <Cell key={index} fill={COLORS[(index+3) % COLORS.length]} />)}
                       </Pie>
                       <ChartTooltip content={<CustomTooltip />} />
                       <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
@@ -739,13 +776,19 @@ function SeoReportView({ data, section, radarData, report, hideRadar }: { data: 
 }
 
 /* --- PERFORMANCE VIEW --- */
-function PerformanceReportView({ data, section, radarData, report, hideRadar }: { data: any, section: SectionType, radarData: any[], report: MarketingReport, hideRadar?: boolean }) {
+function PerformanceReportView({ data, section, radarData, report, hideRadar, activePeriod }: { data: any, section: SectionType, radarData: any[], report: MarketingReport, hideRadar?: boolean, activePeriod?: PeriodType }) {
   const isReports = section === "Reports";
   const isGraphs = section === "Graphs";
   const isBnB = section === "BnB Report";
   const isClient = section === "Client Report";
 
   const [selectedCompetitor, setSelectedCompetitor] = useState<string>("all");
+
+  const usePrevious = activePeriod === 'previous' && isBnB;
+
+  const currentCountryData = usePrevious ? (data.prevWebsiteTrafficByCountry || []) : data.websiteTrafficByCountry;
+  const currentTimelineData = usePrevious ? (data.prevDailyWebsiteActivity || []) : data.dailyWebsiteActivity;
+  const currentChannelData = usePrevious ? (data.prevSessionsByChannel || []) : data.sessionsByChannel;
 
   if (isGraphs) {
     return (
@@ -1029,6 +1072,38 @@ function PerformanceReportView({ data, section, radarData, report, hideRadar }: 
               </div>
             )}
           </div>
+        </DataBlock>
+
+        {/* 9. Website Traffic (Extra context) */}
+        <DataBlock title="Website Traffic By Country" icon={Icons.Globe} insight={data.websiteTrafficInsight} advice={isBnB ? performanceAdvice.meta_kpi_advice : []} adviceTitle="AUDIENCE STRATEGY">
+            <div className="space-y-8">
+              <DataTable headers={['Country', 'Nodes']} rows={currentCountryData.map((c: any) => [c.country, c.users?.toLocaleString() || "0"])} />
+              {showVisuals && (
+                <div className="w-full">
+                  <WorldMap data={currentCountryData} />
+                </div>
+              )}
+            </div>
+        </DataBlock>
+
+        <DataBlock title="Website Activity Flux" icon={Icons.Calendar} insight={data.dailyWebsiteActivityInsight} advice={isBnB ? performanceAdvice.meta_campaign_advice : []} adviceTitle="TEMPORAL STEPS">
+            <div className={`grid grid-cols-1 ${showVisuals ? 'xl:grid-cols-2' : ''} gap-6 items-stretch`}>
+              <DataTable headers={['Date', 'Users']} rows={currentTimelineData.map((a: any) => [a.date, a.users?.toLocaleString() || "0"])} />
+              {showVisuals && (
+                <div className="h-48 bg-black/20 rounded-xl p-2 border border-white/5">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={currentTimelineData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                      <XAxis dataKey="date" stroke="rgba(255,255,255,0.3)" fontSize={8} interval="preserveStartEnd" minTickGap={30} />
+                      <YAxis stroke="rgba(255,255,255,0.3)" fontSize={8} />
+                      <ChartTooltip content={<CustomTooltip />} />
+                      <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
+                      <Line type="monotone" dataKey="users" name="Active Members" stroke="#FFFFFF" strokeWidth={2} dot={currentTimelineData.length < 31 ? { fill: '#FFFFFF', r: 2 } : false} activeDot={{ r: 4, strokeWidth: 0 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
         </DataBlock>
 
       </div>
