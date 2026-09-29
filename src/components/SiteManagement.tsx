@@ -427,8 +427,8 @@ export default function SiteManagement({
         body: formData
       });
 
-      if (!uploadRes.ok) throw new Error(await uploadRes.text());
-      const { url } = await uploadRes.json();
+      if (!res.ok) throw new Error(await res.text());
+      const { url } = await res.json();
 
       setSiteImageUrl(url);
 

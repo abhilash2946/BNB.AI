@@ -7,6 +7,7 @@ import uuid
 import os
 import shutil
 import traceback
+import base64
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
@@ -569,14 +570,14 @@ async def api_summarize_advice(
 
 @api_router.post("/upload", tags=["Uploads"])
 async def upload_file(file: UploadFile = File(...), user_id: str = Depends(get_current_user)):
-    file_ext = file.filename.split(".")[-1]
-    file_name = f"{uuid.uuid4()}.{file_ext}"
-    file_path = os.path.join("static/uploads", file_name)
-
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    return {"url": f"{settings.api_url}/static/uploads/{file_name}"}
+    try:
+        contents = await file.read()
+        encoded = base64.b64encode(contents).decode("utf-8")
+        mime_type = file.content_type or "image/png"
+        data_url = f"data:{mime_type};base64,{encoded}"
+        return {"url": data_url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- System Health ---
 
@@ -603,7 +604,7 @@ async def custom_swagger_ui_html():
         title="BNB.AI API - Documentation",
         oauth2_redirect_url="/api/docs/oauth2-redirect",
         swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.11.10/swagger-ui-bundle.js",
-        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.11.10/swagger-ui.css",
+        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.11.10/swagger-css.css",
         swagger_ui_parameters={
             "persistAuthorization": True,
             "displayRequestDuration": True,
