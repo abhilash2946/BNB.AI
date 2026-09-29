@@ -437,9 +437,13 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
         gbp_details = {}
         ga4_totals = {}
         daily_ga4 = []
+        prev_daily_ga4 = []
         sessions_by_channel = []
+        prev_sessions_by_channel = []
         geo_users = []
+        prev_geo_users = []
         top_landing = []
+        prev_top_landing = []
 
         # 2. Compute previous period
         prev_start, prev_end = compute_previous_period(start_date, end_date)
@@ -527,6 +531,7 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
                 ga4_tasks = [
                     sem_ga4(fetch_ga4_totals(ga4_property_id, ga4_token, start_date, end_date, prev_start, prev_end)),
                     sem_ga4(fetch_ga4_daily_users(ga4_property_id, ga4_token, start_date, end_date)),
+                    sem_ga4(fetch_ga4_daily_users(ga4_property_id, ga4_token, prev_start, prev_end)),
                     sem_ga4(fetch_ga4_sessions_by_channel(ga4_property_id, ga4_token, start_date, end_date)),
                     sem_ga4(fetch_ga4_sessions_by_channel(ga4_property_id, ga4_token, prev_start, prev_end)),
                     sem_ga4(fetch_ga4_geography(ga4_property_id, ga4_token, start_date, end_date)),
@@ -635,11 +640,11 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             idx += 1
 
         if ga4_tasks:
-            ga_res = all_results[idx:idx+8]
+            ga_res = all_results[idx:idx+9]
             ga_results = [r if not isinstance(r, Exception) else {} for r in ga_res]
-            ga4_totals, daily_ga4, sessions_by_channel, prev_sessions_by_channel, geo_users, prev_geo_users, top_landing, prev_top_landing = ga_results
+            ga4_totals, daily_ga4, prev_daily_ga4, sessions_by_channel, prev_sessions_by_channel, geo_users, prev_geo_users, top_landing, prev_top_landing = ga_results
             print(f"✅ [GA4] DATA FETCH SUCCESS.")
-            idx += 8
+            idx += 9
 
         if gbp_task:
             gbp_res = all_results[idx]
@@ -655,9 +660,7 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
 
         # 6. Perform Advanced Performance Analytics
         print("---> Running Performance Analytics...")
-        print(f"DEBUG: Mapping Comparison - Gcur: {google_cur.get('cost')} Gprev: {google_prev.get('cost')} Mcur: {meta_current.get('spend')} Mprev: {meta_previous.get('spend')}")
         perf_kpi_analysis = analyse_performance_kpis(google_cur, meta_current, google_prev, meta_previous)
-        print(f"DEBUG: Perf KPI Analysis Results: {perf_kpi_analysis.get('total_leads')} leads, {perf_kpi_analysis.get('total_spend')} spend")
         campaign_eff_analysis = analyse_campaign_efficiency(google_ads_details.get('top_campaigns', []))
         self_radar = compute_performance_self_radar(google_cur, meta_current, ga4_totals)
 
@@ -822,10 +825,6 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
         ai_result["ai_comparison"] = ai_result.get("ai_comparison") or "Data synchronization complete."
         ai_result["ai_recommendations"] = ai_result.get("neural_strategy_markers") or []
 
-        # Map re-indexed recommendations_summarized if needed
-        if "recommendations_summarized" in ai_result:
-            pass # Already correctly named
-
         # Merge competitor data
         merged_competitors = []
         def extract_comps(res):
@@ -898,22 +897,17 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
         recs = ai_result.get("recommendations", [])
         if recs and isinstance(recs[0], str):
             ai_result["recommendations"] = [str(r) for r in recs]
-        # If already objects, leave them alone for ReportViews.tsx
 
         # Use recommendations_summarized from Gemini if available, otherwise fallback
         summarized_recs = ai_result.get("recommendations_summarized", [])
         if not summarized_recs or len(summarized_recs) != len(ai_result["recommendations"]):
              summarized_recs = [" ".join(str(r).split()[:10]) + "..." for r in ai_result["recommendations"]]
 
-
         # Sanitize strings
         for key in ["summary", "top_keywords_overview"]:
             if not isinstance(ai_result.get(key), str): ai_result[key] = "Detailed analysis in sections."
 
-        # 9.5. Build Presentation Insights for the new slides
-        kpis = perf_kpi_analysis.get("overall_kpis", [])
-        print(f"DEBUG: Performance Worker Overall KPIs: {json.dumps(kpis, separators=(',', ':'))}")
-
+        # 9.5. Build Presentation Insights
         presentation_insights = {
             "branding": {
                 "siteName": site_info.get("name"),
@@ -939,23 +933,25 @@ async def run_performance_report(user_id: str, site_id: str, start_date: str, en
             "google_ads": {"current": google_cur, "previous": google_prev},
             "meta_ads": {"current": meta_current, "previous": meta_previous}
         }
-        print(f"DEBUG: Storing KPI Summary: {json.dumps(kpi_to_store, separators=(',', ':'))}")
-
-        # Preserve raw data before AI overwriting logic (if any)
-        processed_google_details = {**google_ads_details}
-        # Force top_keywords to be the raw array for the frontend
-        top_keywords_array = google_ads_details.get("top_keywords", [])
-        if not isinstance(top_keywords_array, list): top_keywords_array = []
 
         save_db_processed_report({
             "report_id": report_id, "user_id": user_id, "site_id": site_id, "module": "performance",
             "start_date": start_date, "end_date": end_date,
             "kpi_summary": kpi_to_store,
-            "top_keywords": top_keywords_array, # Store raw array here!
+            "top_keywords": google_ads_details.get("top_keywords", []),
             "top_landing_pages": top_landing, "users_by_country": geo_users, "sessions_by_channel": sessions_by_channel,
             "charts": {"overview": chart_data_overview, "devices": google_results[11], "demographics": google_results[12], "search_terms": google_results[13], "campaigns": google_results[14]},
-            "google_ads_details": processed_google_details, "competitor_data": auction_insights, "radar_data": radar_data, "radar_self": self_radar,
-            "ga4_details": {"daily_users": [{"date": d["date"], "users": d["users"], "returningUsers": max(0, d["users"]-d["newUsers"])} for d in daily_ga4], "gbp_details": gbp_details},
+            "google_ads_details": google_ads_details, "competitor_data": auction_insights, "radar_data": radar_data, "radar_self": self_radar,
+            "ga4_details": {
+                "daily_users": [{"date": d["date"], "users": d["users"], "returningUsers": max(0, d["users"]-d["newUsers"])} for d in daily_ga4],
+                "gbp_details": gbp_details,
+                "historical_data": {
+                    "prev_users_by_country": prev_geo_users,
+                    "prev_sessions_by_channel": prev_sessions_by_channel,
+                    "prev_top_landing_pages": prev_top_landing,
+                    "daily_users": [{"date": d["date"], "users": d["users"], "returningUsers": max(0, d["users"]-d["newUsers"])} for d in prev_daily_ga4]
+                }
+            },
             "chart_datasets": [{"label": d["date"], "valueA": d["users"], "valueB": max(0, d["users"]-d["newUsers"]), "valueC": 0} for d in daily_ga4],
             "ai_summary": ai_result.get("summary"),
             "ai_insights": presentation_insights,

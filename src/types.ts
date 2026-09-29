@@ -228,6 +228,7 @@ export type SectionType = "Reports" | "Graphs" | "BnB Report" | "Client Report";
 export interface KpiItem {
   label: string;
   value: string;
+  prevValue?: string;
   change: number;  // percentage e.g. 12.5%
   isPositive: boolean;
   icon: string; // lucide icon name
@@ -586,14 +587,6 @@ export interface ScatterPoint {
   ctr: number;      // percentage, e.g. 32.1
   position: number; // e.g. 1.86
   volume?: number;  // optional sized bubble
-}
-
-export interface FunnelStage {
-  id: string;
-  name: string;
-  value: number;
-  percentage?: string;
-  conversionText?: string;
 }
 
 export interface FunnelStage {

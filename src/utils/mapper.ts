@@ -8,6 +8,14 @@ const parseNumeric = (val: any): number => {
   return parseFloat(cleaned) || 0;
 };
 
+const formatDisplayValue = (val: string): string => {
+  const numericValue = parseFloat(val.replace(/[₹$,%]/g, ''));
+  if (!isNaN(numericValue) && !val.includes('%') && !val.includes('₹') && !val.includes('$')) {
+    return numericValue.toLocaleString('en-IN');
+  }
+  return val;
+};
+
 export const mapReportResponseToMarketingReport = (
   report: ReportResponse,
   id: string,
@@ -23,16 +31,10 @@ export const mapReportResponseToMarketingReport = (
     const icons = ["TrendingUp", "Users", "Activity", "Target", "PieChart", "Zap"];
     const changeVal = parseFloat(item.change.replace(/[+%]/g, '')) || 0;
 
-    // Ensure value is localized if it's a number string
-    let displayValue = item.current;
-    const numericValue = parseFloat(displayValue.replace(/[₹$,%]/g, ''));
-    if (!isNaN(numericValue) && !displayValue.includes('%') && !displayValue.includes('₹') && !displayValue.includes('$')) {
-      displayValue = numericValue.toLocaleString('en-IN');
-    }
-
     return {
       label: item.metric.toUpperCase(),
-      value: displayValue,
+      value: formatDisplayValue(item.current),
+      prevValue: formatDisplayValue(item.previous),
       change: Math.abs(changeVal),
       isPositive: changeVal >= 0,
       icon: icons[index % icons.length]
@@ -47,6 +49,7 @@ export const mapReportResponseToMarketingReport = (
     kpis.push({
       label: labels[i],
       value: i === 2 ? "₹0" : "0",
+      prevValue: i === 2 ? "₹0" : "0",
       change: 0,
       isPositive: true,
       icon: icons[i]

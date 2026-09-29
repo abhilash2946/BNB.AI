@@ -414,6 +414,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
             sem_ga4(fetch_ga4_geography(ga4_property_id, ga4_token, start_date, end_date)),
             sem_ga4(fetch_ga4_geography(ga4_property_id, ga4_token, prev_start, prev_end)),
             sem_ga4(fetch_ga4_daily_users(ga4_property_id, ga4_token, start_date, end_date)),
+            sem_ga4(fetch_ga4_daily_users(ga4_property_id, ga4_token, prev_start, prev_end)),
             sem_ga4(fetch_ga4_sessions_by_channel(ga4_property_id, ga4_token, start_date, end_date)),
             sem_ga4(fetch_ga4_sessions_by_channel(ga4_property_id, ga4_token, prev_start, prev_end)),
             sem_ga4(fetch_ga4_events_by_event_name(ga4_property_id, ga4_token, start_date, end_date)),
@@ -424,7 +425,7 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
         )
 
         ga4_results = [r if not isinstance(r, Exception) else {} for r in ga4_results_raw]
-        ga4_totals, top_landing, prev_top_landing, top_page_titles, prev_top_page_titles, geo_users, prev_geo_users, daily_ga4, sessions_by_channel, prev_sessions_by_channel, events_by_event_name, prev_events_by_event_name, key_events_by_platform, prev_key_events_by_platform = ga4_results
+        ga4_totals, top_landing, prev_top_landing, top_page_titles, prev_top_page_titles, geo_users, prev_geo_users, daily_ga4, prev_daily_ga4, sessions_by_channel, prev_sessions_by_channel, events_by_event_name, prev_events_by_event_name, key_events_by_platform, prev_key_events_by_platform = ga4_results
         print(f"DEBUG: GA4 Totals: {ga4_totals}")
         print(f"DEBUG: GA4 Prev Sessions by Channel: {prev_sessions_by_channel}")
         print(f"DEBUG: Top Landing Pages count: {len(top_landing)}")
@@ -779,7 +780,8 @@ async def run_seo_report(user_id: str, site_id: str, start_date: str, end_date: 
                     "prev_users_by_country": prev_geo_users,
                     "prev_sessions_by_channel": prev_sessions_by_channel,
                     "prev_events_by_event_name": prev_events_by_event_name,
-                    "prev_key_events_by_platform": prev_key_events_by_platform
+                    "prev_key_events_by_platform": prev_key_events_by_platform,
+                    "daily_users": [{"date": d["date"], "users": d["users"], "returningUsers": max(0, d["users"]-d["newUsers"])} for d in prev_daily_ga4]
                 },
                 "daily_users": [{"date": d["date"], "users": d["users"], "returningUsers": max(0, d["users"]-d["newUsers"])} for d in daily_ga4]
             },
